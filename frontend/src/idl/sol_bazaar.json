@@ -73,7 +73,39 @@
           "type": "string"
         },
         {
-          "name": "location",
+          "name": "ships_from",
+          "type": "string"
+        },
+        {
+          "name": "seller_deposit_bps",
+          "type": "u16"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "phone",
+          "type": "string"
+        },
+        {
+          "name": "website",
+          "type": "string"
+        },
+        {
+          "name": "facebook",
+          "type": "string"
+        },
+        {
+          "name": "instagram",
+          "type": "string"
+        },
+        {
+          "name": "telegram",
+          "type": "string"
+        },
+        {
+          "name": "x",
           "type": "string"
         }
       ]
@@ -319,7 +351,39 @@
           "type": "string"
         },
         {
-          "name": "location",
+          "name": "ships_from",
+          "type": "string"
+        },
+        {
+          "name": "seller_deposit_bps",
+          "type": "u16"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "phone",
+          "type": "string"
+        },
+        {
+          "name": "website",
+          "type": "string"
+        },
+        {
+          "name": "facebook",
+          "type": "string"
+        },
+        {
+          "name": "instagram",
+          "type": "string"
+        },
+        {
+          "name": "telegram",
+          "type": "string"
+        },
+        {
+          "name": "x",
           "type": "string"
         },
         {
@@ -470,6 +534,11 @@
       "code": 6006,
       "name": "ProductInactive",
       "msg": "Product is inactive"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidDepositPercent",
+      "msg": "Invalid deposit percent"
     }
   ],
   "types": [
@@ -499,8 +568,40 @@
             "type": "string"
           },
           {
-            "name": "location",
+            "name": "ships_from",
             "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "phone",
+            "type": "string"
+          },
+          {
+            "name": "website",
+            "type": "string"
+          },
+          {
+            "name": "facebook",
+            "type": "string"
+          },
+          {
+            "name": "instagram",
+            "type": "string"
+          },
+          {
+            "name": "telegram",
+            "type": "string"
+          },
+          {
+            "name": "x",
+            "type": "string"
+          },
+          {
+            "name": "seller_deposit_bps",
+            "type": "u16"
           },
           {
             "name": "active",

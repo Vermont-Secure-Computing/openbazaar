@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { program } from "../lib/anchor";
-import { Link } from "react-router-dom";        
+import { Link } from "react-router-dom";
+import { getMerchants } from "../lib/merchant";
 
 export default function MerchantList() {
     const [merchants, setMerchants] = useState([]);
@@ -12,28 +12,11 @@ export default function MerchantList() {
             setLoading(true);
             setError("");
 
-            const accounts = await program.account.merchantProfile.all([
-                {
-                    dataSize: 799,
-                },
-            ]);
-
-            setMerchants(
-                accounts.map((item) => ({
-                    publicKey: item.publicKey.toBase58(),
-                    authority: item.account.authority.toBase58(),
-                    storeName: item.account.storeName,
-                    descriptionUri: item.account.descriptionUri,
-                    logoUri: item.account.logoUri,
-                    bannerUri: item.account.bannerUri,
-                    location: item.account.location,
-                    active: item.account.active,
-                    verified: item.account.verified,
-                }))
-            );
+            const result = await getMerchants();
+            setMerchants(result);
         } catch (err) {
             console.error("Merchant list error:", err);
-            setError("Failed to load merchants. Please refresh or try again.");
+            setError("Failed to load merchants.");
         } finally {
             setLoading(false);
         }
@@ -67,10 +50,19 @@ export default function MerchantList() {
                         marginBottom: 16,
                     }}
                 >
-                    <h2>{merchant.storeName}</h2>
+                    <h2>
+                        {merchant.storeName}
+                        {merchant.verified && " ✔"}
+                    </h2>
+
                     <p>{merchant.descriptionUri}</p>
-                    <p>{merchant.location}</p>
+
+                    <p>📦 Ships from: {merchant.shipsFrom}</p>
+
                     <small>{merchant.authority}</small>
+
+                    <br />
+
                     <Link to={`/merchant/${merchant.authority}`}>
                         Visit Store
                     </Link>

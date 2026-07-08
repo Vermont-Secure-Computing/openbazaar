@@ -119,15 +119,19 @@ export default function ProductPage() {
 
                     </p>
 
-                    <p>
-
-                        <strong>Available</strong>
-
-                        <br />
-
-                        {item.stock}
-
-                    </p>
+                    {item.stock === 0 ? (
+                        <p style={{ color: "#dc2626", fontWeight: "bold" }}>
+                            🔴 Out of Stock
+                        </p>
+                    ) : item.stock <= 5 ? (
+                        <p style={{ color: "#d97706", fontWeight: "bold" }}>
+                            🟡 Only {item.stock} left
+                        </p>
+                    ) : (
+                        <p style={{ color: "#16a34a", fontWeight: "bold" }}>
+                            🟢 {item.stock} available
+                        </p>
+                    )}
 
                     <p>
 
