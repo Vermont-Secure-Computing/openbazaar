@@ -12,13 +12,29 @@ pub mod sol_bazaar {
         description_uri: String,
         logo_uri: String,
         banner_uri: String,
-        location: String,
+        ships_from: String,
+        seller_deposit_bps: u16,
+        email: String,
+        phone: String,
+        website: String,
+        facebook: String,
+        instagram: String,
+        telegram: String,
+        x: String,
     ) -> Result<()> {
         require!(store_name.len() <= 64, MarketplaceError::TextTooLong);
         require!(description_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(logo_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(banner_uri.len() <= 200, MarketplaceError::TextTooLong);
-        require!(location.len() <= 64, MarketplaceError::TextTooLong);
+        require!(ships_from.len() <= 64, MarketplaceError::TextTooLong);
+        require!(email.len() <= 100, MarketplaceError::TextTooLong);
+        require!(phone.len() <= 30, MarketplaceError::TextTooLong);
+        require!(website.len() <= 150, MarketplaceError::TextTooLong);
+        require!(facebook.len() <= 100, MarketplaceError::TextTooLong);
+        require!(instagram.len() <= 100, MarketplaceError::TextTooLong);
+        require!(telegram.len() <= 100, MarketplaceError::TextTooLong);
+        require!(x.len() <= 100, MarketplaceError::TextTooLong);
+        require!(seller_deposit_bps <= 10000, MarketplaceError::InvalidDepositPercent);    
 
         let merchant = &mut ctx.accounts.merchant_profile;
 
@@ -27,7 +43,15 @@ pub mod sol_bazaar {
         merchant.description_uri = description_uri;
         merchant.logo_uri = logo_uri;
         merchant.banner_uri = banner_uri;
-        merchant.location = location;
+        merchant.ships_from = ships_from;
+        merchant.seller_deposit_bps = seller_deposit_bps;
+        merchant.email = email;
+        merchant.phone = phone;
+        merchant.website = website;
+        merchant.facebook = facebook;
+        merchant.instagram = instagram;
+        merchant.telegram = telegram;
+        merchant.x = x;
         merchant.active = true;
         merchant.created_at = Clock::get()?.unix_timestamp;
         merchant.bump = ctx.bumps.merchant_profile;
@@ -42,14 +66,30 @@ pub mod sol_bazaar {
         description_uri: String,
         logo_uri: String,
         banner_uri: String,
-        location: String,
+        ships_from: String,
+        seller_deposit_bps: u16,
+        email: String,
+        phone: String,
+        website: String,
+        facebook: String,
+        instagram: String,
+        telegram: String,
+        x: String,
         active: bool,
     ) -> Result<()> {
         require!(store_name.len() <= 64, MarketplaceError::TextTooLong);
         require!(description_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(logo_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(banner_uri.len() <= 200, MarketplaceError::TextTooLong);
-        require!(location.len() <= 64, MarketplaceError::TextTooLong);
+        require!(ships_from.len() <= 64, MarketplaceError::TextTooLong);
+        require!(email.len() <= 100, MarketplaceError::TextTooLong);
+        require!(phone.len() <= 30, MarketplaceError::TextTooLong);
+        require!(website.len() <= 150, MarketplaceError::TextTooLong);
+        require!(facebook.len() <= 100, MarketplaceError::TextTooLong);
+        require!(instagram.len() <= 100, MarketplaceError::TextTooLong);
+        require!(telegram.len() <= 100, MarketplaceError::TextTooLong);
+        require!(x.len() <= 100, MarketplaceError::TextTooLong);
+        require!(seller_deposit_bps <= 10000, MarketplaceError::InvalidDepositPercent);
 
         let merchant = &mut ctx.accounts.merchant_profile;
 
@@ -57,7 +97,15 @@ pub mod sol_bazaar {
         merchant.description_uri = description_uri;
         merchant.logo_uri = logo_uri;
         merchant.banner_uri = banner_uri;
-        merchant.location = location;
+        merchant.ships_from = ships_from;
+        merchant.seller_deposit_bps = seller_deposit_bps;
+        merchant.email = email;
+        merchant.phone = phone;
+        merchant.website = website;
+        merchant.facebook = facebook;
+        merchant.instagram = instagram;
+        merchant.telegram = telegram;
+        merchant.x = x;
         merchant.active = active;
 
         Ok(())
@@ -257,8 +305,30 @@ pub struct MerchantProfile {
     pub banner_uri: String,
 
     #[max_len(64)]
-    pub location: String,
+    pub ships_from: String,
 
+    #[max_len(100)]
+    pub email: String,
+
+    #[max_len(30)]
+    pub phone: String,
+
+    #[max_len(150)]
+    pub website: String,
+
+    #[max_len(100)]
+    pub facebook: String,
+
+    #[max_len(100)]
+    pub instagram: String,
+
+    #[max_len(100)]
+    pub telegram: String,
+
+    #[max_len(100)]
+    pub x: String,
+
+    pub seller_deposit_bps: u16,
     pub active: bool,
     pub verified: bool,
     pub created_at: i64,
@@ -332,4 +402,7 @@ pub enum MarketplaceError {
 
     #[msg("Product is inactive")]
     ProductInactive,
+
+    #[msg("Invalid deposit percent")]
+    InvalidDepositPercent,
 }

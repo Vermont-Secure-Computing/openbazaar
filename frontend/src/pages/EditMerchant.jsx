@@ -1,30 +1,32 @@
 import { useState } from "react";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
 import idl from "../idl/sol_bazaar.json";
 
-export default function CreateMerchant({ onCreated }) {
+export default function EditMerchant({ merchant, onUpdated }) {
     const { connection } = useConnection();
     const wallet = useWallet();
 
-    const [storeName, setStoreName] = useState("");
-    const [descriptionUri, setDescriptionUri] = useState("");
-    const [logoUri, setLogoUri] = useState("");
-    const [bannerUri, setBannerUri] = useState("");
-    const [shipsFrom, setShipsFrom] = useState("");
-    const [sellerDepositPercent, setSellerDepositPercent] = useState("10");
+    const [storeName, setStoreName] = useState(merchant.storeName || "");
+    const [descriptionUri, setDescriptionUri] = useState(merchant.descriptionUri || "");
+    const [logoUri, setLogoUri] = useState(merchant.logoUri || "");
+    const [bannerUri, setBannerUri] = useState(merchant.bannerUri || "");
+    const [shipsFrom, setShipsFrom] = useState(merchant.shipsFrom || "");
+    const [sellerDepositPercent, setSellerDepositPercent] =
+        useState(String((merchant.sellerDepositBps || 1000) / 100));
+    const [email, setEmail] = useState(merchant.email || "");
+    const [phone, setPhone] = useState(merchant.phone || "");
+    const [website, setWebsite] = useState(merchant.website || "");
+    const [facebook, setFacebook] = useState(merchant.facebook || "");
+    const [instagram, setInstagram] = useState(merchant.instagram || "");
+    const [telegram, setTelegram] = useState(merchant.telegram || "");
+    const [x, setX] = useState(merchant.x || "");
 
-    const [email, setEmail] = useState("");
-    const [phone, setPhone] = useState("");
-    const [website, setWebsite] = useState("");
-    const [facebook, setFacebook] = useState("");
-    const [instagram, setInstagram] = useState("");
-    const [telegram, setTelegram] = useState("");
-    const [x, setX] = useState("");
+    const [active, setActive] = useState(merchant.active ?? true);
 
-    const createMerchant = async () => {
+    const updateMerchant = async () => {
         if (!wallet.publicKey) {
             alert("Connect wallet first");
             return;
@@ -37,10 +39,7 @@ export default function CreateMerchant({ onCreated }) {
         const program = new Program(idl, provider);
 
         const [merchantPda] = PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("merchant"),
-                wallet.publicKey.toBuffer(),
-            ],
+            [Buffer.from("merchant"), wallet.publicKey.toBuffer()],
             program.programId
         );
 
@@ -48,7 +47,7 @@ export default function CreateMerchant({ onCreated }) {
             Math.round(Number(sellerDepositPercent) * 100);
 
         const tx = await program.methods
-            .createMerchant(
+            .updateMerchant(
                 storeName,
                 descriptionUri,
                 logoUri,
@@ -61,36 +60,23 @@ export default function CreateMerchant({ onCreated }) {
                 facebook || "",
                 instagram || "",
                 telegram || "",
-                x || ""
+                x || "",
+                active
             )
             .accounts({
                 merchantProfile: merchantPda,
                 authority: wallet.publicKey,
-                systemProgram: SystemProgram.programId,
             })
             .rpc();
 
-        alert("Merchant created: " + tx);
+        alert("Merchant updated: " + tx);
 
-        setStoreName("");
-        setDescriptionUri("");
-        setLogoUri("");
-        setBannerUri("");
-        setShipsFrom("");
-        setEmail("");
-        setPhone("");
-        setWebsite("");
-        setFacebook("");
-        setInstagram("");
-        setTelegram("");
-        setX("");
-
-        if (onCreated) onCreated();
+        if (onUpdated) onUpdated();
     };
 
     return (
-        <div style={{ padding: 24 }}>
-            <h2>Create Merchant</h2>
+        <div>
+            <h2>Edit Store Profile</h2>
 
             <input placeholder="Store Name" value={storeName} onChange={(e) => setStoreName(e.target.value)} />
             <br /><br />
@@ -98,13 +84,10 @@ export default function CreateMerchant({ onCreated }) {
             <input placeholder="Description" value={descriptionUri} onChange={(e) => setDescriptionUri(e.target.value)} />
             <br /><br />
 
-            <input placeholder="Logo Image URL" value={logoUri} onChange={(e) => setLogoUri(e.target.value)} />
+            <input placeholder="Logo URL" value={logoUri} onChange={(e) => setLogoUri(e.target.value)} />
             <br /><br />
 
-            <input placeholder="Banner Image URL" value={bannerUri} onChange={(e) => setBannerUri(e.target.value)} />
-            <br /><br />
-
-            <input placeholder="Ships From e.g. Cavite, Philippines" value={shipsFrom} onChange={(e) => setShipsFrom(e.target.value)} />
+            <input placeholder="Banner URL" value={bannerUri} onChange={(e) => setBannerUri(e.target.value)} />
             <br /><br />
 
             <input
@@ -116,6 +99,10 @@ export default function CreateMerchant({ onCreated }) {
                 value={sellerDepositPercent}
                 onChange={(e) => setSellerDepositPercent(e.target.value)}
             />
+            <br /><br />
+
+            <input placeholder="Ships From e.g. Cavite, Philippines" value={shipsFrom} onChange={(e) => setShipsFrom(e.target.value)} />
+            <br /><br />
 
             <h3>Optional Contact Details</h3>
 
@@ -140,9 +127,18 @@ export default function CreateMerchant({ onCreated }) {
             <input placeholder="X / Twitter" value={x} onChange={(e) => setX(e.target.value)} />
             <br /><br />
 
-            <button onClick={createMerchant}>
-                Create Merchant
-            </button>
+            <label>
+                <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={(e) => setActive(e.target.checked)}
+                />
+                Active
+            </label>
+
+            <br /><br />
+
+            <button onClick={updateMerchant}>Save Store Profile</button>
         </div>
     );
 }
