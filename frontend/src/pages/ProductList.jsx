@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { program } from "../lib/anchor";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 export default function ProductList() {
     const [products, setProducts] = useState([]);
@@ -98,7 +99,9 @@ export default function ProductList() {
                         <h2>{product.title}</h2>
                         <p>{product.description}</p>
                         <p>Category: {product.category}</p>
-                        <p>Price: {product.price}</p>
+                        <p>
+                            {(Number(product.price) / LAMPORTS_PER_SOL).toFixed(3)} SOL
+                        </p>
                         <p>Available: {product.stock}</p>
                         <p>Sold: {product.sold}</p>
                         <small>Merchant: {product.merchant}</small>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getMerchants } from "../lib/merchant";
 import { getProductsByMerchant } from "../lib/product";
 
@@ -73,7 +73,7 @@ export default function MerchantPage() {
 
                 <p>{store.descriptionUri}</p>
 
-                <p>📍 {store.location}</p>
+                <p>{store.location}</p>
 
                 <hr />
 
@@ -125,7 +125,9 @@ export default function MerchantPage() {
                                     <p>{product.category}</p>
 
                                     <strong>
-                                        ₱ {product.price}
+                                        {(
+                                            Number(product.price) / LAMPORTS_PER_SOL
+                                        ).toFixed(3)} SOL
                                     </strong>
 
                                     <br />

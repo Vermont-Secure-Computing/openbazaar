@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BN, AnchorProvider, Program } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 import idl from "../idl/sol_bazaar.json";
 
@@ -13,9 +14,12 @@ export default function EditProduct({ product, onUpdated }) {
     const [description, setDescription] = useState(product.description);
     const [imageUri, setImageUri] = useState(product.imageUri);
     const [category, setCategory] = useState(product.category);
-    const [price, setPrice] = useState(product.price);
+    const [price, setPrice] = useState( String(Number(product.price) / LAMPORTS_PER_SOL) );
     const [stock, setStock] = useState(product.stock);
     const [active, setActive] = useState(product.active);
+    const priceLamports = new BN(
+        Math.round(Number(price) * LAMPORTS_PER_SOL)
+    );
 
     const updateProduct = async () => {
         const provider = new AnchorProvider(connection, wallet, {
@@ -32,7 +36,7 @@ export default function EditProduct({ product, onUpdated }) {
                 description,
                 imageUri,
                 category,
-                new BN(price),
+                priceLamports,
                 Number(stock),
                 active
             )
