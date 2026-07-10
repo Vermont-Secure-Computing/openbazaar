@@ -6,6 +6,7 @@ import SellerPage from "./pages/SellerPage";
 import Dashboard from "./pages/Dashboard";
 import MerchantPage from "./pages/MerchantPage";
 import ProductPage from "./pages/ProductPage";
+import OrdersPage from "./pages/OrdersPage";
 
 function App() {
     return (
@@ -40,6 +41,10 @@ function App() {
 
                 <Link to="/dashboard">Dashboard</Link>
 
+                <Link to="/orders">
+                    Orders
+                </Link>
+
                 <WalletMultiButton />
             </header>
 
@@ -49,6 +54,7 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/merchant/:merchant" element={<MerchantPage />} />
                 <Route path="/product/:product" element={<ProductPage />} />
+                <Route path="/orders" element={<OrdersPage />} />
             </Routes>
         </div>
     );

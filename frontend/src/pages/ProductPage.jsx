@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
+import { createBuyerEscrow } from "../lib/escrow";
+
 
 export default function ProductPage() {
 
     const { product } = useParams();
+    const { connection } = useConnection();
+    const wallet = useWallet();
 
     const [item, setItem] = useState(null);
     const [merchant, setMerchant] = useState(null);
+    const [buying, setBuying] = useState(false);
 
     useEffect(() => {
 
@@ -44,6 +50,51 @@ export default function ProductPage() {
             </div>
         );
     }
+
+    const buyNow = async () => {
+        if (!wallet.publicKey) {
+            alert("Connect your wallet first.");
+            return;
+        }
+    
+        if (!item || !merchant) {
+            alert("Product or merchant information is unavailable.");
+            return;
+        }
+    
+        if (item.stock === 0) {
+            alert("This product is out of stock.");
+            return;
+        }
+    
+        if (wallet.publicKey.toBase58() === merchant.authority) {
+            alert("You cannot buy your own product.");
+            return;
+        }
+    
+        try {
+            setBuying(true);
+    
+            const result = await createBuyerEscrow({
+                connection,
+                wallet,
+                product: item,
+                merchant,
+                quantity: 1,
+            });
+    
+            console.log("Escrow created:", result);
+    
+            alert(
+                `Order created successfully.\nEscrow: ${result.escrowPda}`
+            );
+        } catch (error) {
+            console.error("Buy now error:", error);
+            alert(error?.message || "Failed to create escrow order.");
+        } finally {
+            setBuying(false);
+        }
+    };
 
     return (
         <div
@@ -100,7 +151,7 @@ export default function ProductPage() {
                     <h1>{item.title}</h1>
 
                     <h2>
-                        ₱ {item.price}
+                        {(Number(item.price) / LAMPORTS_PER_SOL).toFixed(3)} SOL
                     </h2>
 
                     <p>
@@ -161,7 +212,9 @@ export default function ProductPage() {
 
                             <p>
 
-                                {merchant.location}
+                            <strong>Ships From</strong>
+                            <br />
+                            {merchant.shipsFrom}
 
                             </p>
 
@@ -169,16 +222,33 @@ export default function ProductPage() {
 
                     )}
 
-                    <button
-                        style={{
-                            marginTop: 20,
-                            padding: "12px 30px",
-                            fontSize: 18,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Buy Now
-                    </button>
+                        <button
+                            onClick={buyNow}
+                            disabled={
+                                item.stock === 0 ||
+                                buying ||
+                                !merchant
+                            }
+                            style={{
+                                marginTop: 20,
+                                padding: "12px 30px",
+                                fontSize: 18,
+                                cursor:
+                                    item.stock === 0 || buying
+                                        ? "not-allowed"
+                                        : "pointer",
+                                opacity:
+                                    item.stock === 0 || buying
+                                        ? 0.5
+                                        : 1,
+                            }}
+                        >
+                            {item.stock === 0
+                                ? "Out of Stock"
+                                : buying
+                                    ? "Creating Order..."
+                                    : "Buy Now"}
+                        </button>
 
                 </div>
 
