@@ -380,6 +380,7 @@ pub struct DeleteProduct<'info> {
     pub authority: Signer<'info>,
 }
 
+
 #[error_code]
 pub enum MarketplaceError {
     #[msg("Unauthorized")]

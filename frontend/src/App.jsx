@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import MerchantPage from "./pages/MerchantPage";
 import ProductPage from "./pages/ProductPage";
 import OrdersPage from "./pages/OrdersPage";
+import OrderNotificationBadge from "./components/OrderNotificationBadge";
 
 function App() {
     return (
@@ -41,8 +42,16 @@ function App() {
 
                 <Link to="/dashboard">Dashboard</Link>
 
-                <Link to="/orders">
+                <Link
+                    to="/orders"
+                    style={{
+                        position: "relative",
+                        display: "inline-block",
+                        textDecoration: "none",
+                    }}
+                >
                     Orders
+                    <OrderNotificationBadge />
                 </Link>
 
                 <WalletMultiButton />

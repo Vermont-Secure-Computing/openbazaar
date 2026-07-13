@@ -3,41 +3,95 @@ import {
     useConnection,
     useWallet,
 } from "@solana/wallet-adapter-react";
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-
+import {
+    LAMPORTS_PER_SOL,
+} from "@solana/web3.js";
 
 import {
     ESCROW_STATUS,
     getBuyerEscrows,
     getSellerEscrows,
     getEscrowStatusLabel,
+    getEscrowTimeline,
     sellerAcceptEscrow,
     suggestReleaseToSeller,
     acceptEscrowRelease,
     closeCompletedEscrow,
 } from "../lib/escrow";
 
+import { getProduct } from "../lib/product";
+import { getMerchants } from "../lib/merchant";
+
 function lamportsToSol(value) {
-    return (
-        Number(value) / LAMPORTS_PER_SOL
-    ).toFixed(4);
+    const lamports = Number(value);
+
+    if (!Number.isFinite(lamports)) {
+        return "0";
+    }
+
+    return (lamports / LAMPORTS_PER_SOL).toFixed(4);
+}
+
+function shortenAddress(address) {
+    if (!address) {
+        return "";
+    }
+
+    return `${address.slice(0, 6)}...${address.slice(-6)}`;
+}
+
+function formatTimestamp(timestamp) {
+    if (!timestamp || Number(timestamp) <= 0) {
+        return "";
+    }
+
+    return new Date(
+        Number(timestamp) * 1000
+    ).toLocaleString();
 }
 
 export default function OrdersPage() {
     const { connection } = useConnection();
     const wallet = useWallet();
 
-    const [buyerOrders, setBuyerOrders] =
-        useState([]);
-
-    const [sellerOrders, setSellerOrders] =
-        useState([]);
-
-    const [loading, setLoading] =
-        useState(true);
-
+    const [buyerOrders, setBuyerOrders] = useState([]);
+    const [sellerOrders, setSellerOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [processingEscrow, setProcessingEscrow] =
         useState("");
+    const [error, setError] = useState("");
+
+    const enrichOrders = async (escrows, merchants) => {
+        return Promise.all(
+            escrows.map(async (escrow) => {
+                let product = null;
+
+                if (escrow.order?.product) {
+                    try {
+                        product = await getProduct(
+                            escrow.order.product
+                        );
+                    } catch (productError) {
+                        console.error(
+                            "Product lookup error:",
+                            productError
+                        );
+                    }
+                }
+
+                const sellerMerchant = merchants.find(
+                    (merchant) =>
+                        merchant.authority === escrow.partyB
+                );
+
+                return {
+                    ...escrow,
+                    product,
+                    sellerMerchant: sellerMerchant || null,
+                };
+            })
+        );
+    };
 
     const loadOrders = async () => {
         if (!wallet.publicKey) {
@@ -49,26 +103,44 @@ export default function OrdersPage() {
 
         try {
             setLoading(true);
+            setError("");
 
-            const [buyer, seller] =
+            const [buyerEscrows, sellerEscrows, merchants] =
                 await Promise.all([
                     getBuyerEscrows({
                         connection,
                         wallet,
                     }),
-
                     getSellerEscrows({
                         connection,
                         wallet,
                     }),
+                    getMerchants(),
                 ]);
 
-            setBuyerOrders(buyer);
-            setSellerOrders(seller);
-        } catch (error) {
+            const [enrichedBuyer, enrichedSeller] =
+                await Promise.all([
+                    enrichOrders(
+                        buyerEscrows,
+                        merchants
+                    ),
+                    enrichOrders(
+                        sellerEscrows,
+                        merchants
+                    ),
+                ]);
+
+            setBuyerOrders(enrichedBuyer);
+            setSellerOrders(enrichedSeller);
+        } catch (loadError) {
             console.error(
                 "Load orders error:",
-                error
+                loadError
+            );
+
+            setError(
+                loadError?.message ||
+                    "Failed to load orders."
             );
         } finally {
             setLoading(false);
@@ -79,212 +151,205 @@ export default function OrdersPage() {
         loadOrders();
     }, [wallet.publicKey]);
 
-    const acceptOrder = async (escrow) => {
+    const runEscrowAction = async (
+        escrow,
+        action,
+        successMessage
+    ) => {
         try {
-            setProcessingEscrow(
-                escrow.publicKey
-            );
+            setProcessingEscrow(escrow.publicKey);
 
-            const signature =
-                await sellerAcceptEscrow({
-                    connection,
-                    wallet,
-                    escrow,
-                });
+            const signature = await action();
 
             alert(
-                `Order accepted: ${signature}`
+                `${successMessage}\nTransaction: ${signature}`
             );
 
             await loadOrders();
-        } catch (error) {
+        } catch (actionError) {
             console.error(
-                "Accept order error:",
-                error
+                "Escrow action error:",
+                actionError
             );
 
             alert(
-                error?.message ||
-                    "Failed to accept order."
+                actionError?.message ||
+                    "Transaction failed."
             );
         } finally {
             setProcessingEscrow("");
         }
+    };
+
+    const acceptOrder = async (escrow) => {
+        await runEscrowAction(
+            escrow,
+            () =>
+                sellerAcceptEscrow({
+                    connection,
+                    wallet,
+                    escrow,
+                }),
+            "Order accepted"
+        );
     };
 
     const confirmReceived = async (escrow) => {
-        try {
-            setProcessingEscrow(escrow.publicKey);
-    
-            const signature =
-                await suggestReleaseToSeller({
+        await runEscrowAction(
+            escrow,
+            () =>
+                suggestReleaseToSeller({
                     connection,
                     wallet,
                     escrow,
-                });
-    
-            alert(`Release proposed: ${signature}`);
-            await loadOrders();
-        } catch (error) {
-            console.error(
-                "Confirm received error:",
-                error
-            );
-    
-            alert(
-                error?.message ||
-                    "Failed to confirm receipt."
-            );
-        } finally {
-            setProcessingEscrow("");
-        }
+                }),
+            "Product receipt confirmed"
+        );
     };
 
     const acceptRelease = async (escrow) => {
-        try {
-            setProcessingEscrow(escrow.publicKey);
-    
-            const signature =
-                await acceptEscrowRelease({
+        await runEscrowAction(
+            escrow,
+            () =>
+                acceptEscrowRelease({
                     connection,
                     wallet,
                     escrow,
-                });
-    
-            alert(`Funds released: ${signature}`);
-            await loadOrders();
-        } catch (error) {
-            console.error(
-                "Accept release error:",
-                error
-            );
-    
-            alert(
-                error?.message ||
-                    "Failed to release funds."
-            );
-        } finally {
-            setProcessingEscrow("");
-        }
+                }),
+            "Funds released"
+        );
     };
 
     const closeOrder = async (escrow) => {
-        try {
-            setProcessingEscrow(escrow.publicKey);
-    
-            const signature =
-                await closeCompletedEscrow({
+        const confirmed = window.confirm(
+            "Close this completed order and recover the escrow rent? The order will disappear from the current on-chain order list."
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        await runEscrowAction(
+            escrow,
+            () =>
+                closeCompletedEscrow({
                     connection,
                     wallet,
                     escrow,
-                });
-    
-            alert(
-                `Order closed and rent returned: ${signature}`
-            );
-    
-            await loadOrders();
-        } catch (error) {
-            console.error(
-                "Close order error:",
-                error
-            );
-    
-            alert(
-                error?.message ||
-                    "Failed to close completed order."
-            );
-        } finally {
-            setProcessingEscrow("");
-        }
+                }),
+            "Order closed and rent recovered"
+        );
     };
 
     if (!wallet.publicKey) {
         return (
-            <div style={{ padding: 24 }}>
+            <main style={{ padding: 24 }}>
                 <h1>Orders</h1>
                 <p>
-                    Connect your wallet to view
-                    your orders.
+                    Connect your wallet to view your
+                    purchases and seller orders.
                 </p>
-            </div>
+            </main>
         );
     }
 
     if (loading) {
         return (
-            <div style={{ padding: 24 }}>
-                Loading orders...
-            </div>
+            <main style={{ padding: 24 }}>
+                <h1>Orders</h1>
+                <p>Loading orders...</p>
+            </main>
         );
     }
 
     return (
-        <div
+        <main
             style={{
-                maxWidth: 1000,
+                maxWidth: 1100,
                 margin: "0 auto",
                 padding: 24,
             }}
         >
-            <h1>Orders</h1>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 16,
+                    flexWrap: "wrap",
+                }}
+            >
+                <div>
+                    <h1>Orders</h1>
+                    <p>
+                        Manage your purchases and seller
+                        transactions.
+                    </p>
+                </div>
 
-            <button onClick={loadOrders}>
-                Refresh Orders
-            </button>
+                <button onClick={loadOrders}>
+                    Refresh Orders
+                </button>
+            </div>
 
-            <section style={{ marginTop: 30 }}>
+            {error && (
+                <p style={{ color: "#dc2626" }}>
+                    {error}
+                </p>
+            )}
+
+            <section style={{ marginTop: 32 }}>
                 <h2>My Purchases</h2>
 
-                {buyerOrders.length === 0 && (
+                {buyerOrders.length === 0 ? (
                     <p>No purchase orders yet.</p>
+                ) : (
+                    buyerOrders.map((escrow) => (
+                        <OrderCard
+                            key={escrow.publicKey}
+                            escrow={escrow}
+                            role="buyer"
+                            processing={
+                                processingEscrow ===
+                                escrow.publicKey
+                            }
+                            onConfirmReceived={() =>
+                                confirmReceived(escrow)
+                            }
+                            onCloseOrder={() =>
+                                closeOrder(escrow)
+                            }
+                        />
+                    ))
                 )}
-
-                {buyerOrders.map((escrow) => (
-                    <OrderCard
-                        key={escrow.publicKey}
-                        escrow={escrow}
-                        role="buyer"
-                        processing={
-                            processingEscrow === escrow.publicKey
-                        }
-                        onConfirmReceived={() =>
-                            confirmReceived(escrow)
-                        }
-                        onCloseOrder={() =>
-                            closeOrder(escrow)
-                        }
-                    />
-                ))}
             </section>
 
-            <section style={{ marginTop: 40 }}>
+            <section style={{ marginTop: 48 }}>
                 <h2>Seller Orders</h2>
 
-                {sellerOrders.length === 0 && (
-                    <p>
-                        No seller orders yet.
-                    </p>
+                {sellerOrders.length === 0 ? (
+                    <p>No seller orders yet.</p>
+                ) : (
+                    sellerOrders.map((escrow) => (
+                        <OrderCard
+                            key={escrow.publicKey}
+                            escrow={escrow}
+                            role="seller"
+                            processing={
+                                processingEscrow ===
+                                escrow.publicKey
+                            }
+                            onAccept={() =>
+                                acceptOrder(escrow)
+                            }
+                            onAcceptRelease={() =>
+                                acceptRelease(escrow)
+                            }
+                        />
+                    ))
                 )}
-
-                {sellerOrders.map((escrow) => (
-                    <OrderCard
-                        key={escrow.publicKey}
-                        escrow={escrow}
-                        role="seller"
-                        processing={
-                            processingEscrow === escrow.publicKey
-                        }
-                        onAccept={() =>
-                            acceptOrder(escrow)
-                        }
-                        onAcceptRelease={() =>
-                            acceptRelease(escrow)
-                        }
-                    />
-                ))}
             </section>
-        </div>
+        </main>
     );
 }
 
@@ -297,116 +362,303 @@ function OrderCard({
     onAcceptRelease,
     onCloseOrder,
 }) {
-    const sellerStillNeedsDeposit =
-        escrow.status === 0 &&
+    const product = escrow.product;
+    const merchant = escrow.sellerMerchant;
+    const timeline = getEscrowTimeline(escrow);
+
+    const sellerNeedsDeposit =
+        escrow.status === ESCROW_STATUS.CREATED &&
         Number(escrow.depositedB) === 0;
 
+    const sellerDisplayName = merchant
+        ? merchant.storeName
+        : shortenAddress(escrow.partyB);
+
     return (
-        <div
+        <article
             style={{
                 border: "1px solid #ddd",
-                borderRadius: 12,
-                padding: 16,
-                marginTop: 12,
+                borderRadius: 16,
+                padding: 20,
+                marginTop: 16,
+                background: "#fff",
             }}
         >
-            <h3>
-                Order{" "}
-                {escrow.publicKey.slice(0, 8)}
-                ...
-            </h3>
-
-            <p>
-                <strong>Status:</strong>{" "}
-                {getEscrowStatusLabel(
-                    escrow.status
-                )}
-            </p>
-
-            <p>
-                <strong>Product PDA:</strong>{" "}
-                {escrow.order?.product ||
-                    "Unknown"}
-            </p>
-
-            <p>
-                <strong>Quantity:</strong>{" "}
-                {escrow.order?.quantity || 1}
-            </p>
-
-            <p>
-                <strong>Buyer deposit:</strong>{" "}
-                {lamportsToSol(
-                    escrow.requiredDepositA
-                )}{" "}
-                SOL
-            </p>
-
-            <p>
-                <strong>Seller deposit:</strong>{" "}
-                {lamportsToSol(
-                    escrow.requiredDepositB
-                )}{" "}
-                SOL
-            </p>
-
-            <p>
-                <strong>Buyer:</strong>{" "}
-                {escrow.partyA}
-            </p>
-
-            <p>
-                <strong>Seller:</strong>{" "}
-                {escrow.partyB}
-            </p>
-
-            {role === "seller" &&
-                sellerStillNeedsDeposit && (
-                    <button
-                        onClick={onAccept}
-                        disabled={processing}
-                    >
-                        {processing
-                            ? "Accepting..."
-                            : `Accept Order and Deposit ${lamportsToSol(
-                                  escrow.requiredDepositB
-                              )} SOL`}
-                    </button>
-                )}
-
-                {role === "buyer" && escrow.status === 1 && (
-                    <button
-                        onClick={onConfirmReceived}
-                        disabled={processing}
-                    >
-                        {processing
-                            ? "Confirming..."
-                            : "Confirm Product Received"}
-                    </button>
-                )}
-
-                {role === "seller" && escrow.status === 2 && (
-                    <button
-                        onClick={onAcceptRelease}
-                        disabled={processing}
-                    >
-                        {processing
-                            ? "Releasing..."
-                            : "Accept Release"}
-                    </button>
-                )}
-
-                {role === "buyer" &&
-                    escrow.status === ESCROW_STATUS.COMPLETED && (
-                        <button
-                            onClick={onCloseOrder}
-                            disabled={processing}
+            <div
+                style={{
+                    display: "flex",
+                    gap: 20,
+                    flexWrap: "wrap",
+                }}
+            >
+                <div
+                    style={{
+                        width: 160,
+                        flexShrink: 0,
+                    }}
+                >
+                    {product?.imageUri ? (
+                        <img
+                            src={product.imageUri}
+                            alt={product.title}
+                            style={{
+                                width: "100%",
+                                height: 150,
+                                objectFit: "cover",
+                                borderRadius: 12,
+                            }}
+                        />
+                    ) : (
+                        <div
+                            style={{
+                                width: "100%",
+                                height: 150,
+                                borderRadius: 12,
+                                border:
+                                    "1px solid #ddd",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent:
+                                    "center",
+                            }}
                         >
-                            {processing
-                                ? "Closing..."
-                                : "Close Order and Recover Rent"}
-                        </button>
-                )}
-        </div>
+                            No Image
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 260 }}>
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent:
+                                "space-between",
+                            gap: 16,
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <div>
+                            <h3 style={{ marginTop: 0 }}>
+                                {product?.title ||
+                                    "Product unavailable"}
+                            </h3>
+
+                            <p>
+                                Order{" "}
+                                {shortenAddress(
+                                    escrow.publicKey
+                                )}
+                            </p>
+                        </div>
+
+                        <StatusBadge
+                            status={escrow.status}
+                        />
+                    </div>
+
+                    <p>
+                        <strong>Quantity:</strong>{" "}
+                        {escrow.order?.quantity || 1}
+                    </p>
+
+                    <p>
+                        <strong>Total:</strong>{" "}
+                        {lamportsToSol(
+                            escrow.requiredDepositA
+                        )}{" "}
+                        SOL
+                    </p>
+
+                    <p>
+                        <strong>
+                            Seller escrow deposit:
+                        </strong>{" "}
+                        {lamportsToSol(
+                            escrow.requiredDepositB
+                        )}{" "}
+                        SOL
+                    </p>
+
+                    <p>
+                        <strong>Buyer:</strong>{" "}
+                        {shortenAddress(escrow.partyA)}
+                    </p>
+
+                    <p>
+                        <strong>Seller:</strong>{" "}
+                        {sellerDisplayName}
+                    </p>
+
+                    {merchant?.shipsFrom && (
+                        <p>
+                            <strong>Ships from:</strong>{" "}
+                            {merchant.shipsFrom}
+                        </p>
+                    )}
+
+                    <div style={{ marginTop: 20 }}>
+                        {role === "seller" &&
+                            sellerNeedsDeposit && (
+                                <button
+                                    onClick={onAccept}
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? "Accepting..."
+                                        : `Accept Order and Deposit ${lamportsToSol(
+                                              escrow.requiredDepositB
+                                          )} SOL`}
+                                </button>
+                            )}
+
+                        {role === "buyer" &&
+                            escrow.status ===
+                                ESCROW_STATUS.DEPOSITS_COMPLETE && (
+                                <button
+                                    onClick={
+                                        onConfirmReceived
+                                    }
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? "Confirming..."
+                                        : "Confirm Product Received"}
+                                </button>
+                            )}
+
+                        {role === "seller" &&
+                            escrow.status ===
+                                ESCROW_STATUS.FINALIZATION_SUGGESTED && (
+                                <button
+                                    onClick={
+                                        onAcceptRelease
+                                    }
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? "Releasing..."
+                                        : "Accept Release"}
+                                </button>
+                            )}
+
+                        {role === "buyer" &&
+                            escrow.status ===
+                                ESCROW_STATUS.COMPLETED && (
+                                <button
+                                    onClick={onCloseOrder}
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? "Closing..."
+                                        : "Close Order and Recover Rent"}
+                                </button>
+                            )}
+                    </div>
+                </div>
+            </div>
+
+            <div
+                style={{
+                    marginTop: 24,
+                    borderTop: "1px solid #eee",
+                    paddingTop: 20,
+                }}
+            >
+                <h4>Order Timeline</h4>
+
+                <div
+                    style={{
+                        display: "grid",
+                        gap: 12,
+                    }}
+                >
+                    {timeline.map((event, index) => (
+                        <div
+                            key={`${event.label}-${index}`}
+                            style={{
+                                display: "flex",
+                                gap: 12,
+                                alignItems:
+                                    "flex-start",
+                            }}
+                        >
+                            <span>
+                                {event.completed
+                                    ? "✅"
+                                    : "○"}
+                            </span>
+
+                            <div>
+                                <strong>
+                                    {event.label}
+                                </strong>
+
+                                {event.timestamp > 0 && (
+                                    <div
+                                        style={{
+                                            fontSize: 13,
+                                            color: "#666",
+                                            marginTop: 2,
+                                        }}
+                                    >
+                                        {formatTimestamp(
+                                            event.timestamp
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </article>
+    );
+}
+
+function StatusBadge({ status }) {
+    const label = getEscrowStatusLabel(status);
+
+    let background = "#e5e7eb";
+    let color = "#111827";
+
+    if (status === ESCROW_STATUS.CREATED) {
+        background = "#fef3c7";
+        color = "#92400e";
+    }
+
+    if (
+        status === ESCROW_STATUS.DEPOSITS_COMPLETE
+    ) {
+        background = "#dbeafe";
+        color = "#1e40af";
+    }
+
+    if (
+        status ===
+        ESCROW_STATUS.FINALIZATION_SUGGESTED
+    ) {
+        background = "#ede9fe";
+        color = "#5b21b6";
+    }
+
+    if (status === ESCROW_STATUS.COMPLETED) {
+        background = "#dcfce7";
+        color = "#166534";
+    }
+
+    return (
+        <span
+            style={{
+                display: "inline-block",
+                padding: "6px 10px",
+                borderRadius: 999,
+                background,
+                color,
+                fontWeight: 700,
+                fontSize: 13,
+            }}
+        >
+            {label}
+        </span>
     );
 }
