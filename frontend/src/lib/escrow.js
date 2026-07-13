@@ -494,3 +494,53 @@ export async function closeCompletedEscrow({
         })
         .rpc();
 }
+
+export function getEscrowTimeline(escrow) {
+    const events = [];
+
+    const createdAt = Number(escrow.createdAt);
+    const depositAt = Number(escrow.depositAt);
+    const finalizedAt = Number(escrow.finalizedAt);
+
+    if (createdAt > 0) {
+        events.push({
+            label: "Order created",
+            timestamp: createdAt,
+            completed: true,
+        });
+    }
+
+    if (Number(escrow.depositedA) > 0) {
+        events.push({
+            label: "Buyer payment deposited",
+            timestamp: createdAt,
+            completed: true,
+        });
+    }
+
+    events.push({
+        label: "Seller accepted order",
+        timestamp:
+            Number(escrow.depositedB) > 0
+                ? depositAt
+                : 0,
+        completed: Number(escrow.depositedB) > 0,
+    });
+
+    events.push({
+        label: "Buyer confirmed receipt",
+        timestamp: 0,
+        completed: escrow.status >= 2,
+    });
+
+    events.push({
+        label: "Funds released",
+        timestamp:
+            escrow.status === 3
+                ? finalizedAt
+                : 0,
+        completed: escrow.status === 3,
+    });
+
+    return events;
+}
