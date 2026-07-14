@@ -291,6 +291,75 @@
       ]
     },
     {
+      "name": "send_message",
+      "discriminator": [
+        57,
+        40,
+        34,
+        178,
+        189,
+        10,
+        65,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "sender",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "External escrow account verified inside `send_message` through:",
+            "owner check, discriminator check, deserialization, and party validation."
+          ]
+        },
+        {
+          "name": "chat_message",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  115,
+                  115,
+                  97,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              },
+              {
+                "kind": "arg",
+                "path": "message_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "message_id",
+          "type": "u64"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "update_merchant",
       "discriminator": [
         192,
@@ -473,6 +542,19 @@
   ],
   "accounts": [
     {
+      "name": "ChatMessage",
+      "discriminator": [
+        248,
+        136,
+        252,
+        235,
+        151,
+        180,
+        75,
+        242
+      ]
+    },
+    {
       "name": "MerchantProfile",
       "discriminator": [
         214,
@@ -539,9 +621,71 @@
       "code": 6007,
       "name": "InvalidDepositPercent",
       "msg": "Invalid deposit percent"
+    },
+    {
+      "code": 6008,
+      "name": "MessageTooLong",
+      "msg": "Message is too long"
+    },
+    {
+      "code": 6009,
+      "name": "EmptyMessage",
+      "msg": "Message cannot be empty"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidEscrowOwner",
+      "msg": "Invalid escrow program owner"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidEscrowAccount",
+      "msg": "Invalid escrow account"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidEscrowDiscriminator",
+      "msg": "Invalid escrow account discriminator"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidEscrowParties",
+      "msg": "Invalid escrow parties"
     }
   ],
   "types": [
+    {
+      "name": "ChatMessage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "sender",
+            "type": "pubkey"
+          },
+          {
+            "name": "message",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "message_id",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "MerchantProfile",
       "type": {
