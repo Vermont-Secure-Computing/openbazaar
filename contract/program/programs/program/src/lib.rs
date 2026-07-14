@@ -2,6 +2,13 @@ use anchor_lang::prelude::*;
 
 declare_id!("9MfxguocK4gW2CZigXwpj97YumQ6a8S4twXGLfnaw3tj");
 
+pub const ESCROW_PROGRAM_ID: Pubkey =
+    pubkey!("E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ");
+
+pub const ESCROW_ACCOUNT_DISCRIMINATOR: [u8; 8] = [
+    31, 213, 123, 187, 186, 22, 218, 155,
+];
+
 #[program]
 pub mod sol_bazaar {
     use super::*;
@@ -202,6 +209,76 @@ pub mod sol_bazaar {
     
         Ok(())
     }
+
+    pub fn send_message(
+        ctx: Context<SendMessage>,
+        message_id: u64,
+        message: String,
+    ) -> Result<()> {
+        require!(
+            !message.trim().is_empty(),
+            MarketplaceError::EmptyMessage
+        );
+    
+        require!(
+            message.len() <= 280,
+            MarketplaceError::MessageTooLong
+        );
+    
+        let escrow_info = ctx.accounts.escrow.to_account_info();
+
+        require_keys_eq!(
+            *escrow_info.owner,
+            ESCROW_PROGRAM_ID,
+            MarketplaceError::InvalidEscrowOwner
+        );
+
+        let data = escrow_info.try_borrow_data()?;
+
+        require!(
+            data.len() >= 8,
+            MarketplaceError::InvalidEscrowAccount
+        );
+
+        require!(
+            data.get(..8) == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()),
+            MarketplaceError::InvalidEscrowDiscriminator
+        );
+
+        // Decode muna bago gamitin ang external_escrow.
+        let mut escrow_data: &[u8] = &data[8..];
+
+        let external_escrow =
+            ExternalEscrow::deserialize(&mut escrow_data)
+                .map_err(|_| error!(MarketplaceError::InvalidEscrowAccount))?;
+
+        // Saka i-validate ang decoded parties.
+        require!(
+            external_escrow.party_a != Pubkey::default()
+                && external_escrow.party_b != Pubkey::default()
+                && external_escrow.party_a != external_escrow.party_b,
+            MarketplaceError::InvalidEscrowParties
+        );
+
+        let sender = ctx.accounts.sender.key();
+
+        require!(
+            sender == external_escrow.party_a
+                || sender == external_escrow.party_b,
+            MarketplaceError::Unauthorized
+        );
+    
+        let chat = &mut ctx.accounts.chat_message;
+    
+        chat.escrow = ctx.accounts.escrow.key();
+        chat.sender = sender;
+        chat.message = message;
+        chat.created_at = Clock::get()?.unix_timestamp;
+        chat.message_id = message_id;
+        chat.bump = ctx.bumps.chat_message;
+    
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -380,6 +457,80 @@ pub struct DeleteProduct<'info> {
     pub authority: Signer<'info>,
 }
 
+#[derive(AnchorDeserialize)]
+pub struct ExternalEscrow {
+    pub creator: Pubkey,
+
+    pub party_a: Pubkey,
+    pub party_b: Pubkey,
+
+    pub escrow_type: u8,
+
+    pub required_deposit_a: u64,
+    pub required_deposit_b: u64,
+
+    pub deposited_a: u64,
+    pub deposited_b: u64,
+
+    pub proposed_payout_a: u64,
+    pub proposed_payout_b: u64,
+
+    pub finalization_proposer: Pubkey,
+    pub finalization_note: String,
+
+    pub vault: Pubkey,
+    pub status: u8,
+
+    pub created_at: i64,
+    pub deposit_at: i64,
+    pub finalized_at: i64,
+
+    pub note: String,
+    pub reference_amount: u64,
+    pub proposed_donation: u64,
+}
+
+#[derive(Accounts)]
+#[instruction(message_id: u64)]
+pub struct SendMessage<'info> {
+    #[account(mut)]
+    pub sender: Signer<'info>,
+
+    /// CHECK:
+    /// External escrow account verified inside `send_message` through:
+    /// owner check, discriminator check, deserialization, and party validation.
+    pub escrow: UncheckedAccount<'info>,
+
+    #[account(
+        init,
+        payer = sender,
+        space = 8 + ChatMessage::INIT_SPACE,
+        seeds = [
+            b"message",
+            escrow.key().as_ref(),
+            &message_id.to_le_bytes()
+        ],
+        bump
+    )]
+    pub chat_message: Account<'info, ChatMessage>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ChatMessage {
+    pub escrow: Pubkey,
+    pub sender: Pubkey,
+
+    #[max_len(280)]
+    pub message: String,
+
+    pub created_at: i64,
+    pub message_id: u64,
+    pub bump: u8,
+}
+
 
 #[error_code]
 pub enum MarketplaceError {
@@ -406,4 +557,22 @@ pub enum MarketplaceError {
 
     #[msg("Invalid deposit percent")]
     InvalidDepositPercent,
+
+    #[msg("Message is too long")]
+    MessageTooLong,
+
+    #[msg("Message cannot be empty")]
+    EmptyMessage,
+
+    #[msg("Invalid escrow program owner")]
+    InvalidEscrowOwner,
+
+    #[msg("Invalid escrow account")]
+    InvalidEscrowAccount,
+
+    #[msg("Invalid escrow account discriminator")]
+    InvalidEscrowDiscriminator,
+
+    #[msg("Invalid escrow parties")]
+    InvalidEscrowParties,
 }

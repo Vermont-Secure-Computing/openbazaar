@@ -21,6 +21,7 @@ import {
 
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
+import OrderChat from "../components/OrderChat";
 
 function lamportsToSol(value) {
     const lamports = Number(value);
@@ -611,6 +612,7 @@ function OrderCard({
                     ))}
                 </div>
             </div>
+            <OrderChat escrow={escrow} />
         </article>
     );
 }
