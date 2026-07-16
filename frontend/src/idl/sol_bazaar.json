@@ -111,6 +111,93 @@
       ]
     },
     {
+      "name": "create_order_record",
+      "discriminator": [
+        51,
+        217,
+        58,
+        62,
+        196,
+        16,
+        208,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "External escrow verified inside create_order_record using",
+            "owner, discriminator, deserialization, parties, and amount."
+          ]
+        },
+        {
+          "name": "product"
+        },
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "product.merchant",
+                "account": "Product"
+              }
+            ]
+          }
+        },
+        {
+          "name": "order_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "quantity",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "create_product",
       "discriminator": [
         183,
@@ -266,6 +353,84 @@
       "args": []
     },
     {
+      "name": "initialize_reputation",
+      "discriminator": [
+        150,
+        240,
+        109,
+        53,
+        147,
+        42,
+        152,
+        162
+      ],
+      "accounts": [
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "reduce_stock",
       "discriminator": [
         105,
@@ -280,7 +445,36 @@
       "accounts": [
         {
           "name": "product",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  100,
+                  117,
+                  99,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "product.product_id",
+                "account": "Product"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
         }
       ],
       "args": [
@@ -355,6 +549,143 @@
         },
         {
           "name": "message",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "submit_review",
+      "discriminator": [
+        106,
+        30,
+        50,
+        83,
+        89,
+        46,
+        213,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "reviewer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "External escrow verified inside submit_review."
+          ]
+        },
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "review",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  105,
+                  101,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "rating",
+          "type": "u8"
+        },
+        {
+          "name": "comment",
           "type": "string"
         }
       ]
@@ -568,6 +899,45 @@
       ]
     },
     {
+      "name": "MerchantReputation",
+      "discriminator": [
+        160,
+        4,
+        167,
+        12,
+        210,
+        84,
+        54,
+        94
+      ]
+    },
+    {
+      "name": "MerchantReview",
+      "discriminator": [
+        191,
+        79,
+        126,
+        107,
+        152,
+        27,
+        12,
+        116
+      ]
+    },
+    {
+      "name": "OrderRecord",
+      "discriminator": [
+        143,
+        44,
+        79,
+        139,
+        27,
+        191,
+        114,
+        204
+      ]
+    },
+    {
       "name": "Product",
       "discriminator": [
         102,
@@ -651,6 +1021,81 @@
       "code": 6013,
       "name": "InvalidEscrowParties",
       "msg": "Invalid escrow parties"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidRating",
+      "msg": "Rating must be between 1 and 5"
+    },
+    {
+      "code": 6015,
+      "name": "ReviewTooLong",
+      "msg": "Review comment is too long"
+    },
+    {
+      "code": 6016,
+      "name": "OrderNotCompleted",
+      "msg": "Order must be completed before review"
+    },
+    {
+      "code": 6017,
+      "name": "OnlyBuyerCanReview",
+      "msg": "Only the buyer can review this order"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidReviewMerchant",
+      "msg": "Merchant does not match the escrow seller"
+    },
+    {
+      "code": 6019,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6020,
+      "name": "NotSolBazaarEscrow",
+      "msg": "This escrow is not a SolBazaar order"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidOrderRecord",
+      "msg": "Invalid SolBazaar order record"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidOrderBuyer",
+      "msg": "Order buyer does not match escrow buyer"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidOrderSeller",
+      "msg": "Order seller does not match escrow seller"
+    },
+    {
+      "code": 6024,
+      "name": "InvalidOrderAmount",
+      "msg": "Order amount does not match product total"
+    },
+    {
+      "code": 6025,
+      "name": "BuyerDepositIncomplete",
+      "msg": "Buyer deposit is incomplete"
+    },
+    {
+      "code": 6026,
+      "name": "InvalidSellerDeposit",
+      "msg": "Escrow seller deposit does not match merchant settings"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidBuyerDeposit",
+      "msg": "Buyer deposit does not match the required escrow amount"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidOrderStatus",
+      "msg": "Escrow is not in a valid state for order creation"
     }
   ],
   "types": [
@@ -754,6 +1199,126 @@
           {
             "name": "verified",
             "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MerchantReputation",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_reviews",
+            "type": "u64"
+          },
+          {
+            "name": "total_rating",
+            "type": "u64"
+          },
+          {
+            "name": "five_star",
+            "type": "u64"
+          },
+          {
+            "name": "four_star",
+            "type": "u64"
+          },
+          {
+            "name": "three_star",
+            "type": "u64"
+          },
+          {
+            "name": "two_star",
+            "type": "u64"
+          },
+          {
+            "name": "one_star",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MerchantReview",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "reviewer",
+            "type": "pubkey"
+          },
+          {
+            "name": "rating",
+            "type": "u8"
+          },
+          {
+            "name": "comment",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "price",
+            "type": "u64"
           },
           {
             "name": "created_at",
