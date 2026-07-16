@@ -14,9 +14,9 @@ import {
     getEscrowStatusLabel,
     getEscrowTimeline,
     sellerAcceptEscrow,
-    suggestReleaseToSeller,
-    acceptEscrowRelease,
     closeCompletedEscrow,
+    sellerSuggestCompletion,
+    retrieveBuyerDeposit,
 } from "../lib/escrow";
 
 import { getProduct } from "../lib/product";
@@ -24,13 +24,40 @@ import { getMerchants } from "../lib/merchant";
 import OrderChat from "../components/OrderChat";
 
 function lamportsToSol(value) {
-    const lamports = Number(value);
+    try {
+        const lamports = Number(
+            value?.toString?.() ?? value
+        );
 
-    if (!Number.isFinite(lamports)) {
-        return "0";
+        if (!Number.isFinite(lamports)) {
+            return "0.0000";
+        }
+
+        return (
+            lamports / LAMPORTS_PER_SOL
+        ).toFixed(4);
+    } catch {
+        return "0.0000";
     }
+}
 
-    return (lamports / LAMPORTS_PER_SOL).toFixed(4);
+function calculateBuyerRefund(escrow) {
+    const requiredDepositA = Number(
+        escrow.requiredDepositA?.toString?.() ??
+            escrow.requiredDepositA ??
+            0
+    );
+
+    const referenceAmount = Number(
+        escrow.referenceAmount?.toString?.() ??
+            escrow.referenceAmount ??
+            0
+    );
+
+    const refund =
+        requiredDepositA - referenceAmount;
+
+    return refund > 0 ? refund : 0;
 }
 
 function shortenAddress(address) {
@@ -38,16 +65,23 @@ function shortenAddress(address) {
         return "";
     }
 
-    return `${address.slice(0, 6)}...${address.slice(-6)}`;
+    return `${address.slice(
+        0,
+        6
+    )}...${address.slice(-6)}`;
 }
 
 function formatTimestamp(timestamp) {
-    if (!timestamp || Number(timestamp) <= 0) {
+    const value = Number(
+        timestamp?.toString?.() ?? timestamp
+    );
+
+    if (!value || value <= 0) {
         return "";
     }
 
     return new Date(
-        Number(timestamp) * 1000
+        value * 1000
     ).toLocaleString();
 }
 
@@ -55,14 +89,27 @@ export default function OrdersPage() {
     const { connection } = useConnection();
     const wallet = useWallet();
 
-    const [buyerOrders, setBuyerOrders] = useState([]);
-    const [sellerOrders, setSellerOrders] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [processingEscrow, setProcessingEscrow] =
-        useState("");
-    const [error, setError] = useState("");
+    const [buyerOrders, setBuyerOrders] =
+        useState([]);
 
-    const enrichOrders = async (escrows, merchants) => {
+    const [sellerOrders, setSellerOrders] =
+        useState([]);
+
+    const [loading, setLoading] =
+        useState(true);
+
+    const [
+        processingEscrow,
+        setProcessingEscrow,
+    ] = useState("");
+
+    const [error, setError] =
+        useState("");
+
+    const enrichOrders = async (
+        escrows,
+        merchants
+    ) => {
         return Promise.all(
             escrows.map(async (escrow) => {
                 let product = null;
@@ -80,15 +127,18 @@ export default function OrdersPage() {
                     }
                 }
 
-                const sellerMerchant = merchants.find(
-                    (merchant) =>
-                        merchant.authority === escrow.partyB
-                );
+                const sellerMerchant =
+                    merchants.find(
+                        (merchant) =>
+                            merchant.authority ===
+                            escrow.partyB
+                    );
 
                 return {
                     ...escrow,
                     product,
-                    sellerMerchant: sellerMerchant || null,
+                    sellerMerchant:
+                        sellerMerchant || null,
                 };
             })
         );
@@ -106,30 +156,38 @@ export default function OrdersPage() {
             setLoading(true);
             setError("");
 
-            const [buyerEscrows, sellerEscrows, merchants] =
-                await Promise.all([
-                    getBuyerEscrows({
-                        connection,
-                        wallet,
-                    }),
-                    getSellerEscrows({
-                        connection,
-                        wallet,
-                    }),
-                    getMerchants(),
-                ]);
+            const [
+                buyerEscrows,
+                sellerEscrows,
+                merchants,
+            ] = await Promise.all([
+                getBuyerEscrows({
+                    connection,
+                    wallet,
+                }),
 
-            const [enrichedBuyer, enrichedSeller] =
-                await Promise.all([
-                    enrichOrders(
-                        buyerEscrows,
-                        merchants
-                    ),
-                    enrichOrders(
-                        sellerEscrows,
-                        merchants
-                    ),
-                ]);
+                getSellerEscrows({
+                    connection,
+                    wallet,
+                }),
+
+                getMerchants(),
+            ]);
+
+            const [
+                enrichedBuyer,
+                enrichedSeller,
+            ] = await Promise.all([
+                enrichOrders(
+                    buyerEscrows,
+                    merchants
+                ),
+
+                enrichOrders(
+                    sellerEscrows,
+                    merchants
+                ),
+            ]);
 
             setBuyerOrders(enrichedBuyer);
             setSellerOrders(enrichedSeller);
@@ -150,7 +208,10 @@ export default function OrdersPage() {
 
     useEffect(() => {
         loadOrders();
-    }, [wallet.publicKey]);
+    }, [
+        wallet.publicKey,
+        connection,
+    ]);
 
     const runEscrowAction = async (
         escrow,
@@ -158,12 +219,15 @@ export default function OrdersPage() {
         successMessage
     ) => {
         try {
-            setProcessingEscrow(escrow.publicKey);
+            setProcessingEscrow(
+                escrow.publicKey
+            );
 
-            const signature = await action();
+            const signature =
+                await action();
 
             alert(
-                `${successMessage}\nTransaction: ${signature}`
+                `${successMessage}\n\nTransaction: ${signature}`
             );
 
             await loadOrders();
@@ -182,7 +246,9 @@ export default function OrdersPage() {
         }
     };
 
-    const acceptOrder = async (escrow) => {
+    const acceptOrder = async (
+        escrow
+    ) => {
         await runEscrowAction(
             escrow,
             () =>
@@ -191,40 +257,68 @@ export default function OrdersPage() {
                     wallet,
                     escrow,
                 }),
-            "Order accepted"
+            "Order accepted and seller deposit submitted."
         );
     };
 
-    const confirmReceived = async (escrow) => {
+    const proposeCompletion = async (
+        escrow
+    ) => {
         await runEscrowAction(
             escrow,
             () =>
-                suggestReleaseToSeller({
+                sellerSuggestCompletion({
                     connection,
                     wallet,
                     escrow,
                 }),
-            "Product receipt confirmed"
+            "Order marked ready for buyer confirmation."
         );
     };
 
-    const acceptRelease = async (escrow) => {
+    const retrieveDeposit = async (
+        escrow
+    ) => {
+        const buyerRefund =
+            lamportsToSol(
+                escrow.proposedPayoutA
+            );
+
+        const sellerPayout =
+            lamportsToSol(
+                escrow.proposedPayoutB
+            );
+
+        const confirmed =
+            window.confirm(
+                `Confirm that you received the product?\n\n` +
+                    `${buyerRefund} SOL will be returned to you.\n` +
+                    `${sellerPayout} SOL will be released to the seller.`
+            );
+
+        if (!confirmed) {
+            return;
+        }
+
         await runEscrowAction(
             escrow,
             () =>
-                acceptEscrowRelease({
+                retrieveBuyerDeposit({
                     connection,
                     wallet,
                     escrow,
                 }),
-            "Funds released"
+            "Your deposit was returned and the seller was paid."
         );
     };
 
-    const closeOrder = async (escrow) => {
-        const confirmed = window.confirm(
-            "Close this completed order and recover the escrow rent? The order will disappear from the current on-chain order list."
-        );
+    const closeOrder = async (
+        escrow
+    ) => {
+        const confirmed =
+            window.confirm(
+                "Close this completed order and recover the escrow account rent? The order will disappear from the current escrow list."
+            );
 
         if (!confirmed) {
             return;
@@ -238,7 +332,7 @@ export default function OrdersPage() {
                     wallet,
                     escrow,
                 }),
-            "Order closed and rent recovered"
+            "Order closed and escrow rent recovered."
         );
     };
 
@@ -246,9 +340,11 @@ export default function OrdersPage() {
         return (
             <main style={{ padding: 24 }}>
                 <h1>Orders</h1>
+
                 <p>
-                    Connect your wallet to view your
-                    purchases and seller orders.
+                    Connect your wallet to
+                    view your purchases and
+                    seller orders.
                 </p>
             </main>
         );
@@ -274,7 +370,8 @@ export default function OrdersPage() {
             <div
                 style={{
                     display: "flex",
-                    justifyContent: "space-between",
+                    justifyContent:
+                        "space-between",
                     alignItems: "center",
                     gap: 16,
                     flexWrap: "wrap",
@@ -282,72 +379,112 @@ export default function OrdersPage() {
             >
                 <div>
                     <h1>Orders</h1>
+
                     <p>
-                        Manage your purchases and seller
-                        transactions.
+                        Manage your purchases
+                        and seller transactions.
                     </p>
                 </div>
 
-                <button onClick={loadOrders}>
+                <button
+                    type="button"
+                    onClick={loadOrders}
+                    disabled={loading}
+                >
                     Refresh Orders
                 </button>
             </div>
 
             {error && (
-                <p style={{ color: "#dc2626" }}>
+                <p
+                    style={{
+                        color: "#dc2626",
+                    }}
+                >
                     {error}
                 </p>
             )}
 
-            <section style={{ marginTop: 32 }}>
+            <section
+                style={{ marginTop: 32 }}
+            >
                 <h2>My Purchases</h2>
 
-                {buyerOrders.length === 0 ? (
-                    <p>No purchase orders yet.</p>
+                {buyerOrders.length ===
+                0 ? (
+                    <p>
+                        No purchase orders
+                        yet.
+                    </p>
                 ) : (
-                    buyerOrders.map((escrow) => (
-                        <OrderCard
-                            key={escrow.publicKey}
-                            escrow={escrow}
-                            role="buyer"
-                            processing={
-                                processingEscrow ===
-                                escrow.publicKey
-                            }
-                            onConfirmReceived={() =>
-                                confirmReceived(escrow)
-                            }
-                            onCloseOrder={() =>
-                                closeOrder(escrow)
-                            }
-                        />
-                    ))
+                    buyerOrders.map(
+                        (escrow) => (
+                            <OrderCard
+                                key={
+                                    escrow.publicKey
+                                }
+                                escrow={
+                                    escrow
+                                }
+                                role="buyer"
+                                processing={
+                                    processingEscrow ===
+                                    escrow.publicKey
+                                }
+                                onRetrieveDeposit={() =>
+                                    retrieveDeposit(
+                                        escrow
+                                    )
+                                }
+                                onCloseOrder={() =>
+                                    closeOrder(
+                                        escrow
+                                    )
+                                }
+                            />
+                        )
+                    )
                 )}
             </section>
 
-            <section style={{ marginTop: 48 }}>
+            <section
+                style={{ marginTop: 48 }}
+            >
                 <h2>Seller Orders</h2>
 
-                {sellerOrders.length === 0 ? (
-                    <p>No seller orders yet.</p>
+                {sellerOrders.length ===
+                0 ? (
+                    <p>
+                        No seller orders yet.
+                    </p>
                 ) : (
-                    sellerOrders.map((escrow) => (
-                        <OrderCard
-                            key={escrow.publicKey}
-                            escrow={escrow}
-                            role="seller"
-                            processing={
-                                processingEscrow ===
-                                escrow.publicKey
-                            }
-                            onAccept={() =>
-                                acceptOrder(escrow)
-                            }
-                            onAcceptRelease={() =>
-                                acceptRelease(escrow)
-                            }
-                        />
-                    ))
+                    sellerOrders.map(
+                        (escrow) => (
+                            <OrderCard
+                                key={
+                                    escrow.publicKey
+                                }
+                                escrow={
+                                    escrow
+                                }
+                                role="seller"
+                                processing={
+                                    processingEscrow ===
+                                    escrow.publicKey
+                                }
+                                onAccept={() =>
+                                    acceptOrder(
+                                        escrow
+                                    )
+                                }
+                                onProposeCompletion={() =>
+                                    proposeCompletion(
+                                        escrow
+                                    )
+                                }
+                            />
+                        )
+                    )
                 )}
             </section>
         </main>
@@ -359,26 +496,41 @@ function OrderCard({
     role,
     processing,
     onAccept,
-    onConfirmReceived,
-    onAcceptRelease,
+    onProposeCompletion,
+    onRetrieveDeposit,
     onCloseOrder,
 }) {
     const product = escrow.product;
-    const merchant = escrow.sellerMerchant;
-    const timeline = getEscrowTimeline(escrow);
+    const merchant =
+        escrow.sellerMerchant;
+
+    const timeline =
+        getEscrowTimeline(escrow);
 
     const sellerNeedsDeposit =
-        escrow.status === ESCROW_STATUS.CREATED &&
-        Number(escrow.depositedB) === 0;
+        escrow.status ===
+            ESCROW_STATUS.CREATED &&
+        Number(
+            escrow.depositedB
+                ?.toString?.() ??
+                escrow.depositedB ??
+                0
+        ) === 0;
 
-    const sellerDisplayName = merchant
-        ? merchant.storeName
-        : shortenAddress(escrow.partyB);
+    const sellerDisplayName =
+        merchant?.storeName ||
+        shortenAddress(
+            escrow.partyB
+        );
+
+    const buyerRefundLamports =
+        calculateBuyerRefund(escrow);
 
     return (
         <article
             style={{
-                border: "1px solid #ddd",
+                border:
+                    "1px solid #ddd",
                 borderRadius: 16,
                 padding: 20,
                 marginTop: 16,
@@ -400,13 +552,19 @@ function OrderCard({
                 >
                     {product?.imageUri ? (
                         <img
-                            src={product.imageUri}
-                            alt={product.title}
+                            src={
+                                product.imageUri
+                            }
+                            alt={
+                                product.title
+                            }
                             style={{
                                 width: "100%",
                                 height: 150,
-                                objectFit: "cover",
-                                borderRadius: 12,
+                                objectFit:
+                                    "cover",
+                                borderRadius:
+                                    12,
                             }}
                         />
                     ) : (
@@ -414,11 +572,14 @@ function OrderCard({
                             style={{
                                 width: "100%",
                                 height: 150,
-                                borderRadius: 12,
+                                borderRadius:
+                                    12,
                                 border:
                                     "1px solid #ddd",
-                                display: "flex",
-                                alignItems: "center",
+                                display:
+                                    "flex",
+                                alignItems:
+                                    "center",
                                 justifyContent:
                                     "center",
                             }}
@@ -428,18 +589,29 @@ function OrderCard({
                     )}
                 </div>
 
-                <div style={{ flex: 1, minWidth: 260 }}>
+                <div
+                    style={{
+                        flex: 1,
+                        minWidth: 260,
+                    }}
+                >
                     <div
                         style={{
                             display: "flex",
                             justifyContent:
                                 "space-between",
                             gap: 16,
-                            flexWrap: "wrap",
+                            flexWrap:
+                                "wrap",
                         }}
                     >
                         <div>
-                            <h3 style={{ marginTop: 0 }}>
+                            <h3
+                                style={{
+                                    marginTop:
+                                        0,
+                                }}
+                            >
                                 {product?.title ||
                                     "Product unavailable"}
                             </h3>
@@ -453,17 +625,34 @@ function OrderCard({
                         </div>
 
                         <StatusBadge
-                            status={escrow.status}
+                            status={
+                                escrow.status
+                            }
                         />
                     </div>
 
                     <p>
-                        <strong>Quantity:</strong>{" "}
-                        {escrow.order?.quantity || 1}
+                        <strong>
+                            Quantity:
+                        </strong>{" "}
+                        {escrow.order
+                            ?.quantity || 1}
                     </p>
 
                     <p>
-                        <strong>Total:</strong>{" "}
+                        <strong>
+                            Product price:
+                        </strong>{" "}
+                        {lamportsToSol(
+                            escrow.referenceAmount
+                        )}{" "}
+                        SOL
+                    </p>
+
+                    <p>
+                        <strong>
+                            Buyer total locked:
+                        </strong>{" "}
                         {lamportsToSol(
                             escrow.requiredDepositA
                         )}{" "}
@@ -472,7 +661,19 @@ function OrderCard({
 
                     <p>
                         <strong>
-                            Seller escrow deposit:
+                            Refundable buyer
+                            deposit:
+                        </strong>{" "}
+                        {lamportsToSol(
+                            buyerRefundLamports
+                        )}{" "}
+                        SOL
+                    </p>
+
+                    <p>
+                        <strong>
+                            Seller refundable
+                            deposit:
                         </strong>{" "}
                         {lamportsToSol(
                             escrow.requiredDepositB
@@ -481,28 +682,48 @@ function OrderCard({
                     </p>
 
                     <p>
-                        <strong>Buyer:</strong>{" "}
-                        {shortenAddress(escrow.partyA)}
+                        <strong>
+                            Buyer:
+                        </strong>{" "}
+                        {shortenAddress(
+                            escrow.partyA
+                        )}
                     </p>
 
                     <p>
-                        <strong>Seller:</strong>{" "}
+                        <strong>
+                            Seller:
+                        </strong>{" "}
                         {sellerDisplayName}
                     </p>
 
                     {merchant?.shipsFrom && (
                         <p>
-                            <strong>Ships from:</strong>{" "}
-                            {merchant.shipsFrom}
+                            <strong>
+                                Ships from:
+                            </strong>{" "}
+                            {
+                                merchant.shipsFrom
+                            }
                         </p>
                     )}
 
-                    <div style={{ marginTop: 20 }}>
-                        {role === "seller" &&
+                    <div
+                        style={{
+                            marginTop: 20,
+                        }}
+                    >
+                        {role ===
+                            "seller" &&
                             sellerNeedsDeposit && (
                                 <button
-                                    onClick={onAccept}
-                                    disabled={processing}
+                                    type="button"
+                                    onClick={
+                                        onAccept
+                                    }
+                                    disabled={
+                                        processing
+                                    }
                                 >
                                     {processing
                                         ? "Accepting..."
@@ -512,42 +733,104 @@ function OrderCard({
                                 </button>
                             )}
 
-                        {role === "buyer" &&
+                        {role ===
+                            "seller" &&
                             escrow.status ===
                                 ESCROW_STATUS.DEPOSITS_COMPLETE && (
                                 <button
+                                    type="button"
                                     onClick={
-                                        onConfirmReceived
+                                        onProposeCompletion
                                     }
-                                    disabled={processing}
+                                    disabled={
+                                        processing
+                                    }
                                 >
                                     {processing
-                                        ? "Confirming..."
-                                        : "Confirm Product Received"}
+                                        ? "Proposing..."
+                                        : "Mark Ready for Buyer Confirmation"}
                                 </button>
                             )}
 
-                        {role === "seller" &&
+                        {role ===
+                            "buyer" &&
                             escrow.status ===
                                 ESCROW_STATUS.FINALIZATION_SUGGESTED && (
-                                <button
-                                    onClick={
-                                        onAcceptRelease
-                                    }
-                                    disabled={processing}
-                                >
-                                    {processing
-                                        ? "Releasing..."
-                                        : "Accept Release"}
-                                </button>
+                                <div>
+                                    <div
+                                        style={{
+                                            marginBottom:
+                                                14,
+                                            padding:
+                                                14,
+                                            border:
+                                                "1px solid #ddd",
+                                            borderRadius:
+                                                10,
+                                            background:
+                                                "#f9fafb",
+                                        }}
+                                    >
+                                        <p>
+                                            <strong>
+                                                Deposit
+                                                returned
+                                                to you:
+                                            </strong>{" "}
+                                            {lamportsToSol(
+                                                escrow.proposedPayoutA
+                                            )}{" "}
+                                            SOL
+                                        </p>
+
+                                        <p>
+                                            <strong>
+                                                Released
+                                                to seller:
+                                            </strong>{" "}
+                                            {lamportsToSol(
+                                                escrow.proposedPayoutB
+                                            )}{" "}
+                                            SOL
+                                        </p>
+
+                                        <small>
+                                            Confirm
+                                            only after
+                                            receiving
+                                            and checking
+                                            the product.
+                                        </small>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            onRetrieveDeposit
+                                        }
+                                        disabled={
+                                            processing
+                                        }
+                                    >
+                                        {processing
+                                            ? "Processing..."
+                                            : "Retrieve Deposit & Release Payment"}
+                                    </button>
+                                </div>
                             )}
 
-                        {role === "buyer" &&
+                        {role ===
+                            "buyer" &&
                             escrow.status ===
                                 ESCROW_STATUS.COMPLETED && (
                                 <button
-                                    onClick={onCloseOrder}
-                                    disabled={processing}
+                                    type="button"
+                                    onClick={
+                                        onCloseOrder
+                                    }
+                                    disabled={
+                                        processing
+                                    }
                                 >
                                     {processing
                                         ? "Closing..."
@@ -561,7 +844,8 @@ function OrderCard({
             <div
                 style={{
                     marginTop: 24,
-                    borderTop: "1px solid #eee",
+                    borderTop:
+                        "1px solid #eee",
                     paddingTop: 20,
                 }}
             >
@@ -573,63 +857,81 @@ function OrderCard({
                         gap: 12,
                     }}
                 >
-                    {timeline.map((event, index) => (
-                        <div
-                            key={`${event.label}-${index}`}
-                            style={{
-                                display: "flex",
-                                gap: 12,
-                                alignItems:
-                                    "flex-start",
-                            }}
-                        >
-                            <span>
-                                {event.completed
-                                    ? "✅"
-                                    : "○"}
-                            </span>
+                    {timeline.map(
+                        (
+                            event,
+                            index
+                        ) => (
+                            <div
+                                key={`${event.label}-${index}`}
+                                style={{
+                                    display:
+                                        "flex",
+                                    gap: 12,
+                                    alignItems:
+                                        "flex-start",
+                                }}
+                            >
+                                <span>
+                                    {event.completed
+                                        ? "✅"
+                                        : "○"}
+                                </span>
 
-                            <div>
-                                <strong>
-                                    {event.label}
-                                </strong>
+                                <div>
+                                    <strong>
+                                        {
+                                            event.label
+                                        }
+                                    </strong>
 
-                                {event.timestamp > 0 && (
-                                    <div
-                                        style={{
-                                            fontSize: 13,
-                                            color: "#666",
-                                            marginTop: 2,
-                                        }}
-                                    >
-                                        {formatTimestamp(
-                                            event.timestamp
-                                        )}
-                                    </div>
-                                )}
+                                    {event.timestamp >
+                                        0 && (
+                                        <div
+                                            style={{
+                                                fontSize:
+                                                    13,
+                                                color:
+                                                    "#666",
+                                                marginTop:
+                                                    2,
+                                            }}
+                                        >
+                                            {formatTimestamp(
+                                                event.timestamp
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        )
+                    )}
                 </div>
             </div>
+
             <OrderChat escrow={escrow} />
         </article>
     );
 }
 
 function StatusBadge({ status }) {
-    const label = getEscrowStatusLabel(status);
+    const label =
+        getEscrowStatusLabel(status);
 
     let background = "#e5e7eb";
     let color = "#111827";
 
-    if (status === ESCROW_STATUS.CREATED) {
+    if (
+        status ===
+        ESCROW_STATUS.CREATED
+    ) {
         background = "#fef3c7";
         color = "#92400e";
     }
 
     if (
-        status === ESCROW_STATUS.DEPOSITS_COMPLETE
+        status ===
+        ESCROW_STATUS.DEPOSITS_COMPLETE
     ) {
         background = "#dbeafe";
         color = "#1e40af";
@@ -643,7 +945,10 @@ function StatusBadge({ status }) {
         color = "#5b21b6";
     }
 
-    if (status === ESCROW_STATUS.COMPLETED) {
+    if (
+        status ===
+        ESCROW_STATUS.COMPLETED
+    ) {
         background = "#dcfce7";
         color = "#166534";
     }
@@ -651,8 +956,10 @@ function StatusBadge({ status }) {
     return (
         <span
             style={{
-                display: "inline-block",
-                padding: "6px 10px",
+                display:
+                    "inline-block",
+                padding:
+                    "6px 10px",
                 borderRadius: 999,
                 background,
                 color,
@@ -664,3 +971,4 @@ function StatusBadge({ status }) {
         </span>
     );
 }
+

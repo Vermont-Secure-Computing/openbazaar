@@ -279,6 +279,323 @@ pub mod sol_bazaar {
     
         Ok(())
     }
+
+    pub fn initialize_reputation(
+        ctx: Context<InitializeReputation>,
+    ) -> Result<()> {
+        let reputation = &mut ctx.accounts.reputation;
+    
+        reputation.merchant = ctx.accounts.merchant_profile.authority;
+        reputation.total_reviews = 0;
+        reputation.total_rating = 0;
+        reputation.five_star = 0;
+        reputation.four_star = 0;
+        reputation.three_star = 0;
+        reputation.two_star = 0;
+        reputation.one_star = 0;
+        reputation.bump = ctx.bumps.reputation;
+    
+        Ok(())
+    }
+
+    pub fn submit_review(
+        ctx: Context<SubmitReview>,
+        rating: u8,
+        comment: String,
+    ) -> Result<()> {
+        require!(
+            (1..=5).contains(&rating),
+            MarketplaceError::InvalidRating
+        );
+    
+        require!(
+            comment.len() <= 280,
+            MarketplaceError::ReviewTooLong
+        );
+    
+        let escrow_info = ctx.accounts.escrow.to_account_info();
+    
+        require_keys_eq!(
+            *escrow_info.owner,
+            ESCROW_PROGRAM_ID,
+            MarketplaceError::InvalidEscrowOwner
+        );
+    
+        let data = escrow_info.try_borrow_data()?;
+    
+        require!(
+            data.len() >= 8,
+            MarketplaceError::InvalidEscrowAccount
+        );
+    
+        require!(
+            data.get(..8)
+                == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()),
+            MarketplaceError::InvalidEscrowDiscriminator
+        );
+    
+        let mut escrow_data: &[u8] = &data[8..];
+    
+        let external_escrow =
+            ExternalEscrow::deserialize(&mut escrow_data)
+                .map_err(|_| {
+                    error!(MarketplaceError::InvalidEscrowAccount)
+                })?;
+
+        require!(
+            external_escrow.note.contains("\"marketplace\":\"solbazaar\""),
+            MarketplaceError::NotSolBazaarEscrow
+        );
+
+        
+        require!(
+            external_escrow.status == 3,
+            MarketplaceError::OrderNotCompleted
+        );
+    
+        let reviewer = ctx.accounts.reviewer.key();
+        let merchant = ctx.accounts.merchant_profile.authority;
+    
+        require_keys_eq!(
+            reviewer,
+            external_escrow.party_a,
+            MarketplaceError::OnlyBuyerCanReview
+        );
+    
+        // Merchant must be the actual seller.
+        require_keys_eq!(
+            merchant,
+            external_escrow.party_b,
+            MarketplaceError::InvalidReviewMerchant
+        );
+
+        let order = &ctx.accounts.order_record;
+
+        require_keys_eq!(
+            order.buyer,
+            reviewer,
+            MarketplaceError::OnlyBuyerCanReview
+        );
+
+        require_keys_eq!(
+            order.seller,
+            merchant,
+            MarketplaceError::InvalidReviewMerchant
+        );
+
+    
+        let review = &mut ctx.accounts.review;
+    
+        review.escrow = ctx.accounts.escrow.key();
+        review.merchant = merchant;
+        review.reviewer = reviewer;
+        review.rating = rating;
+        review.comment = comment;
+        review.created_at = Clock::get()?.unix_timestamp;
+        review.bump = ctx.bumps.review;
+    
+        let reputation = &mut ctx.accounts.reputation;
+    
+        reputation.total_reviews = reputation
+            .total_reviews
+            .checked_add(1)
+            .ok_or(MarketplaceError::MathOverflow)?;
+    
+        reputation.total_rating = reputation
+            .total_rating
+            .checked_add(rating as u64)
+            .ok_or(MarketplaceError::MathOverflow)?;
+    
+        match rating {
+            5 => {
+                reputation.five_star = reputation
+                    .five_star
+                    .checked_add(1)
+                    .ok_or(MarketplaceError::MathOverflow)?;
+            }
+            4 => {
+                reputation.four_star = reputation
+                    .four_star
+                    .checked_add(1)
+                    .ok_or(MarketplaceError::MathOverflow)?;
+            }
+            3 => {
+                reputation.three_star = reputation
+                    .three_star
+                    .checked_add(1)
+                    .ok_or(MarketplaceError::MathOverflow)?;
+            }
+            2 => {
+                reputation.two_star = reputation
+                    .two_star
+                    .checked_add(1)
+                    .ok_or(MarketplaceError::MathOverflow)?;
+            }
+            1 => {
+                reputation.one_star = reputation
+                    .one_star
+                    .checked_add(1)
+                    .ok_or(MarketplaceError::MathOverflow)?;
+            }
+            _ => unreachable!(),
+        }
+    
+        Ok(())
+    }
+
+    pub fn create_order_record(
+        ctx: Context<CreateOrderRecord>,
+        quantity: u32,
+    ) -> Result<()> {
+        require!(quantity > 0, MarketplaceError::InvalidQuantity);
+    
+        let product = &ctx.accounts.product;
+    
+        require!(product.active, MarketplaceError::ProductInactive);
+        require!(!product.deleted, MarketplaceError::ProductInactive);
+        require!(
+            product.stock >= quantity,
+            MarketplaceError::InsufficientStock
+        );
+    
+        let total_price = product
+            .price
+            .checked_mul(quantity as u64)
+            .ok_or(MarketplaceError::MathOverflow)?;
+    
+        let escrow_info = ctx.accounts.escrow.to_account_info();
+    
+        require_keys_eq!(
+            *escrow_info.owner,
+            ESCROW_PROGRAM_ID,
+            MarketplaceError::InvalidEscrowOwner
+        );
+    
+        let data = escrow_info.try_borrow_data()?;
+    
+        require!(
+            data.len() >= 8,
+            MarketplaceError::InvalidEscrowAccount
+        );
+    
+        require!(
+            data.get(..8)
+                == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()),
+            MarketplaceError::InvalidEscrowDiscriminator
+        );
+    
+        let mut escrow_data: &[u8] = &data[8..];
+    
+        let external_escrow =
+            ExternalEscrow::deserialize(&mut escrow_data)
+                .map_err(|_| {
+                    error!(MarketplaceError::InvalidEscrowAccount)
+                })?;
+    
+        require!(
+            external_escrow.note.contains(
+                "\"marketplace\":\"solbazaar\""
+            ),
+            MarketplaceError::NotSolBazaarEscrow
+        );
+    
+        require_keys_eq!(
+            external_escrow.party_a,
+            ctx.accounts.buyer.key(),
+            MarketplaceError::InvalidOrderBuyer
+        );
+
+        require_keys_eq!(
+            external_escrow.creator,
+            ctx.accounts.buyer.key(),
+            MarketplaceError::InvalidOrderBuyer
+        );
+    
+        require_keys_eq!(
+            external_escrow.party_b,
+            product.merchant,
+            MarketplaceError::InvalidOrderSeller
+        );
+
+        require!(
+            external_escrow.party_a != Pubkey::default()
+                && external_escrow.party_b != Pubkey::default()
+                && external_escrow.party_a != external_escrow.party_b,
+            MarketplaceError::InvalidEscrowParties
+        );
+
+        require!(
+            external_escrow.status == 0,
+            MarketplaceError::InvalidOrderStatus
+        );
+    
+        // Merchant-configured escrow percentage (Basis Points).
+        let deposit_bps =
+            ctx.accounts
+                .merchant_profile
+                .seller_deposit_bps as u64;
+
+        // Calculate security deposit.
+        let calculated_deposit = total_price
+            .checked_mul(deposit_bps)
+            .ok_or(MarketplaceError::MathOverflow)?
+            .checked_div(10_000)
+            .ok_or(MarketplaceError::MathOverflow)?;
+
+        // Minimum of 1 lamport.
+        let security_deposit =
+            if calculated_deposit == 0 {
+                1
+            } else {
+                calculated_deposit
+            };
+
+        // Buyer locks:
+        // product price + refundable buyer security deposit.
+        let expected_buyer_deposit = total_price
+            .checked_add(security_deposit)
+            .ok_or(MarketplaceError::MathOverflow)?;
+
+        // Product price must remain unchanged.
+        require!(
+            external_escrow.reference_amount == total_price,
+            MarketplaceError::InvalidOrderAmount
+        );
+
+        // Buyer must escrow price + buyer bond.
+        require!(
+            external_escrow.required_deposit_a
+                == expected_buyer_deposit,
+            MarketplaceError::InvalidBuyerDeposit
+        );
+
+        // Buyer must actually deposit everything.
+        require!(
+            external_escrow.deposited_a
+                == expected_buyer_deposit,
+            MarketplaceError::BuyerDepositIncomplete
+        );
+
+        // Seller must escrow the configured bond.
+        require!(
+            external_escrow.required_deposit_b
+                == security_deposit,
+            MarketplaceError::InvalidSellerDeposit
+        );
+    
+        let order = &mut ctx.accounts.order_record;
+    
+        order.escrow = ctx.accounts.escrow.key();
+        order.product = product.key();
+        order.buyer = ctx.accounts.buyer.key();
+        order.seller = product.merchant;
+        order.quantity = quantity;
+        order.price = total_price;
+        order.created_at = Clock::get()?.unix_timestamp;
+        order.bump = ctx.bumps.order_record;
+    
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -360,8 +677,20 @@ pub struct UpdateProduct<'info> {
 
 #[derive(Accounts)]
 pub struct ReduceStock<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [
+            b"product",
+            authority.key().as_ref(),
+            &product.product_id.to_le_bytes()
+        ],
+        bump = product.bump,
+        constraint = product.merchant == authority.key()
+            @ MarketplaceError::Unauthorized
+    )]
     pub product: Account<'info, Product>,
+
+    pub authority: Signer<'info>,
 }
 
 #[account]
@@ -531,6 +860,185 @@ pub struct ChatMessage {
     pub bump: u8,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct MerchantReputation {
+    pub merchant: Pubkey,
+    pub total_reviews: u64,
+    pub total_rating: u64,
+    pub five_star: u64,
+    pub four_star: u64,
+    pub three_star: u64,
+    pub two_star: u64,
+    pub one_star: u64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct MerchantReview {
+    pub escrow: Pubkey,
+    pub merchant: Pubkey,
+    pub reviewer: Pubkey,
+    pub rating: u8,
+
+    #[max_len(280)]
+    pub comment: String,
+
+    pub created_at: i64,
+    pub bump: u8,
+}
+
+#[derive(Accounts)]
+pub struct InitializeReputation<'info> {
+    #[account(
+        seeds = [
+            b"merchant",
+            merchant_profile.authority.as_ref()
+        ],
+        bump = merchant_profile.bump
+    )]
+    pub merchant_profile: Account<'info, MerchantProfile>,
+
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + MerchantReputation::INIT_SPACE,
+        seeds = [
+            b"reputation",
+            merchant_profile.authority.as_ref()
+        ],
+        bump
+    )]
+    pub reputation: Account<'info, MerchantReputation>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SubmitReview<'info> {
+    #[account(mut)]
+    pub reviewer: Signer<'info>,
+
+    /// CHECK:
+    /// External escrow verified inside submit_review.
+    pub escrow: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [
+            b"merchant",
+            merchant_profile.authority.as_ref()
+        ],
+        bump = merchant_profile.bump
+    )]
+    pub merchant_profile: Account<'info, MerchantProfile>,
+
+    #[account(
+        seeds = [
+            b"order",
+            escrow.key().as_ref()
+        ],
+        bump = order_record.bump,
+        constraint = order_record.escrow == escrow.key()
+            @ MarketplaceError::InvalidOrderRecord,
+        constraint = order_record.buyer == reviewer.key()
+            @ MarketplaceError::OnlyBuyerCanReview,
+        constraint = order_record.seller == merchant_profile.authority
+            @ MarketplaceError::InvalidReviewMerchant
+    )]
+    pub order_record: Account<'info, OrderRecord>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"reputation",
+            merchant_profile.authority.as_ref()
+        ],
+        bump = reputation.bump,
+        constraint =
+            reputation.merchant == merchant_profile.authority
+            @ MarketplaceError::InvalidReviewMerchant
+    )]
+    pub reputation: Account<'info, MerchantReputation>,
+
+    #[account(
+        init,
+        payer = reviewer,
+        space = 8 + MerchantReview::INIT_SPACE,
+        seeds = [
+            b"review",
+            escrow.key().as_ref()
+        ],
+        bump
+    )]
+    pub review: Account<'info, MerchantReview>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct OrderRecord {
+    pub escrow: Pubkey,
+    pub product: Pubkey,
+    pub buyer: Pubkey,
+    pub seller: Pubkey,
+    pub quantity: u32,
+    pub price: u64,
+    pub created_at: i64,
+    pub bump: u8,
+}
+
+#[derive(Accounts)]
+pub struct CreateOrderRecord<'info> {
+    #[account(mut)]
+    pub buyer: Signer<'info>,
+
+    /// CHECK:
+    /// External escrow verified inside create_order_record using
+    /// owner, discriminator, deserialization, parties, and amount.
+    pub escrow: UncheckedAccount<'info>,
+
+    #[account(
+        constraint = product.active
+            @ MarketplaceError::ProductInactive,
+        constraint = !product.deleted
+            @ MarketplaceError::ProductInactive
+    )]
+    pub product: Account<'info, Product>,
+
+    #[account(
+        seeds = [
+            b"merchant",
+            product.merchant.as_ref()
+        ],
+        bump = merchant_profile.bump,
+        constraint = merchant_profile.authority
+            == product.merchant
+            @ MarketplaceError::InvalidOrderSeller,
+        constraint = merchant_profile.active
+            @ MarketplaceError::MerchantInactive
+    )]
+    pub merchant_profile: Account<'info, MerchantProfile>,
+
+    #[account(
+        init,
+        payer = buyer,
+        space = 8 + OrderRecord::INIT_SPACE,
+        seeds = [
+            b"order",
+            escrow.key().as_ref()
+        ],
+        bump
+    )]
+    pub order_record: Account<'info, OrderRecord>,
+
+    pub system_program: Program<'info, System>,
+}
+
 
 #[error_code]
 pub enum MarketplaceError {
@@ -575,4 +1083,49 @@ pub enum MarketplaceError {
 
     #[msg("Invalid escrow parties")]
     InvalidEscrowParties,
+
+    #[msg("Rating must be between 1 and 5")]
+    InvalidRating,
+
+    #[msg("Review comment is too long")]
+    ReviewTooLong,
+
+    #[msg("Order must be completed before review")]
+    OrderNotCompleted,
+
+    #[msg("Only the buyer can review this order")]
+    OnlyBuyerCanReview,
+
+    #[msg("Merchant does not match the escrow seller")]
+    InvalidReviewMerchant,
+
+    #[msg("Arithmetic overflow")]
+    MathOverflow,
+
+    #[msg("This escrow is not a SolBazaar order")]
+    NotSolBazaarEscrow,
+
+    #[msg("Invalid SolBazaar order record")]
+    InvalidOrderRecord,
+
+    #[msg("Order buyer does not match escrow buyer")]
+    InvalidOrderBuyer,
+
+    #[msg("Order seller does not match escrow seller")]
+    InvalidOrderSeller,
+
+    #[msg("Order amount does not match product total")]
+    InvalidOrderAmount,
+
+    #[msg("Buyer deposit is incomplete")]
+    BuyerDepositIncomplete,
+
+    #[msg("Escrow seller deposit does not match merchant settings")]
+    InvalidSellerDeposit,
+
+    #[msg("Buyer deposit does not match the required escrow amount")]
+    InvalidBuyerDeposit,
+
+    #[msg("Escrow is not in a valid state for order creation")]
+    InvalidOrderStatus,
 }
