@@ -21,6 +21,7 @@ import {
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./index.css";
+import "./components/review.css";
 
 import App from "./App";
 

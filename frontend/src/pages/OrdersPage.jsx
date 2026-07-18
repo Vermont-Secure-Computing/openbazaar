@@ -17,11 +17,17 @@ import {
     closeCompletedEscrow,
     sellerSuggestCompletion,
     retrieveBuyerDeposit,
+    recordCompletedSale,
 } from "../lib/escrow";
 
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
 import OrderChat from "../components/OrderChat";
+import {
+    initializeMerchantReputation,
+    submitProductReview,
+    hasOrderReview,
+} from "../lib/review";
 
 function lamportsToSol(value) {
     try {
@@ -231,6 +237,7 @@ export default function OrdersPage() {
             );
 
             await loadOrders();
+            return true;
         } catch (actionError) {
             console.error(
                 "Escrow action error:",
@@ -241,6 +248,7 @@ export default function OrdersPage() {
                 actionError?.message ||
                     "Transaction failed."
             );
+            return false;
         } finally {
             setProcessingEscrow("");
         }
@@ -255,14 +263,15 @@ export default function OrdersPage() {
                 sellerAcceptEscrow({
                     connection,
                     wallet,
-                    escrow,
+                    escrow
                 }),
             "Order accepted and seller deposit submitted."
         );
     };
 
     const proposeCompletion = async (
-        escrow
+        escrow,
+        donationPercent = 0
     ) => {
         await runEscrowAction(
             escrow,
@@ -271,6 +280,7 @@ export default function OrdersPage() {
                     connection,
                     wallet,
                     escrow,
+                    donationPercent,
                 }),
             "Order marked ready for buyer confirmation."
         );
@@ -302,13 +312,63 @@ export default function OrdersPage() {
 
         await runEscrowAction(
             escrow,
-            () =>
-                retrieveBuyerDeposit({
+            async () => {
+                const escrowSignature = await retrieveBuyerDeposit({ connection, wallet, escrow });
+                const saleSignature = await recordCompletedSale({ connection, wallet, escrow });
+                return saleSignature || escrowSignature;
+            },
+            "Your deposit was returned and the seller was paid."
+        );
+    };
+
+    const submitReview = async ({
+        escrow,
+        rating,
+        comment,
+    }) => {
+        const productPublicKey =
+            escrow.product?.publicKey ||
+            escrow.order?.product;
+
+        const merchantAuthority =
+            escrow.sellerMerchant?.authority ||
+            escrow.partyB;
+
+        if (!productPublicKey) {
+            throw new Error(
+                "Product account is unavailable."
+            );
+        }
+
+        if (!merchantAuthority) {
+            throw new Error(
+                "Seller merchant authority is unavailable."
+            );
+        }
+
+        return runEscrowAction(
+            escrow,
+            async () => {
+                await initializeMerchantReputation({
                     connection,
                     wallet,
-                    escrow,
-                }),
-            "Your deposit was returned and the seller was paid."
+                    merchantAuthority,
+                });
+
+                const result =
+                    await submitProductReview({
+                        connection,
+                        wallet,
+                        escrow: escrow.publicKey,
+                        product: productPublicKey,
+                        merchantAuthority,
+                        rating,
+                        comment,
+                    });
+
+                return result.signature;
+            },
+            "Review submitted successfully."
         );
     };
 
@@ -423,6 +483,9 @@ export default function OrdersPage() {
                                 key={
                                     escrow.publicKey
                                 }
+                                connection={
+                                    connection
+                                }
                                 escrow={
                                     escrow
                                 }
@@ -440,6 +503,13 @@ export default function OrdersPage() {
                                     closeOrder(
                                         escrow
                                     )
+                                }
+                                onSubmitReview={(rating, comment) =>
+                                    submitReview({
+                                        escrow,
+                                        rating,
+                                        comment,
+                                    })
                                 }
                             />
                         )
@@ -464,6 +534,9 @@ export default function OrdersPage() {
                                 key={
                                     escrow.publicKey
                                 }
+                                connection={
+                                    connection
+                                }
                                 escrow={
                                     escrow
                                 }
@@ -477,10 +550,8 @@ export default function OrdersPage() {
                                         escrow
                                     )
                                 }
-                                onProposeCompletion={() =>
-                                    proposeCompletion(
-                                        escrow
-                                    )
+                                onProposeCompletion={(donationPercent) =>
+                                    proposeCompletion(escrow, donationPercent)
                                 }
                             />
                         )
@@ -492,6 +563,7 @@ export default function OrdersPage() {
 }
 
 function OrderCard({
+    connection,
     escrow,
     role,
     processing,
@@ -499,10 +571,62 @@ function OrderCard({
     onProposeCompletion,
     onRetrieveDeposit,
     onCloseOrder,
+    onSubmitReview,
 }) {
     const product = escrow.product;
     const merchant =
         escrow.sellerMerchant;
+    const [showCompletionOptions, setShowCompletionOptions] = useState(false);
+    const [donationPercent, setDonationPercent] = useState(0);
+    const [rating, setRating] = useState(5);
+    const [reviewComment, setReviewComment] = useState("");
+    const [reviewExists, setReviewExists] = useState(false);
+    const [checkingReview, setCheckingReview] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const checkReview = async () => {
+            if (
+                role !== "buyer" ||
+                escrow.status !== ESCROW_STATUS.COMPLETED
+            ) {
+                return;
+            }
+
+            try {
+                setCheckingReview(true);
+                const result = await hasOrderReview({
+                    connection,
+                    escrow: escrow.publicKey,
+                });
+
+                if (!cancelled) {
+                    setReviewExists(result.exists);
+                }
+            } catch (reviewError) {
+                console.error(
+                    "Review status check failed:",
+                    reviewError
+                );
+            } finally {
+                if (!cancelled) {
+                    setCheckingReview(false);
+                }
+            }
+        };
+
+        checkReview();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        connection,
+        role,
+        escrow.status,
+        escrow.publicKey,
+    ]);
 
     const timeline =
         getEscrowTimeline(escrow);
@@ -737,19 +861,28 @@ function OrderCard({
                             "seller" &&
                             escrow.status ===
                                 ESCROW_STATUS.DEPOSITS_COMPLETE && (
-                                <button
-                                    type="button"
-                                    onClick={
-                                        onProposeCompletion
-                                    }
-                                    disabled={
-                                        processing
-                                    }
-                                >
-                                    {processing
-                                        ? "Proposing..."
-                                        : "Mark Ready for Buyer Confirmation"}
-                                </button>
+                                <div>
+                                    {!showCompletionOptions ? (
+                                        <button type="button" onClick={() => setShowCompletionOptions(true)} disabled={processing}>
+                                            Mark Ready for Buyer Confirmation
+                                        </button>
+                                    ) : (
+                                        <div style={{ padding: 16, border: "1px solid #ddd", borderRadius: 12, background: "#f9fafb", maxWidth: 520 }}>
+                                            <strong>Optional website donation: {donationPercent}%</strong>
+                                            <input type="range" min="0" max="100" step="1" value={donationPercent}
+                                                onChange={(e) => setDonationPercent(Number(e.target.value))}
+                                                disabled={processing} style={{ width: "100%", marginTop: 12 }} />
+                                            <p>Donation amount: <strong>{lamportsToSol(Math.floor(Number(escrow.referenceAmount) * donationPercent / 100))} SOL</strong></p>
+                                            <small>Deducted only from seller proceeds. Buyer refund is unchanged.</small>
+                                            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                                                <button type="button" onClick={() => onProposeCompletion(donationPercent)} disabled={processing}>
+                                                    {processing ? "Proposing..." : donationPercent > 0 ? `Confirm Ready + Donate ${donationPercent}%` : "Confirm Ready Without Donation"}
+                                                </button>
+                                                <button type="button" onClick={() => { setDonationPercent(0); setShowCompletionOptions(false); }} disabled={processing}>Cancel</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                         {role ===
@@ -823,19 +956,129 @@ function OrderCard({
                             "buyer" &&
                             escrow.status ===
                                 ESCROW_STATUS.COMPLETED && (
-                                <button
-                                    type="button"
-                                    onClick={
-                                        onCloseOrder
-                                    }
-                                    disabled={
-                                        processing
-                                    }
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gap: 16,
+                                        maxWidth: 520,
+                                    }}
                                 >
-                                    {processing
-                                        ? "Closing..."
-                                        : "Close Order and Recover Rent"}
-                                </button>
+                                    {checkingReview ? (
+                                        <p>Checking review status...</p>
+                                    ) : reviewExists ? (
+                                        <div
+                                            style={{
+                                                padding: 14,
+                                                border: "1px solid #bbf7d0",
+                                                borderRadius: 10,
+                                                background: "#f0fdf4",
+                                            }}
+                                        >
+                                            Review already submitted.
+                                        </div>
+                                    ) : (
+                                        <div
+                                            style={{
+                                                padding: 16,
+                                                border: "1px solid #ddd",
+                                                borderRadius: 12,
+                                                background: "#f9fafb",
+                                            }}
+                                        >
+                                            <h4 style={{ marginTop: 0 }}>
+                                                Review this product
+                                            </h4>
+
+                                            <label style={{ display: "block", marginBottom: 8 }}>
+                                                Rating
+                                            </label>
+
+                                            <select
+                                                value={rating}
+                                                onChange={(event) =>
+                                                    setRating(Number(event.target.value))
+                                                }
+                                                disabled={processing}
+                                                style={{
+                                                    width: "100%",
+                                                    padding: 10,
+                                                    marginBottom: 12,
+                                                }}
+                                            >
+                                                <option value={5}>5 - Excellent</option>
+                                                <option value={4}>4 - Very Good</option>
+                                                <option value={3}>3 - Good</option>
+                                                <option value={2}>2 - Fair</option>
+                                                <option value={1}>1 - Poor</option>
+                                            </select>
+
+                                            <label style={{ display: "block", marginBottom: 8 }}>
+                                                Comment
+                                            </label>
+
+                                            <textarea
+                                                value={reviewComment}
+                                                onChange={(event) =>
+                                                    setReviewComment(event.target.value)
+                                                }
+                                                maxLength={280}
+                                                rows={4}
+                                                placeholder="Share your experience with this product..."
+                                                disabled={processing}
+                                                style={{
+                                                    width: "100%",
+                                                    padding: 10,
+                                                    resize: "vertical",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            />
+
+                                            <small>
+                                                {reviewComment.length}/280
+                                            </small>
+
+                                            <button
+                                                type="button"
+                                                disabled={processing}
+                                                onClick={async () => {
+                                                    const success =
+                                                        await onSubmitReview(
+                                                            rating,
+                                                            reviewComment
+                                                        );
+
+                                                    if (success) {
+                                                        setReviewExists(true);
+                                                    }
+                                                }}
+                                                style={{
+                                                    display: "block",
+                                                    marginTop: 14,
+                                                }}
+                                            >
+                                                {processing
+                                                    ? "Submitting Review..."
+                                                    : "Submit Review"}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={onCloseOrder}
+                                        disabled={
+                                            processing ||
+                                            checkingReview ||
+                                            !reviewExists
+                                        }
+                                    >
+                                        {processing
+                                            ? "Processing..."
+                                            : !reviewExists
+                                            ? "Submit Review Before Closing"
+                                            : "Close Order and Recover Rent"}
+                                    </button>
+                                </div>
                             )}
                     </div>
                 </div>
@@ -971,4 +1214,3 @@ function StatusBadge({ status }) {
         </span>
     );
 }
-

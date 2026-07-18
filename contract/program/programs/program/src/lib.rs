@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("9MfxguocK4gW2CZigXwpj97YumQ6a8S4twXGLfnaw3tj");
+declare_id!("Dg1SUE2GAfMaxft1XFaMYck1n6uqxtx4F5m4cbB4c6dp");
 
 pub const ESCROW_PROGRAM_ID: Pubkey =
     pubkey!("E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ");
@@ -194,8 +194,8 @@ pub mod sol_bazaar {
         require!(quantity > 0, MarketplaceError::InvalidQuantity);
         require!(product.stock >= quantity, MarketplaceError::InsufficientStock);
 
+        // Reduce stock now; sold is recorded only after completed escrow.
         product.stock -= quantity;
-        product.sold += quantity;
 
         Ok(())
     }
@@ -383,10 +383,17 @@ pub mod sol_bazaar {
             MarketplaceError::InvalidReviewMerchant
         );
 
-    
+        require_keys_eq!(
+            order.product,
+            ctx.accounts.product.key(),
+            MarketplaceError::InvalidReviewProduct
+        );
+
         let review = &mut ctx.accounts.review;
-    
+
         review.escrow = ctx.accounts.escrow.key();
+        review.order_record = order.key();
+        review.product = ctx.accounts.product.key();
         review.merchant = merchant;
         review.reviewer = reviewer;
         review.rating = rating;
@@ -596,6 +603,32 @@ pub mod sol_bazaar {
     
         Ok(())
     }
+
+    pub fn record_completed_sale(ctx: Context<RecordCompletedSale>) -> Result<()> {
+        let escrow_info = ctx.accounts.escrow.to_account_info();
+        require_keys_eq!(*escrow_info.owner, ESCROW_PROGRAM_ID, MarketplaceError::InvalidEscrowOwner);
+        let data = escrow_info.try_borrow_data()?;
+        require!(data.len() >= 8, MarketplaceError::InvalidEscrowAccount);
+        require!(data.get(..8) == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()), MarketplaceError::InvalidEscrowDiscriminator);
+        let mut escrow_data: &[u8] = &data[8..];
+        let external_escrow = ExternalEscrow::deserialize(&mut escrow_data)
+            .map_err(|_| error!(MarketplaceError::InvalidEscrowAccount))?;
+        require!(external_escrow.note.contains("\"marketplace\":\"solbazaar\""), MarketplaceError::NotSolBazaarEscrow);
+        require!(external_escrow.status == 3, MarketplaceError::OrderNotCompleted);
+        require_keys_eq!(external_escrow.party_a, ctx.accounts.buyer.key(), MarketplaceError::InvalidOrderBuyer);
+        require_keys_eq!(external_escrow.party_b, ctx.accounts.order_record.seller, MarketplaceError::InvalidOrderSeller);
+        let quantity = ctx.accounts.order_record.quantity;
+        ctx.accounts.product.sold = ctx.accounts.product.sold.checked_add(quantity).ok_or(MarketplaceError::MathOverflow)?;
+        ctx.accounts.product.updated_at = Clock::get()?.unix_timestamp;
+        let completed_sale = &mut ctx.accounts.completed_sale;
+        completed_sale.order_record = ctx.accounts.order_record.key();
+        completed_sale.product = ctx.accounts.product.key();
+        completed_sale.quantity = quantity;
+        completed_sale.completed_at = Clock::get()?.unix_timestamp;
+        completed_sale.bump = ctx.bumps.completed_sale;
+        Ok(())
+    }
+
 }
 
 #[derive(Accounts)]
@@ -878,6 +911,8 @@ pub struct MerchantReputation {
 #[derive(InitSpace)]
 pub struct MerchantReview {
     pub escrow: Pubkey,
+    pub order_record: Pubkey,
+    pub product: Pubkey,
     pub merchant: Pubkey,
     pub reviewer: Pubkey,
     pub rating: u8,
@@ -952,6 +987,14 @@ pub struct SubmitReview<'info> {
     pub order_record: Account<'info, OrderRecord>,
 
     #[account(
+        constraint = product.key() == order_record.product
+            @ MarketplaceError::InvalidReviewProduct,
+        constraint = product.merchant == merchant_profile.authority
+            @ MarketplaceError::InvalidReviewMerchant
+    )]
+    pub product: Account<'info, Product>,
+
+    #[account(
         mut,
         seeds = [
             b"reputation",
@@ -970,7 +1013,7 @@ pub struct SubmitReview<'info> {
         space = 8 + MerchantReview::INIT_SPACE,
         seeds = [
             b"review",
-            escrow.key().as_ref()
+            order_record.key().as_ref()
         ],
         bump
     )]
@@ -1040,6 +1083,44 @@ pub struct CreateOrderRecord<'info> {
 }
 
 
+#[derive(Accounts)]
+pub struct RecordCompletedSale<'info> {
+    #[account(mut)]
+    pub buyer: Signer<'info>,
+    /// CHECK: Verified in instruction.
+    pub escrow: UncheckedAccount<'info>,
+    #[account(
+        seeds = [b"order", escrow.key().as_ref()],
+        bump = order_record.bump,
+        constraint = order_record.escrow == escrow.key() @ MarketplaceError::InvalidOrderRecord,
+        constraint = order_record.buyer == buyer.key() @ MarketplaceError::InvalidOrderBuyer,
+        constraint = order_record.product == product.key() @ MarketplaceError::InvalidReviewProduct
+    )]
+    pub order_record: Account<'info, OrderRecord>,
+    #[account(mut, constraint = product.merchant == order_record.seller @ MarketplaceError::InvalidOrderSeller)]
+    pub product: Account<'info, Product>,
+    #[account(
+        init,
+        payer = buyer,
+        space = 8 + CompletedSale::INIT_SPACE,
+        seeds = [b"completed-sale", order_record.key().as_ref()],
+        bump
+    )]
+    pub completed_sale: Account<'info, CompletedSale>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct CompletedSale {
+    pub order_record: Pubkey,
+    pub product: Pubkey,
+    pub quantity: u32,
+    pub completed_at: i64,
+    pub bump: u8,
+}
+
+
 #[error_code]
 pub enum MarketplaceError {
     #[msg("Unauthorized")]
@@ -1098,6 +1179,9 @@ pub enum MarketplaceError {
 
     #[msg("Merchant does not match the escrow seller")]
     InvalidReviewMerchant,
+
+    #[msg("Product does not match the completed order")]
+    InvalidReviewProduct,
 
     #[msg("Arithmetic overflow")]
     MathOverflow,

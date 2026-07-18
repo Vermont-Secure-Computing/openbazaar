@@ -4,9 +4,13 @@ import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
-import { createBuyerEscrow } from "../lib/escrow";
-import { createOrderRecord } from "../lib/orderRecord";
+// import { createBuyerEscrow } from "../lib/escrow";
+// import { createOrderRecord } from "../lib/orderRecord";
+import { createBuyOrder } from "../lib/buyOrder";
 import { getMerchantReputation } from "../lib/reputation";
+import ProductReviews from "../components/ProductReviews";
+import SellerReputation from "../components/SellerReputation";
+import "../components/review.css";
 
 
 export default function ProductPage() {
@@ -55,7 +59,7 @@ export default function ProductPage() {
 
         load();
 
-    }, [product]);
+    }, [product, connection, wallet]);
 
     if (!item) {
         return (
@@ -97,15 +101,29 @@ export default function ProductPage() {
             return;
         }
     
-        if (item.stock === 0) {
+        const stock = Number(item.stock ?? 0);
+    
+        if (stock <= 0) {
             alert("This product is out of stock.");
             return;
         }
     
-        if (
-            wallet.publicKey.toBase58() ===
-            merchant.authority
-        ) {
+        const buyerAddress =
+            wallet.publicKey.toBase58();
+    
+        const sellerAddress =
+            merchant.authority?.toBase58?.() ??
+            merchant.authority?.toString?.() ??
+            merchant.authority;
+    
+        if (!sellerAddress) {
+            alert(
+                "Merchant wallet address is unavailable."
+            );
+            return;
+        }
+    
+        if (buyerAddress === sellerAddress) {
             alert(
                 "You cannot buy your own product."
             );
@@ -118,13 +136,14 @@ export default function ProductPage() {
             setBuying(true);
     
             /*
-             * createBuyerEscrow must:
-             * 1. create the external escrow;
-             * 2. deposit product price + buyer bond;
-             * 3. return the escrow PDA.
-             */
-            const escrowResult =
-                await createBuyerEscrow({
+                * One wallet signing:
+                *
+                * 1. Create external escrow
+                * 2. Deposit product price + buyer bond
+                * 3. Create SolBazaar OrderRecord
+                */
+            const orderResult =
+                await createBuyOrder({
                     connection,
                     wallet,
                     product: item,
@@ -133,57 +152,64 @@ export default function ProductPage() {
                 });
     
             console.log(
-                "Escrow created:",
-                escrowResult
+                "Order created:",
+                orderResult
             );
     
             const escrowAddress =
-                typeof escrowResult.escrowPda === "string"
-                    ? escrowResult.escrowPda
-                    : escrowResult.escrowPda?.toBase58();
-
+                orderResult?.escrowPda;
+    
+            const orderRecordAddress =
+                orderResult?.orderRecord;
+    
+            const signature =
+                orderResult?.signature;
+    
             if (!escrowAddress) {
                 throw new Error(
                     "Escrow address was not returned."
                 );
             }
     
-            /*
-             * Register this escrow as a valid
-             * SolBazaar marketplace order.
-             */
-            const orderRecordResult =
-                await createOrderRecord({
-                    connection,
-                    wallet,
-                    escrowAddress,
-                    productAddress:
-                        item.publicKey,
-                    merchantAuthority:
-                        merchant.authority,
-                    quantity,
-                });
-    
-            console.log(
-                "Order record created:",
-                orderRecordResult
-            );
+            if (!orderRecordAddress) {
+                throw new Error(
+                    "Order record address was not returned."
+                );
+            }
     
             alert(
                 `Order created successfully.\n\n` +
                 `Escrow: ${escrowAddress}\n` +
-                `Order Record: ${orderRecordResult.orderRecord}`
+                `Order Record: ${orderRecordAddress}\n` +
+                `Transaction: ${signature}`
             );
+    
+            /*
+                * Optional:
+                * refresh product/order data after purchase.
+                */
+            if (typeof loadProduct === "function") {
+                try {
+                    await loadProduct();
+                } catch (refreshError) {
+                    console.error(
+                        "Product refresh error:",
+                        refreshError
+                    );
+                }
+            }
         } catch (error) {
             console.error(
                 "Buy now error:",
                 error
             );
     
-            alert(
+            const message =
+                error?.error?.errorMessage ||
                 error?.message ||
-                    "Failed to create escrow order."
-            );
+                "Failed to create escrow order.";
+    
+            alert(message);
         } finally {
             setBuying(false);
         }
@@ -335,6 +361,12 @@ export default function ProductPage() {
 
                             </p>
 
+                            <SellerReputation
+                                merchantAuthority={
+                                    merchant.authority
+                                }
+                            />
+
                         </>
 
                     )}
@@ -420,6 +452,13 @@ export default function ProductPage() {
                 </div>
 
             </div>
+
+            <ProductReviews
+                product={
+                    item.publicKey ||
+                    product
+                }
+            />
 
         </div>
     );
