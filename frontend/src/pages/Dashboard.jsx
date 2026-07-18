@@ -5,6 +5,8 @@ import CreateMerchant from "./CreateMerchant";
 import CreateProduct from "./CreateProduct";
 import EditMerchant from "./EditMerchant";
 import MyProducts from "./MyProducts";
+import SellerReputation from "../components/SellerReputation";
+import "../components/review.css";
 
 import { getMerchantByAuthority } from "../lib/merchant";
 
@@ -47,7 +49,7 @@ export default function Dashboard() {
     return (
         <div style={{ padding: 24 }}>
             <h1>Seller Dashboard</h1>
-
+    
             {!merchant ? (
                 <>
                     <p>You do not have a merchant profile yet.</p>
@@ -55,15 +57,27 @@ export default function Dashboard() {
                 </>
             ) : (
                 <>
-                    <EditMerchant merchant={merchant} onUpdated={load} />
-
+                    <EditMerchant
+                        merchant={merchant}
+                        onUpdated={load}
+                    />
+    
+                    <SellerReputation
+                        merchantAuthority={
+                            merchant.authority
+                        }
+                        allowInitialize
+                    />
+    
                     <hr />
-
+    
                     <CreateProduct />
-
+    
                     <hr />
-
-                    <MyProducts merchant={merchant.authority} />
+    
+                    <MyProducts
+                        merchant={merchant.authority}
+                    />
                 </>
             )}
         </div>

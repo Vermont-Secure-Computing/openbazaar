@@ -1,5 +1,5 @@
 {
-  "address": "9MfxguocK4gW2CZigXwpj97YumQ6a8S4twXGLfnaw3tj",
+  "address": "Dg1SUE2GAfMaxft1XFaMYck1n6uqxtx4F5m4cbB4c6dp",
   "metadata": {
     "name": "sol_bazaar",
     "version": "0.1.0",
@@ -431,6 +431,90 @@
       "args": []
     },
     {
+      "name": "record_completed_sale",
+      "discriminator": [
+        87,
+        17,
+        62,
+        82,
+        176,
+        250,
+        159,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow"
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product",
+          "writable": true
+        },
+        {
+          "name": "completed_sale",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  112,
+                  108,
+                  101,
+                  116,
+                  101,
+                  100,
+                  45,
+                  115,
+                  97,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "reduce_stock",
       "discriminator": [
         105,
@@ -624,6 +708,9 @@
           }
         },
         {
+          "name": "product"
+        },
+        {
           "name": "reputation",
           "writable": true,
           "pda": {
@@ -669,7 +756,7 @@
               },
               {
                 "kind": "account",
-                "path": "escrow"
+                "path": "order_record"
               }
             ]
           }
@@ -886,6 +973,19 @@
       ]
     },
     {
+      "name": "CompletedSale",
+      "discriminator": [
+        21,
+        214,
+        39,
+        8,
+        29,
+        8,
+        25,
+        77
+      ]
+    },
+    {
       "name": "MerchantProfile",
       "discriminator": [
         214,
@@ -1049,51 +1149,56 @@
     },
     {
       "code": 6019,
+      "name": "InvalidReviewProduct",
+      "msg": "Product does not match the completed order"
+    },
+    {
+      "code": 6020,
       "name": "MathOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6020,
+      "code": 6021,
       "name": "NotSolBazaarEscrow",
       "msg": "This escrow is not a SolBazaar order"
     },
     {
-      "code": 6021,
+      "code": 6022,
       "name": "InvalidOrderRecord",
       "msg": "Invalid SolBazaar order record"
     },
     {
-      "code": 6022,
+      "code": 6023,
       "name": "InvalidOrderBuyer",
       "msg": "Order buyer does not match escrow buyer"
     },
     {
-      "code": 6023,
+      "code": 6024,
       "name": "InvalidOrderSeller",
       "msg": "Order seller does not match escrow seller"
     },
     {
-      "code": 6024,
+      "code": 6025,
       "name": "InvalidOrderAmount",
       "msg": "Order amount does not match product total"
     },
     {
-      "code": 6025,
+      "code": 6026,
       "name": "BuyerDepositIncomplete",
       "msg": "Buyer deposit is incomplete"
     },
     {
-      "code": 6026,
+      "code": 6027,
       "name": "InvalidSellerDeposit",
       "msg": "Escrow seller deposit does not match merchant settings"
     },
     {
-      "code": 6027,
+      "code": 6028,
       "name": "InvalidBuyerDeposit",
       "msg": "Buyer deposit does not match the required escrow amount"
     },
     {
-      "code": 6028,
+      "code": 6029,
       "name": "InvalidOrderStatus",
       "msg": "Escrow is not in a valid state for order creation"
     }
@@ -1123,6 +1228,34 @@
           {
             "name": "message_id",
             "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompletedSale",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order_record",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "completed_at",
+            "type": "i64"
           },
           {
             "name": "bump",
@@ -1262,6 +1395,14 @@
         "fields": [
           {
             "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "order_record",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
             "type": "pubkey"
           },
           {
