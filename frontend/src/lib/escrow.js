@@ -536,6 +536,35 @@ export async function getSellerEscrows({
     );
 }
 
+/**
+ * 
+ * Function to cancel the escrow
+ * Available only if other party has not deposited yet
+ * 
+ */
+export async function withdrawBeforeComplete({
+  wallet,
+  connection,
+  escrowPda,
+  vaultPda,
+  creator,
+}) {
+  const program = getEscrowProgram(connection, wallet);
+
+  const sig = await program.methods
+    .withdrawBeforeComplete()
+    .accounts({
+      withdrawer: wallet.publicKey,
+      escrow: new PublicKey(escrowPda),
+      vault: new PublicKey(vaultPda),
+      creator: new PublicKey(creator),
+    })
+    .rpc();
+
+  return sig;
+}
+
+
 /*
  * Seller accepts the order and
  * deposits the refundable seller bond.

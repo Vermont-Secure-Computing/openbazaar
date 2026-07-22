@@ -5,6 +5,7 @@ import {
 } from "@solana/wallet-adapter-react";
 import {
     LAMPORTS_PER_SOL,
+    SystemProgram
 } from "@solana/web3.js";
 
 import {
@@ -18,6 +19,7 @@ import {
     sellerSuggestCompletion,
     retrieveBuyerDeposit,
     recordCompletedSale,
+    withdrawBeforeComplete
 } from "../lib/escrow";
 
 import { getProduct } from "../lib/product";
@@ -480,6 +482,7 @@ export default function OrdersPage() {
                     buyerOrders.map(
                         (escrow) => (
                             <OrderCard
+                                wallet={wallet}
                                 key={
                                     escrow.publicKey
                                 }
@@ -511,6 +514,7 @@ export default function OrdersPage() {
                                         comment,
                                     })
                                 }
+                                loadOrders={loadOrders}
                             />
                         )
                     )
@@ -531,6 +535,7 @@ export default function OrdersPage() {
                     sellerOrders.map(
                         (escrow) => (
                             <OrderCard
+                                wallet={wallet}
                                 key={
                                     escrow.publicKey
                                 }
@@ -553,6 +558,7 @@ export default function OrdersPage() {
                                 onProposeCompletion={(donationPercent) =>
                                     proposeCompletion(escrow, donationPercent)
                                 }
+                                loadOrders={loadOrders}
                             />
                         )
                     )
@@ -572,6 +578,8 @@ function OrderCard({
     onRetrieveDeposit,
     onCloseOrder,
     onSubmitReview,
+    wallet,
+    loadOrders
 }) {
     const product = escrow.product;
     const merchant =
@@ -582,6 +590,53 @@ function OrderCard({
     const [reviewComment, setReviewComment] = useState("");
     const [reviewExists, setReviewExists] = useState(false);
     const [checkingReview, setCheckingReview] = useState(false);
+
+    console.log("order card wallet: ", wallet)
+    console.log("order card escrow: ", escrow)
+
+    const [loading, setLoading] = useState(false);
+
+    const myKey = wallet.publicKey?.toBase58();
+    const nullKey = SystemProgram.programId.toBase58();
+
+    console.log("my key: ", myKey)
+
+    const isPartyA = myKey && escrow.partyA === myKey;
+    const isPartyB = myKey && escrow.partyB === myKey;
+    const canBecomePartyA = escrow.partyA === nullKey && escrow.partyB !== myKey;
+    const canBecomePartyB = escrow.partyB === nullKey && escrow.partyA !== myKey;
+
+    console.log("isPartyA: ", isPartyA)
+    console.log("isPartyB: ", isPartyB)
+
+    let fundAmount = null;
+    let fundLabel = "";
+
+    if (isPartyA && Number(escrow.depositedA) === 0) {
+        fundAmount = Number(escrow.requiredDepositA);
+        fundLabel = `Fund as Party A (${sol(escrow.requiredDepositA)} SOL)`;
+    } else if (isPartyB && Number(escrow.depositedB) === 0) {
+        fundAmount = Number(escrow.requiredDepositB);
+        fundLabel = `Fund as Party B (${sol(escrow.requiredDepositB)} SOL)`;
+    } else if (canBecomePartyA && Number(escrow.depositedA) === 0) {
+        fundAmount = Number(escrow.requiredDepositA);
+        fundLabel = `Join & Fund as Party A (${sol(escrow.requiredDepositA)} SOL)`;
+    } else if (canBecomePartyB && Number(escrow.depositedB) === 0) {
+        fundAmount = Number(escrow.requiredDepositB);
+        fundLabel = `Agree & Fund as Party B (${sol(escrow.requiredDepositB)} SOL)`;
+    }
+
+    console.log("fund amount: ", fundAmount)
+    console.log("fund label: ", fundLabel)
+
+    /**
+     * Logic for checking if a party can do a refund and close the escroe
+     */
+    const canRefundA = escrow.status === 0 && isPartyA && Number(escrow.depositedA) > 0;
+    const canRefundB = escrow.status === 0 && isPartyB && Number(escrow.depositedB) > 0;
+    const canRefund = canRefundA || canRefundB;
+
+    console.log("can refund: ", canRefund)
 
     useEffect(() => {
         let cancelled = false;
@@ -649,6 +704,28 @@ function OrderCard({
 
     const buyerRefundLamports =
         calculateBuyerRefund(escrow);
+
+    const handleRefund = async () => {
+        try {
+            setLoading(true);
+
+            const sig = await withdrawBeforeComplete({
+                wallet,
+                connection,
+                escrowPda: escrow.publicKey,
+                vaultPda: escrow.vault,
+                creator: escrow.creator,
+            });
+
+            alert(`Refund complete!\n\nTX:\n${sig}`);
+            await loadOrders();
+        } catch (error) {
+            console.error(error);
+            alert(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <article
@@ -1080,6 +1157,17 @@ function OrderCard({
                                     </button>
                                 </div>
                             )}
+
+                        {canRefund && (
+                            <button
+                                onClick={handleRefund}
+                                disabled={loading}
+                                className="mt-3 rounded-xl bg-red-600 px-5 py-3 font-bold text-white disabled:opacity-50"
+                            >
+                                {loading ? "Processing..." : "Refund / Withdraw"}
+                            </button>
+                        )}
+
                     </div>
                 </div>
             </div>
