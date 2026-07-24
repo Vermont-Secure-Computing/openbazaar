@@ -23,6 +23,7 @@ export default function CreateMerchant({ onCreated }) {
     const [instagram, setInstagram] = useState("");
     const [telegram, setTelegram] = useState("");
     const [x, setX] = useState("");
+    const [preferredContact, setPreferredContact] = useState("");
 
     const createMerchant = async () => {
         if (!wallet.publicKey) {
@@ -61,9 +62,10 @@ export default function CreateMerchant({ onCreated }) {
                 facebook || "",
                 instagram || "",
                 telegram || "",
-                x || ""
+                x || "",
+                preferredContact || ""
             )
-            .accounts({
+            .accountsStrict({
                 merchantProfile: merchantPda,
                 authority: wallet.publicKey,
                 systemProgram: SystemProgram.programId,
@@ -138,6 +140,29 @@ export default function CreateMerchant({ onCreated }) {
             <br /><br />
 
             <input placeholder="X / Twitter" value={x} onChange={(e) => setX(e.target.value)} />
+            <br /><br />
+
+            <textarea
+                placeholder={`Preferred Contact
+
+            Example:
+            Email: store@example.com
+            Telegram: @myshop
+            WhatsApp: +639171234567
+            Facebook: facebook.com/myshop`}
+                value={preferredContact}
+                onChange={(e) => setPreferredContact(e.target.value)}
+                rows={5}
+                style={{
+                    width: "100%",
+                    maxWidth: "600px",
+                    padding: "10px",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    fontSize: "14px",
+                    boxSizing: "border-box",
+                }}
+            />
             <br /><br />
 
             <button onClick={createMerchant}>

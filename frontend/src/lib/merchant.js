@@ -6,14 +6,20 @@ export async function getMerchants() {
             program.programId
         );
 
+    console.log(
+        "Total program accounts:",
+        rawAccounts.length
+    );
+
     const merchants = [];
 
     for (const item of rawAccounts) {
         try {
-            const merchant = program.coder.accounts.decode(
-                "merchantProfile",
-                item.account.data
-            );
+            const merchant =
+                program.coder.accounts.decode(
+                    "merchantProfile",
+                    item.account.data
+                );
 
             merchants.push({
                 publicKey: item.pubkey.toBase58(),
@@ -31,21 +37,36 @@ export async function getMerchants() {
                 instagram: merchant.instagram,
                 telegram: merchant.telegram,
                 x: merchant.x,
+                preferredContact: merchant.preferredContact,
                 active: merchant.active,
                 verified: merchant.verified,
             });
-        } catch {
-            // ignore old merchant/product accounts
+        } catch (error) {
+            console.warn(
+                "Skipped incompatible account:",
+                item.pubkey.toBase58(),
+                "size:",
+                item.account.data.length,
+                error.message
+            );
         }
     }
 
-    return merchants.filter((m) => m.active);
+    console.log(
+        "Successfully decoded merchants:",
+        merchants
+    );
+
+    return merchants.filter(
+        (merchant) => merchant.active
+    );
 }
 
 export async function getMerchantByAuthority(authority) {
     const merchants = await getMerchants();
 
     return merchants.find(
-        (merchant) => merchant.authority === authority
+        (merchant) =>
+            merchant.authority === authority
     );
 }

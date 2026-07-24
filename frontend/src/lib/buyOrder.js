@@ -249,16 +249,83 @@ export async function createBuyOrder({
     transaction.recentBlockhash =
         latestBlockhash.blockhash;
 
-    const signature =
-        await wallet.sendTransaction(
-            transaction,
-            connection,
-            {
-                skipPreflight: false,
-                preflightCommitment:
-                    "confirmed",
+        let signedTransaction;
+
+        try {
+            if (!wallet.signTransaction) {
+                throw new Error(
+                    "Connected wallet does not support signTransaction."
+                );
             }
-        );
+        
+            signedTransaction =
+                await wallet.signTransaction(
+                    transaction
+                );
+        
+            console.log(
+                "Transaction signed successfully."
+            );
+        } catch (error) {
+            console.error(
+                "Transaction signing failed:",
+                error
+            );
+        
+            console.error(
+                "Signing error name:",
+                error?.name
+            );
+        
+            console.error(
+                "Signing error message:",
+                error?.message
+            );
+        
+            console.error(
+                "Signing wallet error:",
+                error?.error
+            );
+        
+            throw error;
+        }
+        
+        let signature;
+        
+        try {
+            signature =
+                await connection.sendRawTransaction(
+                    signedTransaction.serialize(),
+                    {
+                        skipPreflight: false,
+                        preflightCommitment:
+                            "confirmed",
+                        maxRetries: 3,
+                    }
+                );
+        
+            console.log(
+                "Transaction submitted:",
+                signature
+            );
+        } catch (error) {
+            console.error(
+                "RPC submission failed:",
+                error
+            );
+        
+            console.error(
+                "RPC error message:",
+                error?.message
+            );
+        
+            console.error(
+                "RPC logs:",
+                error?.logs
+            );
+        
+            throw error;
+        }
 
     await connection.confirmTransaction(
         {

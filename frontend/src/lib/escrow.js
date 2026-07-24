@@ -7,6 +7,7 @@ import {
 import {
     PublicKey,
     SystemProgram,
+    Transaction
 } from "@solana/web3.js";
 
 import escrowIdl from "../idl/sol_shop_escrow.json";
@@ -1161,4 +1162,230 @@ export async function recordCompletedSale({
                 SystemProgram.programId,
         })
         .rpc();
+}
+
+export async function releaseBuyerAndRecordSale({
+    connection,
+    wallet,
+    escrow,
+}) {
+    if (!wallet.publicKey) {
+        throw new Error("Connect wallet first.");
+    }
+
+    if (
+        wallet.publicKey.toBase58() !==
+        escrow.partyA
+    ) {
+        throw new Error(
+            "Only the buyer can complete this order."
+        );
+    }
+
+    if (
+        escrow.status !==
+        ESCROW_STATUS.FINALIZATION_SUGGESTED
+    ) {
+        throw new Error(
+            "No finalization proposal is pending."
+        );
+    }
+
+    if (!escrow?.order?.product) {
+        throw new Error(
+            "Order product is unavailable."
+        );
+    }
+
+    const escrowProgram =
+        getEscrowProgram(
+            connection,
+            wallet
+        );
+
+    const marketplaceProgram =
+        getMarketplaceProgram(
+            connection,
+            wallet
+        );
+
+    const escrowPublicKey =
+        new PublicKey(
+            escrow.publicKey
+        );
+
+    const productPublicKey =
+        new PublicKey(
+            escrow.order.product
+        );
+
+    /*
+     * Escrow vault PDA
+     */
+    const [vaultPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("vault"),
+                escrowPublicKey.toBuffer(),
+            ],
+            escrowProgram.programId
+        );
+
+    /*
+     * Marketplace order record PDA
+     */
+    const [orderRecordPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("order"),
+                escrowPublicKey.toBuffer(),
+            ],
+            marketplaceProgram.programId
+        );
+
+    /*
+     * Completed sale PDA.
+     * Pinipigilan nitong mabilang nang dalawang beses
+     * ang parehong escrow sale.
+     */
+    const [completedSalePda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("completed-sale"),
+                orderRecordPda.toBuffer(),
+            ],
+            marketplaceProgram.programId
+        );
+
+    const existingCompletedSale =
+        await connection.getAccountInfo(
+            completedSalePda,
+            "confirmed"
+        );
+
+    if (existingCompletedSale) {
+        throw new Error(
+            "This completed sale has already been recorded."
+        );
+    }
+
+    /*
+     * Instruction 1:
+     * Release buyer refund, seller payment,
+     * at optional donation.
+     */
+    const releaseInstruction =
+        await escrowProgram.methods
+            .acceptFinalization()
+            .accounts({
+                signer:
+                    wallet.publicKey,
+
+                escrow:
+                    escrowPublicKey,
+
+                partyA:
+                    new PublicKey(
+                        escrow.partyA
+                    ),
+
+                partyB:
+                    new PublicKey(
+                        escrow.partyB
+                    ),
+
+                vault:
+                    vaultPda,
+
+                donationRecipient:
+                    DONATION_RECIPIENT,
+            })
+            .instruction();
+
+    /*
+     * Instruction 2:
+     * Record completed sale and increase
+     * the product sold count.
+     */
+    const recordSaleInstruction =
+        await marketplaceProgram.methods
+            .recordCompletedSale()
+            .accounts({
+                buyer:
+                    wallet.publicKey,
+
+                escrow:
+                    escrowPublicKey,
+
+                orderRecord:
+                    orderRecordPda,
+
+                product:
+                    productPublicKey,
+
+                completedSale:
+                    completedSalePda,
+
+                systemProgram:
+                    SystemProgram.programId,
+            })
+            .instruction();
+
+    /*
+     * Parehong instruction sa isang transaction.
+     *
+     * Kapag pumalya ang recordCompletedSale,
+     * mare-revert din ang acceptFinalization.
+     */
+    const transaction =
+        new Transaction().add(
+            releaseInstruction,
+            recordSaleInstruction
+        );
+
+    const latestBlockhash =
+        await connection.getLatestBlockhash(
+            "confirmed"
+        );
+
+    transaction.feePayer =
+        wallet.publicKey;
+
+    transaction.recentBlockhash =
+        latestBlockhash.blockhash;
+
+    const signature =
+        await wallet.sendTransaction(
+            transaction,
+            connection,
+            {
+                skipPreflight: false,
+                preflightCommitment:
+                    "confirmed",
+            }
+        );
+
+    const confirmation =
+        await connection.confirmTransaction(
+            {
+                signature,
+                blockhash:
+                    latestBlockhash.blockhash,
+
+                lastValidBlockHeight:
+                    latestBlockhash
+                        .lastValidBlockHeight,
+            },
+            "confirmed"
+        );
+
+    if (confirmation.value.err) {
+        throw new Error(
+            `Transaction failed: ${JSON.stringify(
+                confirmation.value.err
+            )}`
+        );
+    }
+
+    return signature;
 }

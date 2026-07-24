@@ -15,7 +15,7 @@ export default function EditMerchant({ merchant, onUpdated }) {
     const [bannerUri, setBannerUri] = useState(merchant.bannerUri || "");
     const [shipsFrom, setShipsFrom] = useState(merchant.shipsFrom || "");
     const [sellerDepositPercent, setSellerDepositPercent] =
-        useState(String((merchant.sellerDepositBps || 1000) / 100));
+        useState(String((merchant.sellerDepositBps ?? 1000) / 100));
     const [email, setEmail] = useState(merchant.email || "");
     const [phone, setPhone] = useState(merchant.phone || "");
     const [website, setWebsite] = useState(merchant.website || "");
@@ -23,6 +23,9 @@ export default function EditMerchant({ merchant, onUpdated }) {
     const [instagram, setInstagram] = useState(merchant.instagram || "");
     const [telegram, setTelegram] = useState(merchant.telegram || "");
     const [x, setX] = useState(merchant.x || "");
+    const [preferredContact, setPreferredContact] = useState(
+        merchant.preferredContact || ""
+    );
 
     const [active, setActive] = useState(merchant.active ?? true);
 
@@ -31,47 +34,101 @@ export default function EditMerchant({ merchant, onUpdated }) {
             alert("Connect wallet first");
             return;
         }
-
-        const provider = new AnchorProvider(connection, wallet, {
-            commitment: "confirmed",
-        });
-
-        const program = new Program(idl, provider);
-
-        const [merchantPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("merchant"), wallet.publicKey.toBuffer()],
-            program.programId
-        );
-
-        const sellerDepositBps =
-            Math.round(Number(sellerDepositPercent) * 100);
-
-        const tx = await program.methods
-            .updateMerchant(
-                storeName,
-                descriptionUri,
-                logoUri,
-                bannerUri,
-                shipsFrom,
-                sellerDepositBps,
-                email || "",
-                phone || "",
-                website || "",
-                facebook || "",
-                instagram || "",
-                telegram || "",
-                x || "",
-                active
-            )
-            .accounts({
-                merchantProfile: merchantPda,
-                authority: wallet.publicKey,
-            })
-            .rpc();
-
-        alert("Merchant updated: " + tx);
-
-        if (onUpdated) onUpdated();
+    
+        const depositPercent =
+            Number(sellerDepositPercent);
+    
+        if (
+            !Number.isFinite(depositPercent) ||
+            depositPercent < 0 ||
+            depositPercent > 100
+        ) {
+            alert(
+                "Seller deposit must be between 0% and 100%."
+            );
+            return;
+        }
+    
+        if (preferredContact.length > 300) {
+            alert(
+                "Preferred contact must not exceed 300 characters."
+            );
+            return;
+        }
+    
+        try {
+            const provider =
+                new AnchorProvider(
+                    connection,
+                    wallet,
+                    {
+                        commitment: "confirmed",
+                    }
+                );
+    
+            const program =
+                new Program(idl, provider);
+    
+            const [merchantPda] =
+                PublicKey.findProgramAddressSync(
+                    [
+                        Buffer.from("merchant"),
+                        wallet.publicKey.toBuffer(),
+                    ],
+                    program.programId
+                );
+    
+            const sellerDepositBps =
+                Math.round(
+                    depositPercent * 100
+                );
+    
+            const tx =
+                await program.methods
+                    .updateMerchant(
+                        storeName,
+                        descriptionUri,
+                        logoUri,
+                        bannerUri,
+                        shipsFrom,
+                        sellerDepositBps,
+                        email || "",
+                        phone || "",
+                        website || "",
+                        facebook || "",
+                        instagram || "",
+                        telegram || "",
+                        x || "",
+                        preferredContact || "",
+                        active
+                    )
+                    .accounts({
+                        merchantProfile:
+                            merchantPda,
+    
+                        authority:
+                            wallet.publicKey,
+                    })
+                    .rpc();
+    
+            alert(
+                "Merchant updated: " + tx
+            );
+    
+            if (onUpdated) {
+                onUpdated();
+            }
+        } catch (error) {
+            console.error(
+                "Update merchant error:",
+                error
+            );
+    
+            alert(
+                error?.message ||
+                    "Failed to update merchant."
+            );
+        }
     };
 
     return (
@@ -126,6 +183,33 @@ export default function EditMerchant({ merchant, onUpdated }) {
 
             <input placeholder="X / Twitter" value={x} onChange={(e) => setX(e.target.value)} />
             <br /><br />
+
+            <label>Preferred Contact</label>
+            <br />
+            <textarea
+                value={preferredContact}
+                onChange={(e) =>
+                    setPreferredContact(e.target.value)
+                }
+                rows={5}
+                maxLength={300}
+                placeholder={"Example:\n\n" +
+                "Telegram: @johnshop\n\n" +
+                "or\n\n" +
+                "Email: john@example.com\n\n" +
+                "or\n\n" +
+                "GPG Fingerprint: xxxx xxxx xxxx"}
+                style={{
+                    width: "100%",
+                    maxWidth: 600,
+                }}
+            />
+
+            <div style={{ fontSize: 12 }}>
+                {preferredContact.length}/300
+            </div>
+
+            <br />
 
             <label>
                 <input

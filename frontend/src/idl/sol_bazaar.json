@@ -107,6 +107,10 @@
         {
           "name": "x",
           "type": "string"
+        },
+        {
+          "name": "preferred_contact",
+          "type": "string"
         }
       ]
     },
@@ -874,6 +878,10 @@
           "type": "string"
         },
         {
+          "name": "preferred_contact",
+          "type": "string"
+        },
+        {
           "name": "active",
           "type": "bool"
         }
@@ -1319,6 +1327,10 @@
           },
           {
             "name": "x",
+            "type": "string"
+          },
+          {
+            "name": "preferred_contact",
             "type": "string"
           },
           {

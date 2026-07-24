@@ -23,6 +23,7 @@ export default function ProductPage() {
     const [merchant, setMerchant] = useState(null);
     const [buying, setBuying] = useState(false);
     const [reputation, setReputation] = useState(null);
+    const [quantity, setQuantity] = useState(1);
 
     useEffect(() => {
 
@@ -69,15 +70,35 @@ export default function ProductPage() {
         );
     }
 
-    const productPriceLamports = Number(item.price);
+    const unitPriceLamports =
+        Number(item.price ?? 0);
+
+    const availableStock =
+        Number(item.stock ?? 0);
+
+    const safeQuantity =
+        Number.isInteger(quantity) &&
+        quantity >= 1
+            ? Math.min(
+                quantity,
+                Math.max(availableStock, 1)
+            )
+            : 1;
+
+    const productPriceLamports =
+        unitPriceLamports * safeQuantity;
 
     const depositBps = Number(
         merchant?.sellerDepositBps ?? 1000
     );
 
-    const calculatedDepositLamports = Math.floor(
-        (productPriceLamports * depositBps) / 10_000
-    );
+    const calculatedDepositLamports =
+        Math.floor(
+            (
+                productPriceLamports *
+                depositBps
+            ) / 10_000
+        );
 
     const securityDepositLamports =
         calculatedDepositLamports === 0
@@ -107,6 +128,23 @@ export default function ProductPage() {
             alert("This product is out of stock.");
             return;
         }
+
+        if (
+            !Number.isInteger(quantity) ||
+            quantity < 1
+        ) {
+            alert("Enter a valid quantity.");
+            return;
+        }
+        
+        if (quantity > stock) {
+            alert(
+                `Only ${stock} item${
+                    stock === 1 ? "" : "s"
+                } available.`
+            );
+            return;
+        }
     
         const buyerAddress =
             wallet.publicKey.toBase58();
@@ -129,8 +167,6 @@ export default function ProductPage() {
             );
             return;
         }
-    
-        const quantity = 1;
     
         try {
             setBuying(true);
@@ -303,6 +339,157 @@ export default function ProductPage() {
                         </p>
                     )}
 
+                    {availableStock > 0 && (
+                        <div
+                            style={{
+                                marginTop: 18,
+                                marginBottom: 18,
+                            }}
+                        >
+                            <strong>Quantity</strong>
+
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    marginTop: 10,
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setQuantity((current) =>
+                                            Math.max(
+                                                1,
+                                                current - 1
+                                            )
+                                        )
+                                    }
+                                    disabled={
+                                        buying ||
+                                        quantity <= 1
+                                    }
+                                    style={{
+                                        width: 42,
+                                        height: 42,
+                                        fontSize: 22,
+                                        cursor:
+                                            buying ||
+                                            quantity <= 1
+                                                ? "not-allowed"
+                                                : "pointer",
+                                    }}
+                                >
+                                    −
+                                </button>
+
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={availableStock}
+                                    step="1"
+                                    value={quantity}
+                                    disabled={buying}
+                                    onChange={(event) => {
+                                        const value =
+                                            event.target.value;
+
+                                        if (value === "") {
+                                            setQuantity("");
+                                            return;
+                                        }
+
+                                        const nextQuantity =
+                                            Number(value);
+
+                                        if (
+                                            Number.isInteger(
+                                                nextQuantity
+                                            )
+                                        ) {
+                                            setQuantity(
+                                                Math.min(
+                                                    Math.max(
+                                                        nextQuantity,
+                                                        1
+                                                    ),
+                                                    availableStock
+                                                )
+                                            );
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        const parsed =
+                                            Number(quantity);
+
+                                        if (
+                                            !Number.isInteger(parsed) ||
+                                            parsed < 1
+                                        ) {
+                                            setQuantity(1);
+                                        } else if (
+                                            parsed >
+                                            availableStock
+                                        ) {
+                                            setQuantity(
+                                                availableStock
+                                            );
+                                        }
+                                    }}
+                                    style={{
+                                        width: 80,
+                                        height: 42,
+                                        boxSizing:
+                                            "border-box",
+                                        textAlign: "center",
+                                        fontSize: 18,
+                                    }}
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setQuantity((current) =>
+                                            Math.min(
+                                                Number(current) + 1,
+                                                availableStock
+                                            )
+                                        )
+                                    }
+                                    disabled={
+                                        buying ||
+                                        Number(quantity) >=
+                                            availableStock
+                                    }
+                                    style={{
+                                        width: 42,
+                                        height: 42,
+                                        fontSize: 22,
+                                        cursor:
+                                            buying ||
+                                            Number(quantity) >=
+                                                availableStock
+                                                ? "not-allowed"
+                                                : "pointer",
+                                    }}
+                                >
+                                    +
+                                </button>
+
+                                <span
+                                    style={{
+                                        marginLeft: 6,
+                                        color: "#666",
+                                        fontSize: 14,
+                                    }}
+                                >
+                                    {availableStock} available
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     <p>
 
                         <strong>Sold</strong>
@@ -376,14 +563,17 @@ export default function ProductPage() {
                                 style={{
                                     marginTop: 20,
                                     padding: 14,
-                                    border: "1px solid #ddd",
+                                    border:
+                                        "1px solid #ddd",
                                     borderRadius: 10,
                                 }}
                             >
                                 <p>
-                                    <strong>Product Price:</strong>{" "}
+                                    <strong>
+                                        Price per item:
+                                    </strong>{" "}
                                     {(
-                                        Number(item.price) /
+                                        unitPriceLamports /
                                         LAMPORTS_PER_SOL
                                     ).toFixed(4)}{" "}
                                     SOL
@@ -391,7 +581,26 @@ export default function ProductPage() {
 
                                 <p>
                                     <strong>
-                                        Refundable Security Deposit:
+                                        Quantity:
+                                    </strong>{" "}
+                                    {safeQuantity}
+                                </p>
+
+                                <p>
+                                    <strong>
+                                        Product total:
+                                    </strong>{" "}
+                                    {(
+                                        productPriceLamports /
+                                        LAMPORTS_PER_SOL
+                                    ).toFixed(4)}{" "}
+                                    SOL
+                                </p>
+
+                                <p>
+                                    <strong>
+                                        Refundable Security
+                                        Deposit:
                                     </strong>{" "}
                                     {(
                                         securityDepositLamports /
@@ -400,8 +609,15 @@ export default function ProductPage() {
                                     SOL
                                 </p>
 
-                                <p>
-                                    <strong>Total Buyer Deposit:</strong>{" "}
+                                <p
+                                    style={{
+                                        fontSize: 18,
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    <strong>
+                                        Total Buyer Deposit:
+                                    </strong>{" "}
                                     {(
                                         buyerTotalLamports /
                                         LAMPORTS_PER_SOL
@@ -410,44 +626,63 @@ export default function ProductPage() {
                                 </p>
 
                                 <p>
-                                    <strong>Security Deposit Rate:</strong>{" "}
-                                    {(depositBps / 100).toFixed(1)}%
+                                    <strong>
+                                        Security Deposit Rate:
+                                    </strong>{" "}
+                                    {(depositBps / 100).toFixed(1)}
+                                    %
                                 </p>
 
                                 <small>
-                                    Your refundable security deposit will be returned
-                                    when you confirm receipt and approve the escrow release.
+                                    Your refundable security
+                                    deposit will be returned when
+                                    you confirm receipt and approve
+                                    the escrow release.
                                 </small>
                             </div>
                         )}
 
-                        <button
-                            onClick={buyNow}
-                            disabled={
-                                item.stock === 0 ||
-                                buying ||
-                                !merchant
-                            }
-                            style={{
-                                marginTop: 20,
-                                padding: "12px 30px",
-                                fontSize: 18,
-                                cursor:
-                                    item.stock === 0 || buying
-                                        ? "not-allowed"
-                                        : "pointer",
-                                opacity:
-                                    item.stock === 0 || buying
-                                        ? 0.5
-                                        : 1,
-                            }}
-                        >
-                            {item.stock === 0
-                                ? "Out of Stock"
-                                : buying
-                                    ? "Creating Order..."
-                                    : "Buy Now"}
-                        </button>
+                <button
+                    onClick={buyNow}
+                    disabled={
+                        availableStock <= 0 ||
+                        buying ||
+                        !merchant ||
+                        !Number.isInteger(
+                            Number(quantity)
+                        ) ||
+                        Number(quantity) < 1 ||
+                        Number(quantity) >
+                            availableStock
+                    }
+                    style={{
+                        marginTop: 20,
+                        padding: "12px 30px",
+                        fontSize: 18,
+                        cursor:
+                            availableStock <= 0 ||
+                            buying ||
+                            !merchant
+                                ? "not-allowed"
+                                : "pointer",
+                        opacity:
+                            availableStock <= 0 ||
+                            buying ||
+                            !merchant
+                                ? 0.5
+                                : 1,
+                    }}
+                >
+                    {availableStock <= 0
+                        ? "Out of Stock"
+                        : buying
+                        ? "Creating Order..."
+                        : `Buy ${safeQuantity} ${
+                                safeQuantity === 1
+                                    ? "Item"
+                                    : "Items"
+                            }`}
+                </button>
 
                 </div>
 

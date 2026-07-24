@@ -5,6 +5,7 @@ import {
 } from "@solana/wallet-adapter-react";
 import {
     LAMPORTS_PER_SOL,
+    PublicKey
 } from "@solana/web3.js";
 
 import {
@@ -16,8 +17,9 @@ import {
     sellerAcceptEscrow,
     closeCompletedEscrow,
     sellerSuggestCompletion,
-    retrieveBuyerDeposit,
-    recordCompletedSale,
+    // retrieveBuyerDeposit,
+    // recordCompletedSale,
+    releaseBuyerAndRecordSale
 } from "../lib/escrow";
 
 import { getProduct } from "../lib/product";
@@ -66,15 +68,62 @@ function calculateBuyerRefund(escrow) {
     return refund > 0 ? refund : 0;
 }
 
-function shortenAddress(address) {
+function addressToString(address) {
     if (!address) {
         return "";
     }
 
-    return `${address.slice(
-        0,
-        6
-    )}...${address.slice(-6)}`;
+    if (typeof address === "string") {
+        return address;
+    }
+
+    if (typeof address?.toBase58 === "function") {
+        return address.toBase58();
+    }
+
+    if (typeof address?.toString === "function") {
+        const value = address.toString();
+
+        return value === "[object Object]"
+            ? ""
+            : value;
+    }
+
+    return "";
+}
+
+function getBuyerAddress(escrow) {
+    return addressToString(
+        escrow?.partyA ??
+        escrow?.party_a ??
+        escrow?.buyer ??
+        escrow?.buyerAddress ??
+        escrow?.order?.buyer
+    );
+}
+
+function getSellerAddress(escrow) {
+    return addressToString(
+        escrow?.partyB ??
+        escrow?.party_b ??
+        escrow?.seller ??
+        escrow?.sellerAddress ??
+        escrow?.order?.seller
+    );
+}
+
+function shortenAddress(address) {
+    const value = addressToString(address);
+
+    if (!value) {
+        return "Address unavailable";
+    }
+
+    if (value.length <= 14) {
+        return value;
+    }
+
+    return `${value.slice(0, 6)}...${value.slice(-6)}`;
 }
 
 function formatTimestamp(timestamp) {
@@ -89,6 +138,71 @@ function formatTimestamp(timestamp) {
     return new Date(
         value * 1000
     ).toLocaleString();
+}
+
+async function getCompletionSignature(
+    connection,
+    escrowPublicKey
+) {
+    try {
+        const address =
+            escrowPublicKey instanceof PublicKey
+                ? escrowPublicKey
+                : new PublicKey(
+                    addressToString(
+                        escrowPublicKey
+                    )
+                );
+
+        const signatures =
+            await connection
+                .getSignaturesForAddress(
+                    address,
+                    {
+                        limit: 20,
+                    },
+                    "confirmed"
+                );
+
+        for (const signatureInfo of signatures) {
+            if (signatureInfo.err) {
+                continue;
+            }
+
+            const transaction =
+                await connection.getTransaction(
+                    signatureInfo.signature,
+                    {
+                        commitment: "confirmed",
+                        maxSupportedTransactionVersion: 0,
+                    }
+                );
+
+            const logs =
+                transaction?.meta
+                    ?.logMessages || [];
+
+            const recordedSale =
+                logs.some((log) =>
+                    log.includes(
+                        "Instruction: RecordCompletedSale"
+                    )
+                );
+
+            if (recordedSale) {
+                return signatureInfo.signature;
+            }
+        }
+
+        return "";
+    } catch (error) {
+        console.error(
+            "Completion transaction lookup failed:",
+            error
+        );
+
+        return "";
+    }
 }
 
 export default function OrdersPage() {
@@ -111,6 +225,9 @@ export default function OrdersPage() {
 
     const [error, setError] =
         useState("");
+
+    const [selectedOrder, setSelectedOrder] =
+        useState(null);
 
     const enrichOrders = async (
         escrows,
@@ -150,8 +267,78 @@ export default function OrdersPage() {
         );
     };
 
+    const selectedEscrow = selectedOrder
+        ? (selectedOrder.role === "buyer"
+            ? buyerOrders
+            : sellerOrders
+          ).find(
+              (order) =>
+                  String(order.publicKey) ===
+                  selectedOrder.publicKey
+          )
+        : null;
+
+        const [
+            completionSignature,
+            setCompletionSignature,
+        ] = useState("");
+        
+        const [
+            loadingCompletionSignature,
+            setLoadingCompletionSignature,
+        ] = useState(false);
+
+    useEffect(() => {
+        if (selectedOrder && !selectedEscrow) {
+            setSelectedOrder(null);
+        }
+    }, [selectedOrder, selectedEscrow]);
+
+    useEffect(() => {
+        let cancelled = false;
+    
+        const loadCompletionSignature = async () => {
+            if (
+                !selectedEscrow ||
+                selectedEscrow.status !== ESCROW_STATUS.COMPLETED
+            ) {
+                setCompletionSignature("");
+                return;
+            }
+    
+            try {
+                setLoadingCompletionSignature(true);
+    
+                const signature =
+                    await getCompletionSignature(
+                        connection,
+                        selectedEscrow.publicKey
+                    );
+    
+                if (!cancelled) {
+                    setCompletionSignature(signature);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingCompletionSignature(false);
+                }
+            }
+        };
+    
+        loadCompletionSignature();
+    
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        connection,
+        selectedEscrow?.publicKey,
+        selectedEscrow?.status,
+    ]);
+
     const loadOrders = async () => {
-        if (!wallet.publicKey) {
+
+    if (!wallet.publicKey) {
             setBuyerOrders([]);
             setSellerOrders([]);
             setLoading(false);
@@ -179,6 +366,33 @@ export default function OrdersPage() {
 
                 getMerchants(),
             ]);
+
+            console.log(
+                "Connected wallet:",
+                wallet.publicKey?.toBase58?.()
+            );
+
+            console.table(
+                sellerEscrows.map((escrow) => ({
+                    escrow: addressToString(
+                        escrow.publicKey
+                    ),
+                    buyer: getBuyerAddress(
+                        escrow
+                    ),
+                    seller: getSellerAddress(
+                        escrow
+                    ),
+                    status: escrow.status,
+                }))
+            );
+
+            console.log("BUYER", buyerEscrows);
+            console.log("SELLER", sellerEscrows);
+
+            console.log(
+                sellerEscrows[0]?.order
+            );
 
             const [
                 enrichedBuyer,
@@ -286,37 +500,37 @@ export default function OrdersPage() {
         );
     };
 
-    const retrieveDeposit = async (
-        escrow
-    ) => {
+    const retrieveDeposit = async (escrow) => {
         const buyerRefund =
             lamportsToSol(
                 escrow.proposedPayoutA
             );
-
+    
         const sellerPayout =
             lamportsToSol(
                 escrow.proposedPayoutB
             );
-
+    
         const confirmed =
             window.confirm(
                 `Confirm that you received the product?\n\n` +
-                    `${buyerRefund} SOL will be returned to you.\n` +
-                    `${sellerPayout} SOL will be released to the seller.`
+                `${buyerRefund} SOL will be returned to you.\n` +
+                `${sellerPayout} SOL will be released to the seller.\n\n` +
+                `This action requires one wallet signature.`
             );
-
+    
         if (!confirmed) {
             return;
         }
-
+    
         await runEscrowAction(
             escrow,
-            async () => {
-                const escrowSignature = await retrieveBuyerDeposit({ connection, wallet, escrow });
-                const saleSignature = await recordCompletedSale({ connection, wallet, escrow });
-                return saleSignature || escrowSignature;
-            },
+            () =>
+                releaseBuyerAndRecordSale({
+                    connection,
+                    wallet,
+                    escrow,
+                }),
             "Your deposit was returned and the seller was paid."
         );
     };
@@ -332,7 +546,7 @@ export default function OrdersPage() {
 
         const merchantAuthority =
             escrow.sellerMerchant?.authority ||
-            escrow.partyB;
+            getSellerAddress(escrow);
 
         if (!productPublicKey) {
             throw new Error(
@@ -465,100 +679,258 @@ export default function OrdersPage() {
                 </p>
             )}
 
-            <section
-                style={{ marginTop: 32 }}
-            >
+            <section style={{ marginTop: 32 }}>
                 <h2>My Purchases</h2>
 
-                {buyerOrders.length ===
-                0 ? (
-                    <p>
-                        No purchase orders
-                        yet.
-                    </p>
-                ) : (
-                    buyerOrders.map(
-                        (escrow) => (
-                            <OrderCard
-                                key={
-                                    escrow.publicKey
-                                }
-                                connection={
-                                    connection
-                                }
-                                escrow={
-                                    escrow
-                                }
-                                role="buyer"
-                                processing={
-                                    processingEscrow ===
-                                    escrow.publicKey
-                                }
-                                onRetrieveDeposit={() =>
-                                    retrieveDeposit(
-                                        escrow
-                                    )
-                                }
-                                onCloseOrder={() =>
-                                    closeOrder(
-                                        escrow
-                                    )
-                                }
-                                onSubmitReview={(rating, comment) =>
-                                    submitReview({
-                                        escrow,
-                                        rating,
-                                        comment,
-                                    })
-                                }
-                            />
-                        )
-                    )
-                )}
+                <OrderList
+                    orders={buyerOrders}
+                    role="buyer"
+                    emptyMessage="No purchase orders yet."
+                    selectedOrder={selectedOrder}
+                    onSelect={(escrow) =>
+                        setSelectedOrder({
+                            role: "buyer",
+                            publicKey: String(escrow.publicKey),
+                        })
+                    }
+                />
             </section>
 
-            <section
-                style={{ marginTop: 48 }}
-            >
+            <section style={{ marginTop: 48 }}>
                 <h2>Seller Orders</h2>
 
-                {sellerOrders.length ===
-                0 ? (
-                    <p>
-                        No seller orders yet.
-                    </p>
-                ) : (
-                    sellerOrders.map(
-                        (escrow) => (
-                            <OrderCard
-                                key={
-                                    escrow.publicKey
-                                }
-                                connection={
-                                    connection
-                                }
-                                escrow={
-                                    escrow
-                                }
-                                role="seller"
-                                processing={
-                                    processingEscrow ===
-                                    escrow.publicKey
-                                }
-                                onAccept={() =>
-                                    acceptOrder(
-                                        escrow
-                                    )
-                                }
-                                onProposeCompletion={(donationPercent) =>
-                                    proposeCompletion(escrow, donationPercent)
-                                }
-                            />
-                        )
-                    )
-                )}
+                <OrderList
+                    orders={sellerOrders}
+                    role="seller"
+                    emptyMessage="No seller orders yet."
+                    selectedOrder={selectedOrder}
+                    onSelect={(escrow) =>
+                        setSelectedOrder({
+                            role: "seller",
+                            publicKey: String(escrow.publicKey),
+                        })
+                    }
+                />
             </section>
+
+            {selectedEscrow && (
+                <section
+                    style={{
+                        marginTop: 48,
+                        paddingTop: 24,
+                        borderTop: "2px solid #e5e7eb",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 16,
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <div>
+                            <h2 style={{ marginBottom: 4 }}>Order Details</h2>
+                            <p style={{ marginTop: 0, color: "#666" }}>
+                                Review the product, payment, timeline, chat, and available actions.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setSelectedOrder(null)}
+                        >
+                            Close Details
+                        </button>
+                    </div>
+
+                    <OrderCard
+                        connection={connection}
+                        escrow={selectedEscrow}
+                        role={selectedOrder.role}
+                        completionSignature={completionSignature}
+                        loadingCompletionSignature={loadingCompletionSignature}
+                        processing={
+                            processingEscrow ===
+                            selectedEscrow.publicKey
+                        }
+                        onAccept={() =>
+                            acceptOrder(selectedEscrow)
+                        }
+                        onProposeCompletion={(donationPercent) =>
+                            proposeCompletion(
+                                selectedEscrow,
+                                donationPercent
+                            )
+                        }
+                        onRetrieveDeposit={() =>
+                            retrieveDeposit(selectedEscrow)
+                        }
+                        onCloseOrder={() =>
+                            closeOrder(selectedEscrow)
+                        }
+                        onSubmitReview={(rating, comment) =>
+                            submitReview({
+                                escrow: selectedEscrow,
+                                rating,
+                                comment,
+                            })
+                        }
+                    />
+                </section>
+            )}
         </main>
+    );
+}
+
+function OrderList({
+    orders,
+    role,
+    emptyMessage,
+    selectedOrder,
+    onSelect,
+}) {
+    if (orders.length === 0) {
+        return <p>{emptyMessage}</p>;
+    }
+
+    return (
+        <div
+            style={{
+                display: "grid",
+                gap: 12,
+                marginTop: 16,
+            }}
+        >
+            {orders.map((escrow) => {
+                const product = escrow.product;
+                const merchant = escrow.sellerMerchant;
+                const isSelected =
+                    selectedOrder?.role === role &&
+                    selectedOrder?.publicKey ===
+                        String(escrow.publicKey);
+
+                return (
+                    <button
+                        key={escrow.publicKey}
+                        type="button"
+                        onClick={() => onSelect(escrow)}
+                        style={{
+                            width: "100%",
+                            display: "grid",
+                            gridTemplateColumns: "72px minmax(0, 1fr) auto",
+                            gap: 14,
+                            alignItems: "center",
+                            textAlign: "left",
+                            padding: 14,
+                            border: isSelected
+                                ? "2px solid #2563eb"
+                                : "1px solid #ddd",
+                            borderRadius: 14,
+                            background: isSelected
+                                ? "#eff6ff"
+                                : "#fff",
+                            cursor: "pointer",
+                        }}
+                    >
+                        {product?.imageUri ? (
+                            <img
+                                src={product.imageUri}
+                                alt={product.title || "Product"}
+                                style={{
+                                    width: 72,
+                                    height: 72,
+                                    objectFit: "cover",
+                                    borderRadius: 10,
+                                }}
+                            />
+                        ) : (
+                            <div
+                                style={{
+                                    width: 72,
+                                    height: 72,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    border: "1px solid #ddd",
+                                    borderRadius: 10,
+                                    fontSize: 12,
+                                    color: "#666",
+                                }}
+                            >
+                                No Image
+                            </div>
+                        )}
+
+                        <div style={{ minWidth: 0 }}>
+                            <strong
+                                style={{
+                                    display: "block",
+                                    fontSize: 16,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                }}
+                            >
+                                {product?.title || "Product unavailable"}
+                            </strong>
+
+                            <div
+                                style={{
+                                    marginTop: 5,
+                                    color: "#555",
+                                    fontSize: 14,
+                                }}
+                            >
+                                {role === "buyer"
+                                    ? merchant?.storeName ||
+                                      `Seller ${shortenAddress(getSellerAddress(escrow))}`
+                                    : `Buyer ${shortenAddress(getBuyerAddress(escrow))}`}
+                            </div>
+
+                            <div
+                                style={{
+                                    marginTop: 5,
+                                    display: "flex",
+                                    gap: 12,
+                                    flexWrap: "wrap",
+                                    color: "#666",
+                                    fontSize: 13,
+                                }}
+                            >
+                                <span>Qty: {escrow.order?.quantity || 1}</span>
+                                <span>
+                                    {lamportsToSol(escrow.referenceAmount)} SOL
+                                </span>
+                                <span>
+                                    Order {shortenAddress(escrow.publicKey)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div
+                            style={{
+                                display: "grid",
+                                justifyItems: "end",
+                                gap: 8,
+                            }}
+                        >
+                            <StatusBadge status={escrow.status} />
+                            <span
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    color: "#2563eb",
+                                }}
+                            >
+                                View Details →
+                            </span>
+                        </div>
+                    </button>
+                );
+            })}
+        </div>
     );
 }
 
@@ -566,6 +938,8 @@ function OrderCard({
     connection,
     escrow,
     role,
+    completionSignature,
+    loadingCompletionSignature,
     processing,
     onAccept,
     onProposeCompletion,
@@ -644,7 +1018,7 @@ function OrderCard({
     const sellerDisplayName =
         merchant?.storeName ||
         shortenAddress(
-            escrow.partyB
+            getSellerAddress(escrow)
         );
 
     const buyerRefundLamports =
@@ -809,10 +1183,25 @@ function OrderCard({
                         <strong>
                             Buyer:
                         </strong>{" "}
-                        {shortenAddress(
-                            escrow.partyA
-                        )}
+                        <span title={getBuyerAddress(escrow)}>
+                            {shortenAddress(
+                                getBuyerAddress(escrow)
+                            )}
+                        </span>
                     </p>
+
+                    {getBuyerAddress(escrow) && (
+                        <p
+                            style={{
+                                marginTop: -8,
+                                fontSize: 12,
+                                color: "#666",
+                                overflowWrap: "anywhere",
+                            }}
+                        >
+                            {getBuyerAddress(escrow)}
+                        </p>
+                    )}
 
                     <p>
                         <strong>
@@ -820,6 +1209,71 @@ function OrderCard({
                         </strong>{" "}
                         {sellerDisplayName}
                     </p>
+
+                    {escrow.status ===
+                        ESCROW_STATUS.COMPLETED && (
+                        <div
+                            style={{
+                                marginTop: 16,
+                                padding: 14,
+                                border:
+                                    "1px solid #bbf7d0",
+                                borderRadius: 10,
+                                background: "#f0fdf4",
+                            }}
+                        >
+                            <strong>
+                                Payment Release Transaction
+                            </strong>
+
+                            {loadingCompletionSignature ? (
+                                <p>
+                                    Loading transaction...
+                                </p>
+                            ) : completionSignature ? (
+                                <>
+                                    <p
+                                        style={{
+                                            overflowWrap:
+                                                "anywhere",
+                                            fontSize: 13,
+                                        }}
+                                    >
+                                        {completionSignature}
+                                    </p>
+
+                                    <a
+                                        href={
+                                            `https://explorer.solana.com/tx/` +
+                                            `${completionSignature}?cluster=devnet`
+                                        }
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        View transaction on Solana Explorer
+                                    </a>
+                                </>
+                            ) : (
+                                <p>
+                                    Completion transaction
+                                    not found yet.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {getSellerAddress(escrow) && (
+                        <p
+                            style={{
+                                marginTop: -8,
+                                fontSize: 12,
+                                color: "#666",
+                                overflowWrap: "anywhere",
+                            }}
+                        >
+                            {getSellerAddress(escrow)}
+                        </p>
+                    )}
 
                     {merchant?.shipsFrom && (
                         <p>
@@ -884,6 +1338,8 @@ function OrderCard({
                                     )}
                                 </div>
                             )}
+
+                            
 
                         {role ===
                             "buyer" &&
@@ -951,6 +1407,8 @@ function OrderCard({
                                     </button>
                                 </div>
                             )}
+
+
 
                         {role ===
                             "buyer" &&
