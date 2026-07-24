@@ -28,6 +28,7 @@ pub mod sol_bazaar {
         instagram: String,
         telegram: String,
         x: String,
+        preferred_contact: String,
     ) -> Result<()> {
         require!(store_name.len() <= 64, MarketplaceError::TextTooLong);
         require!(description_uri.len() <= 200, MarketplaceError::TextTooLong);
@@ -41,7 +42,11 @@ pub mod sol_bazaar {
         require!(instagram.len() <= 100, MarketplaceError::TextTooLong);
         require!(telegram.len() <= 100, MarketplaceError::TextTooLong);
         require!(x.len() <= 100, MarketplaceError::TextTooLong);
-        require!(seller_deposit_bps <= 10000, MarketplaceError::InvalidDepositPercent);    
+        require!(seller_deposit_bps <= 10000, MarketplaceError::InvalidDepositPercent);
+        require!(
+            preferred_contact.len() <= 300,
+            MarketplaceError::TextTooLong
+        );    
 
         let merchant = &mut ctx.accounts.merchant_profile;
 
@@ -59,6 +64,7 @@ pub mod sol_bazaar {
         merchant.instagram = instagram;
         merchant.telegram = telegram;
         merchant.x = x;
+        merchant.preferred_contact = preferred_contact;
         merchant.active = true;
         merchant.created_at = Clock::get()?.unix_timestamp;
         merchant.bump = ctx.bumps.merchant_profile;
@@ -82,6 +88,7 @@ pub mod sol_bazaar {
         instagram: String,
         telegram: String,
         x: String,
+        preferred_contact: String,
         active: bool,
     ) -> Result<()> {
         require!(store_name.len() <= 64, MarketplaceError::TextTooLong);
@@ -97,6 +104,10 @@ pub mod sol_bazaar {
         require!(telegram.len() <= 100, MarketplaceError::TextTooLong);
         require!(x.len() <= 100, MarketplaceError::TextTooLong);
         require!(seller_deposit_bps <= 10000, MarketplaceError::InvalidDepositPercent);
+        require!(
+            preferred_contact.len() <= 300,
+            MarketplaceError::TextTooLong
+        );
 
         let merchant = &mut ctx.accounts.merchant_profile;
 
@@ -113,6 +124,7 @@ pub mod sol_bazaar {
         merchant.instagram = instagram;
         merchant.telegram = telegram;
         merchant.x = x;
+        merchant.preferred_contact = preferred_contact;
         merchant.active = active;
 
         Ok(())
@@ -235,22 +247,10 @@ pub mod sol_bazaar {
 
         let data = escrow_info.try_borrow_data()?;
 
-        require!(
-            data.len() >= 8,
-            MarketplaceError::InvalidEscrowAccount
-        );
-
-        require!(
-            data.get(..8) == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()),
-            MarketplaceError::InvalidEscrowDiscriminator
-        );
-
-        // Decode muna bago gamitin ang external_escrow.
-        let mut escrow_data: &[u8] = &data[8..];
-
         let external_escrow =
-            ExternalEscrow::deserialize(&mut escrow_data)
-                .map_err(|_| error!(MarketplaceError::InvalidEscrowAccount))?;
+            decode_external_escrow(
+                data.as_ref()
+            )?;
 
         // Saka i-validate ang decoded parties.
         require!(
@@ -323,24 +323,10 @@ pub mod sol_bazaar {
     
         let data = escrow_info.try_borrow_data()?;
     
-        require!(
-            data.len() >= 8,
-            MarketplaceError::InvalidEscrowAccount
-        );
-    
-        require!(
-            data.get(..8)
-                == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()),
-            MarketplaceError::InvalidEscrowDiscriminator
-        );
-    
-        let mut escrow_data: &[u8] = &data[8..];
-    
         let external_escrow =
-            ExternalEscrow::deserialize(&mut escrow_data)
-                .map_err(|_| {
-                    error!(MarketplaceError::InvalidEscrowAccount)
-                })?;
+            decode_external_escrow(
+                data.as_ref()
+            )?;
 
         require!(
             external_escrow.note.contains("\"marketplace\":\"solbazaar\""),
@@ -478,26 +464,13 @@ pub mod sol_bazaar {
             MarketplaceError::InvalidEscrowOwner
         );
     
-        let data = escrow_info.try_borrow_data()?;
-    
-        require!(
-            data.len() >= 8,
-            MarketplaceError::InvalidEscrowAccount
-        );
-    
-        require!(
-            data.get(..8)
-                == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()),
-            MarketplaceError::InvalidEscrowDiscriminator
-        );
-    
-        let mut escrow_data: &[u8] = &data[8..];
-    
+        let data =
+            escrow_info.try_borrow_data()?;
+
         let external_escrow =
-            ExternalEscrow::deserialize(&mut escrow_data)
-                .map_err(|_| {
-                    error!(MarketplaceError::InvalidEscrowAccount)
-                })?;
+            decode_external_escrow(
+                data.as_ref()
+            )?;
     
         require!(
             external_escrow.note.contains(
@@ -604,28 +577,91 @@ pub mod sol_bazaar {
         Ok(())
     }
 
-    pub fn record_completed_sale(ctx: Context<RecordCompletedSale>) -> Result<()> {
-        let escrow_info = ctx.accounts.escrow.to_account_info();
-        require_keys_eq!(*escrow_info.owner, ESCROW_PROGRAM_ID, MarketplaceError::InvalidEscrowOwner);
-        let data = escrow_info.try_borrow_data()?;
-        require!(data.len() >= 8, MarketplaceError::InvalidEscrowAccount);
-        require!(data.get(..8) == Some(ESCROW_ACCOUNT_DISCRIMINATOR.as_slice()), MarketplaceError::InvalidEscrowDiscriminator);
-        let mut escrow_data: &[u8] = &data[8..];
-        let external_escrow = ExternalEscrow::deserialize(&mut escrow_data)
-            .map_err(|_| error!(MarketplaceError::InvalidEscrowAccount))?;
-        require!(external_escrow.note.contains("\"marketplace\":\"solbazaar\""), MarketplaceError::NotSolBazaarEscrow);
-        require!(external_escrow.status == 3, MarketplaceError::OrderNotCompleted);
-        require_keys_eq!(external_escrow.party_a, ctx.accounts.buyer.key(), MarketplaceError::InvalidOrderBuyer);
-        require_keys_eq!(external_escrow.party_b, ctx.accounts.order_record.seller, MarketplaceError::InvalidOrderSeller);
-        let quantity = ctx.accounts.order_record.quantity;
-        ctx.accounts.product.sold = ctx.accounts.product.sold.checked_add(quantity).ok_or(MarketplaceError::MathOverflow)?;
-        ctx.accounts.product.updated_at = Clock::get()?.unix_timestamp;
-        let completed_sale = &mut ctx.accounts.completed_sale;
-        completed_sale.order_record = ctx.accounts.order_record.key();
-        completed_sale.product = ctx.accounts.product.key();
-        completed_sale.quantity = quantity;
-        completed_sale.completed_at = Clock::get()?.unix_timestamp;
-        completed_sale.bump = ctx.bumps.completed_sale;
+    pub fn record_completed_sale(
+        ctx: Context<RecordCompletedSale>,
+    ) -> Result<()> {
+        let escrow_info =
+            ctx.accounts
+                .escrow
+                .to_account_info();
+    
+        require_keys_eq!(
+            *escrow_info.owner,
+            ESCROW_PROGRAM_ID,
+            MarketplaceError::InvalidEscrowOwner
+        );
+    
+        let data =
+            escrow_info.try_borrow_data()?;
+    
+        let external_escrow =
+            decode_external_escrow(
+                data.as_ref()
+            )?;
+    
+        require!(
+            external_escrow.note.contains(
+                "\"marketplace\":\"solbazaar\""
+            ),
+            MarketplaceError::NotSolBazaarEscrow
+        );
+    
+        require!(
+            external_escrow.status == 3,
+            MarketplaceError::OrderNotCompleted
+        );
+    
+        require_keys_eq!(
+            external_escrow.party_a,
+            ctx.accounts.buyer.key(),
+            MarketplaceError::InvalidOrderBuyer
+        );
+    
+        require_keys_eq!(
+            external_escrow.party_b,
+            ctx.accounts
+                .order_record
+                .seller,
+            MarketplaceError::InvalidOrderSeller
+        );
+    
+        let quantity =
+            ctx.accounts
+                .order_record
+                .quantity;
+    
+        ctx.accounts.product.sold =
+            ctx.accounts
+                .product
+                .sold
+                .checked_add(quantity)
+                .ok_or(
+                    MarketplaceError::MathOverflow
+                )?;
+    
+        ctx.accounts.product.updated_at =
+            Clock::get()?.unix_timestamp;
+    
+        let completed_sale =
+            &mut ctx.accounts.completed_sale;
+    
+        completed_sale.order_record =
+            ctx.accounts
+                .order_record
+                .key();
+    
+        completed_sale.product =
+            ctx.accounts.product.key();
+    
+        completed_sale.quantity =
+            quantity;
+    
+        completed_sale.completed_at =
+            Clock::get()?.unix_timestamp;
+    
+        completed_sale.bump =
+            ctx.bumps.completed_sale;
+    
         Ok(())
     }
 
@@ -767,6 +803,9 @@ pub struct MerchantProfile {
     #[max_len(100)]
     pub x: String,
 
+    #[max_len(300)]
+    pub preferred_contact: String,
+
     pub seller_deposit_bps: u16,
     pub active: bool,
     pub verified: bool,
@@ -819,7 +858,6 @@ pub struct DeleteProduct<'info> {
     pub authority: Signer<'info>,
 }
 
-#[derive(AnchorDeserialize)]
 pub struct ExternalEscrow {
     pub creator: Pubkey,
 
@@ -848,8 +886,241 @@ pub struct ExternalEscrow {
     pub finalized_at: i64,
 
     pub note: String,
+
     pub reference_amount: u64,
     pub proposed_donation: u64,
+}
+
+fn take_bytes<'a>(
+    input: &mut &'a [u8],
+    length: usize,
+) -> Result<&'a [u8]> {
+    require!(
+        input.len() >= length,
+        MarketplaceError::InvalidEscrowAccount
+    );
+
+    let (value, remaining) =
+        input.split_at(length);
+
+    *input = remaining;
+
+    Ok(value)
+}
+
+fn read_u8(
+    input: &mut &[u8],
+) -> Result<u8> {
+    let bytes = take_bytes(input, 1)?;
+
+    Ok(bytes[0])
+}
+
+fn read_u32(
+    input: &mut &[u8],
+) -> Result<u32> {
+    let bytes = take_bytes(input, 4)?;
+
+    let array: [u8; 4] = bytes
+        .try_into()
+        .map_err(|_| {
+            error!(
+                MarketplaceError::InvalidEscrowAccount
+            )
+        })?;
+
+    Ok(u32::from_le_bytes(array))
+}
+
+fn read_u64(
+    input: &mut &[u8],
+) -> Result<u64> {
+    let bytes = take_bytes(input, 8)?;
+
+    let array: [u8; 8] = bytes
+        .try_into()
+        .map_err(|_| {
+            error!(
+                MarketplaceError::InvalidEscrowAccount
+            )
+        })?;
+
+    Ok(u64::from_le_bytes(array))
+}
+
+fn read_i64(
+    input: &mut &[u8],
+) -> Result<i64> {
+    let bytes = take_bytes(input, 8)?;
+
+    let array: [u8; 8] = bytes
+        .try_into()
+        .map_err(|_| {
+            error!(
+                MarketplaceError::InvalidEscrowAccount
+            )
+        })?;
+
+    Ok(i64::from_le_bytes(array))
+}
+
+fn read_pubkey(
+    input: &mut &[u8],
+) -> Result<Pubkey> {
+    let bytes = take_bytes(input, 32)?;
+
+    let array: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| {
+            error!(
+                MarketplaceError::InvalidEscrowAccount
+            )
+        })?;
+
+    Ok(Pubkey::new_from_array(array))
+}
+
+fn read_bounded_string(
+    input: &mut &[u8],
+    max_length: usize,
+) -> Result<String> {
+    let length =
+        read_u32(input)? as usize;
+
+    require!(
+        length <= max_length,
+        MarketplaceError::InvalidEscrowAccount
+    );
+
+    let bytes =
+        take_bytes(input, length)?;
+
+    String::from_utf8(
+        bytes.to_vec()
+    )
+    .map_err(|_| {
+        error!(
+            MarketplaceError::InvalidEscrowAccount
+        )
+    })
+}
+
+fn decode_external_escrow(
+    account_data: &[u8],
+) -> Result<ExternalEscrow> {
+    require!(
+        account_data.len() >= 8,
+        MarketplaceError::InvalidEscrowAccount
+    );
+
+    require!(
+        account_data.get(..8)
+            == Some(
+                ESCROW_ACCOUNT_DISCRIMINATOR
+                    .as_slice()
+            ),
+        MarketplaceError::InvalidEscrowDiscriminator
+    );
+
+    let mut data =
+        &account_data[8..];
+
+    let creator =
+        read_pubkey(&mut data)?;
+
+    let party_a =
+        read_pubkey(&mut data)?;
+
+    let party_b =
+        read_pubkey(&mut data)?;
+
+    let escrow_type =
+        read_u8(&mut data)?;
+
+    let required_deposit_a =
+        read_u64(&mut data)?;
+
+    let required_deposit_b =
+        read_u64(&mut data)?;
+
+    let deposited_a =
+        read_u64(&mut data)?;
+
+    let deposited_b =
+        read_u64(&mut data)?;
+
+    let proposed_payout_a =
+        read_u64(&mut data)?;
+
+    let proposed_payout_b =
+        read_u64(&mut data)?;
+
+    let finalization_proposer =
+        read_pubkey(&mut data)?;
+
+    /*
+     * Escrow contract:
+     * #[max_len(200)]
+     */
+    let finalization_note =
+        read_bounded_string(
+            &mut data,
+            200
+        )?;
+
+    let vault =
+        read_pubkey(&mut data)?;
+
+    let status =
+        read_u8(&mut data)?;
+
+    let created_at =
+        read_i64(&mut data)?;
+
+    let deposit_at =
+        read_i64(&mut data)?;
+
+    let finalized_at =
+        read_i64(&mut data)?;
+
+    /*
+     * Escrow contract:
+     * #[max_len(200)]
+     */
+    let note =
+        read_bounded_string(
+            &mut data,
+            200
+        )?;
+
+    let reference_amount =
+        read_u64(&mut data)?;
+
+    let proposed_donation =
+        read_u64(&mut data)?;
+
+    Ok(ExternalEscrow {
+        creator,
+        party_a,
+        party_b,
+        escrow_type,
+        required_deposit_a,
+        required_deposit_b,
+        deposited_a,
+        deposited_b,
+        proposed_payout_a,
+        proposed_payout_b,
+        finalization_proposer,
+        finalization_note,
+        vault,
+        status,
+        created_at,
+        deposit_at,
+        finalized_at,
+        note,
+        reference_amount,
+        proposed_donation,
+    })
 }
 
 #[derive(Accounts)]
