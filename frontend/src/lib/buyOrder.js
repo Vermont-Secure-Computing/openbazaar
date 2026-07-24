@@ -109,7 +109,8 @@ export async function createBuyOrder({
     const sellerRequiredDeposit =
         securityDepositLamports;
 
-    // Reduce the chance of duplicate IDs.
+    // Timestamp plus a small random suffix reduces
+    // the chance of duplicate escrow IDs.
     const timestamp = BigInt(Date.now());
     const randomPart = BigInt(
         Math.floor(Math.random() * 1000)
@@ -249,95 +250,89 @@ export async function createBuyOrder({
     transaction.recentBlockhash =
         latestBlockhash.blockhash;
 
-        let signedTransaction;
+    if (!wallet.signTransaction) {
+        throw new Error(
+            "Connected wallet does not support signTransaction."
+        );
+    }
 
-        try {
-            if (!wallet.signTransaction) {
-                throw new Error(
-                    "Connected wallet does not support signTransaction."
-                );
-            }
-        
-            signedTransaction =
-                await wallet.signTransaction(
-                    transaction
-                );
-        
-            console.log(
-                "Transaction signed successfully."
-            );
-        } catch (error) {
-            console.error(
-                "Transaction signing failed:",
-                error
-            );
-        
-            console.error(
-                "Signing error name:",
-                error?.name
-            );
-        
-            console.error(
-                "Signing error message:",
-                error?.message
-            );
-        
-            console.error(
-                "Signing wallet error:",
-                error?.error
-            );
-        
-            throw error;
-        }
-        
-        let signature;
-        
-        try {
-            signature =
-                await connection.sendRawTransaction(
-                    signedTransaction.serialize(),
-                    {
-                        skipPreflight: false,
-                        preflightCommitment:
-                            "confirmed",
-                        maxRetries: 3,
-                    }
-                );
-        
-            console.log(
-                "Transaction submitted:",
-                signature
-            );
-        } catch (error) {
-            console.error(
-                "RPC submission failed:",
-                error
-            );
-        
-            console.error(
-                "RPC error message:",
-                error?.message
-            );
-        
-            console.error(
-                "RPC logs:",
-                error?.logs
-            );
-        
-            throw error;
-        }
+    let signedTransaction;
 
-    await connection.confirmTransaction(
-        {
-            signature,
-            blockhash:
-                latestBlockhash.blockhash,
-            lastValidBlockHeight:
-                latestBlockhash
-                    .lastValidBlockHeight,
-        },
-        "confirmed"
-    );
+    try {
+        signedTransaction =
+            await wallet.signTransaction(
+                transaction
+            );
+
+        console.log(
+            "Transaction signed successfully."
+        );
+    } catch (error) {
+        console.error(
+            "Transaction signing failed:",
+            error
+        );
+
+        throw error;
+    }
+
+    let signature;
+
+    try {
+        signature =
+            await connection.sendRawTransaction(
+                signedTransaction.serialize(),
+                {
+                    skipPreflight: false,
+                    preflightCommitment:
+                        "confirmed",
+                    maxRetries: 3,
+                }
+            );
+
+        console.log(
+            "Transaction submitted:",
+            signature
+        );
+    } catch (error) {
+        console.error(
+            "RPC submission failed:",
+            error
+        );
+
+        console.error(
+            "RPC error message:",
+            error?.message
+        );
+
+        console.error(
+            "RPC logs:",
+            error?.logs
+        );
+
+        throw error;
+    }
+
+    const confirmation =
+        await connection.confirmTransaction(
+            {
+                signature,
+                blockhash:
+                    latestBlockhash.blockhash,
+                lastValidBlockHeight:
+                    latestBlockhash
+                        .lastValidBlockHeight,
+            },
+            "confirmed"
+        );
+
+    if (confirmation.value.err) {
+        throw new Error(
+            `Transaction failed: ${JSON.stringify(
+                confirmation.value.err
+            )}`
+        );
+    }
 
     return {
         signature,
@@ -345,6 +340,8 @@ export async function createBuyOrder({
         escrowId:
             escrowId.toString(),
 
+        // ProductPage uses this for:
+        // /orders/buyer/:escrowAddress
         escrowPda:
             escrowPda.toBase58(),
 

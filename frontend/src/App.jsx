@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import MerchantPage from "./pages/MerchantPage";
 import ProductPage from "./pages/ProductPage";
 import OrdersPage from "./pages/OrdersPage";
+import OrderDetailsPage from "./pages/OrderDetailsPage";
 import OrderNotificationBadge from "./components/OrderNotificationBadge";
 
 function App() {
@@ -64,6 +65,7 @@ function App() {
                 <Route path="/merchant/:merchant" element={<MerchantPage />} />
                 <Route path="/product/:product" element={<ProductPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
+                <Route path="/orders/:role/:escrowAddress" element={<OrderDetailsPage />} />
             </Routes>
         </div>
     );
