@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useNavigate } from "react-router-dom";
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
 // import { createBuyerEscrow } from "../lib/escrow";
@@ -24,6 +25,7 @@ export default function ProductPage() {
     const [buying, setBuying] = useState(false);
     const [reputation, setReputation] = useState(null);
     const [quantity, setQuantity] = useState(1);
+    const navigate = useNavigate();
 
     useEffect(() => {
 
@@ -213,27 +215,27 @@ export default function ProductPage() {
                 );
             }
     
-            alert(
-                `Order created successfully.\n\n` +
-                `Escrow: ${escrowAddress}\n` +
-                `Order Record: ${orderRecordAddress}\n` +
-                `Transaction: ${signature}`
-            );
-    
-            /*
-                * Optional:
-                * refresh product/order data after purchase.
-                */
-            if (typeof loadProduct === "function") {
-                try {
-                    await loadProduct();
-                } catch (refreshError) {
-                    console.error(
-                        "Product refresh error:",
-                        refreshError
-                    );
+
+            console.log(
+                "Redirecting to order details:",
+                {
+                    escrowAddress,
+                    orderRecordAddress,
+                    signature,
                 }
-            }
+            );
+
+            navigate(
+                `/orders/buyer/${escrowAddress}`,
+                {
+                    replace: true,
+                    state: {
+                        newlyCreated: true,
+                        signature,
+                        orderRecordAddress,
+                    },
+                }
+            );
         } catch (error) {
             console.error(
                 "Buy now error:",
