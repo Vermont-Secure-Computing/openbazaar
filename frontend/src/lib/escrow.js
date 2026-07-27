@@ -15,9 +15,6 @@ import marketplaceIdl from "../idl/sol_bazaar.json";
 
 /*
  * Website donation wallet.
- *
- * Palitan ito kapag gusto mong gumamit
- * ng ibang SolBazaar donation address.
  */
 const DONATION_RECIPIENT = new PublicKey(
     "61Gt8siRo84pmGziia5dHuJMkx9ne1d4Cb5aHsyQGP85"
@@ -455,6 +452,15 @@ export async function getEscrows({
                     escrow
                         .proposedDonation
                         .toString(),
+
+                finalizationProposer:
+                    escrow
+                        .finalizationProposer
+                        .toBase58(),
+
+                finalizationNote:
+                    escrow
+                        .finalizationNote,
 
                 vault:
                     escrow.vault
@@ -1388,4 +1394,456 @@ export async function releaseBuyerAndRecordSale({
     }
 
     return signature;
+}
+
+
+export const MUTUAL_CANCELLATION_PREFIX =
+    "MUTUAL_CANCELLATION|";
+
+function normalizeAddress(value) {
+    return (
+        value?.toBase58?.() ??
+        value?.toString?.() ??
+        value ??
+        ""
+    );
+}
+
+export function isMutualCancellationProposal(
+    escrow
+) {
+    return (
+        Number(escrow?.status) ===
+            ESCROW_STATUS.FINALIZATION_SUGGESTED &&
+        String(
+            escrow?.finalizationNote ?? ""
+        ).startsWith(
+            MUTUAL_CANCELLATION_PREFIX
+        )
+    );
+}
+
+export function getMutualCancellationReason(
+    escrow
+) {
+    const note = String(
+        escrow?.finalizationNote ?? ""
+    );
+
+    if (
+        !note.startsWith(
+            MUTUAL_CANCELLATION_PREFIX
+        )
+    ) {
+        return "";
+    }
+
+    const reasonMarker = "|reason=";
+    const markerIndex =
+        note.indexOf(reasonMarker);
+
+    if (markerIndex < 0) {
+        return "";
+    }
+
+    return note
+        .slice(
+            markerIndex +
+                reasonMarker.length
+        )
+        .trim();
+}
+
+export async function requestMutualCancellation({
+    connection,
+    wallet,
+    escrow,
+    reason,
+}) {
+    if (!wallet.publicKey) {
+        throw new Error(
+            "Connect wallet first."
+        );
+    }
+
+    const signer =
+        wallet.publicKey.toBase58();
+
+    const buyer =
+        normalizeAddress(
+            escrow.partyA
+        );
+
+    const seller =
+        normalizeAddress(
+            escrow.partyB
+        );
+
+    if (
+        signer !== buyer &&
+        signer !== seller
+    ) {
+        throw new Error(
+            "Only the buyer or seller can request cancellation."
+        );
+    }
+
+    if (
+        Number(escrow.status) !==
+        ESCROW_STATUS.DEPOSITS_COMPLETE
+    ) {
+        throw new Error(
+            "Mutual cancellation is available only after both deposits are complete."
+        );
+    }
+
+    const cleanReason =
+        String(reason ?? "")
+            .trim()
+            .replace(/\s+/g, " ");
+
+    if (!cleanReason) {
+        throw new Error(
+            "Enter a cancellation reason."
+        );
+    }
+
+    const requesterRole =
+        signer === buyer
+            ? "buyer"
+            : "seller";
+
+    const note =
+        `${MUTUAL_CANCELLATION_PREFIX}` +
+        `requester=${requesterRole}` +
+        `|reason=${cleanReason}`;
+
+    if (
+        new TextEncoder()
+            .encode(note)
+            .length > 200
+    ) {
+        throw new Error(
+            "Cancellation reason is too long."
+        );
+    }
+
+    const program =
+        getEscrowProgram(
+            connection,
+            wallet
+        );
+
+    /*
+     * Neutral cancellation:
+     * each party receives only its own
+     * deposited funds.
+     */
+    const buyerPayout =
+        toBN(escrow.depositedA);
+
+    const sellerPayout =
+        toBN(escrow.depositedB);
+
+    const totalLocked =
+        buyerPayout.add(
+            sellerPayout
+        );
+
+    const allocatedTotal =
+        buyerPayout.add(
+            sellerPayout
+        );
+
+    if (
+        !allocatedTotal.eq(
+            totalLocked
+        )
+    ) {
+        throw new Error(
+            "Cancellation payouts do not match the escrow balance."
+        );
+    }
+
+    return program.methods
+        .suggestFinalization(
+            buyerPayout,
+            sellerPayout,
+            new BN(0),
+            note
+        )
+        .accounts({
+            signer:
+                wallet.publicKey,
+
+            escrow:
+                new PublicKey(
+                    escrow.publicKey
+                ),
+        })
+        .rpc();
+}
+
+export async function approveMutualCancellation({
+    connection,
+    wallet,
+    escrow,
+}) {
+    if (!wallet.publicKey) {
+        throw new Error(
+            "Connect wallet first."
+        );
+    }
+
+    if (
+        !isMutualCancellationProposal(
+            escrow
+        )
+    ) {
+        throw new Error(
+            "No mutual cancellation request is pending."
+        );
+    }
+
+    const signer =
+        wallet.publicKey.toBase58();
+
+    const buyer =
+        normalizeAddress(
+            escrow.partyA
+        );
+
+    const seller =
+        normalizeAddress(
+            escrow.partyB
+        );
+
+    const proposer =
+        normalizeAddress(
+            escrow.finalizationProposer
+        );
+
+    if (
+        signer !== buyer &&
+        signer !== seller
+    ) {
+        throw new Error(
+            "Only the buyer or seller can approve cancellation."
+        );
+    }
+
+    if (signer === proposer) {
+        throw new Error(
+            "The party who requested cancellation cannot approve its own request."
+        );
+    }
+
+    const program =
+        getEscrowProgram(
+            connection,
+            wallet
+        );
+
+    const escrowPublicKey =
+        new PublicKey(
+            escrow.publicKey
+        );
+
+    const [vaultPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("vault"),
+                escrowPublicKey.toBuffer(),
+            ],
+            program.programId
+        );
+
+    return program.methods
+        .acceptFinalization()
+        .accounts({
+            signer:
+                wallet.publicKey,
+
+            escrow:
+                escrowPublicKey,
+
+            partyA:
+                new PublicKey(
+                    buyer
+                ),
+
+            partyB:
+                new PublicKey(
+                    seller
+                ),
+
+            vault:
+                vaultPda,
+
+            donationRecipient:
+                DONATION_RECIPIENT,
+        })
+        .rpc();
+}
+
+export async function declineMutualCancellation({
+    connection,
+    wallet,
+    escrow,
+}) {
+    if (!wallet.publicKey) {
+        throw new Error(
+            "Connect wallet first."
+        );
+    }
+
+    if (
+        !isMutualCancellationProposal(
+            escrow
+        )
+    ) {
+        throw new Error(
+            "No mutual cancellation request is pending."
+        );
+    }
+
+    const signer =
+        wallet.publicKey.toBase58();
+
+    const buyer =
+        normalizeAddress(
+            escrow.partyA
+        );
+
+    const seller =
+        normalizeAddress(
+            escrow.partyB
+        );
+
+    const proposer =
+        normalizeAddress(
+            escrow.finalizationProposer
+        );
+
+    if (
+        signer !== buyer &&
+        signer !== seller
+    ) {
+        throw new Error(
+            "Only the buyer or seller can decline cancellation."
+        );
+    }
+
+    if (signer === proposer) {
+        throw new Error(
+            "The requesting party cannot decline its own request."
+        );
+    }
+
+    const program =
+        getEscrowProgram(
+            connection,
+            wallet
+        );
+
+    return program.methods
+        .rejectFinalization()
+        .accounts({
+            signer:
+                wallet.publicKey,
+
+            escrow:
+                new PublicKey(
+                    escrow.publicKey
+                ),
+        })
+        .rpc();
+}
+
+export async function withdrawBuyerOrder({
+    connection,
+    wallet,
+    escrow,
+}) {
+    if (!wallet.publicKey) {
+        throw new Error(
+            "Connect wallet first."
+        );
+    }
+
+    const buyerAddress =
+        escrow.partyA?.toBase58?.() ??
+        escrow.partyA?.toString?.() ??
+        escrow.partyA;
+
+    if (
+        wallet.publicKey.toBase58() !==
+        buyerAddress
+    ) {
+        throw new Error(
+            "Only the buyer can withdraw this order."
+        );
+    }
+
+    if (
+        Number(escrow.status) !==
+        ESCROW_STATUS.CREATED
+    ) {
+        throw new Error(
+            "This order can no longer be withdrawn."
+        );
+    }
+
+    const sellerDeposit = new BN(
+        escrow.depositedB?.toString?.() ??
+            escrow.depositedB ??
+            0
+    );
+
+    if (!sellerDeposit.isZero()) {
+        throw new Error(
+            "The seller has already accepted this order."
+        );
+    }
+
+    const program =
+        getEscrowProgram(
+            connection,
+            wallet
+        );
+
+    const escrowPda =
+        new PublicKey(
+            escrow.publicKey
+        );
+
+    const [vaultPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("vault"),
+                escrowPda.toBuffer(),
+            ],
+            program.programId
+        );
+
+    const creatorAddress =
+        escrow.creator?.toBase58?.() ??
+        escrow.creator?.toString?.() ??
+        escrow.creator;
+
+    return program.methods
+        .withdrawBeforeComplete()
+        .accounts({
+            withdrawer:
+                wallet.publicKey,
+            escrow:
+                escrowPda,
+            creator:
+                new PublicKey(
+                    creatorAddress
+                ),
+            vault:
+                vaultPda,
+        })
+        .rpc();
 }

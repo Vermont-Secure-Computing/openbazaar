@@ -23,11 +23,19 @@ import {
     closeCompletedEscrow,
     sellerSuggestCompletion,
     releaseBuyerAndRecordSale,
+    withdrawBuyerOrder,
+    requestMutualCancellation,
+    approveMutualCancellation,
+    declineMutualCancellation,
+    isMutualCancellationProposal,
+    getMutualCancellationReason,
+    MUTUAL_CANCELLATION_PREFIX,
 } from "../lib/escrow";
 
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
 import OrderChat from "../components/OrderChat";
+import { sendOrderMessage } from "../lib/chat";
 import {
     initializeMerchantReputation,
     submitProductReview,
@@ -151,13 +159,22 @@ async function getCompletionSignature(
             const logs =
                 transaction?.meta?.logMessages || [];
 
-            const recordedSale = logs.some((log) =>
+                const recordedSale = logs.some((log) =>
                 log.includes(
                     "Instruction: RecordCompletedSale"
                 )
             );
-
-            if (recordedSale) {
+            
+            const acceptedFinalization = logs.some((log) =>
+                log.includes(
+                    "Instruction: AcceptFinalization"
+                )
+            );
+            
+            if (
+                recordedSale ||
+                acceptedFinalization
+            ) {
                 return signatureInfo.signature;
             }
         }
@@ -398,6 +415,96 @@ export default function OrderDetailsPage() {
         );
     };
 
+    const requestCancellation = async (
+        reason
+    ) => {
+        const confirmed =
+            window.confirm(
+                `Request mutual cancellation?\n\n` +
+                `Reason: ${reason}\n\n` +
+                `The other party must approve before funds are returned.`
+            );
+
+        if (!confirmed) {
+            return false;
+        }
+
+        return runAction(
+            () =>
+                requestMutualCancellation({
+                    connection,
+                    wallet,
+                    escrow,
+                    reason,
+                }),
+            "Mutual cancellation request submitted."
+        );
+    };
+
+    const approveCancellation = async () => {
+        const buyerPayout =
+            lamportsToSol(
+                escrow.proposedPayoutA
+            );
+
+        const sellerPayout =
+            lamportsToSol(
+                escrow.proposedPayoutB
+            );
+
+        const confirmed =
+            window.confirm(
+                `Approve mutual cancellation?\n\n` +
+                `Buyer refund: ${buyerPayout} SOL\n` +
+                `Seller refund: ${sellerPayout} SOL\n\n` +
+                `Each party will receive its own deposited funds.`
+            );
+
+        if (!confirmed) {
+            return false;
+        }
+
+        const success =
+            await runAction(
+                () =>
+                    approveMutualCancellation({
+                        connection,
+                        wallet,
+                        escrow,
+                    }),
+                "Cancellation approved and both parties were refunded."
+            );
+
+        if (success) {
+            navigate("/orders", {
+                replace: true,
+            });
+        }
+
+        return success;
+    };
+
+    const declineCancellation = async () => {
+        const confirmed =
+            window.confirm(
+                "Decline this mutual cancellation request? The order will return to the accepted state."
+            );
+
+        if (!confirmed) {
+            return false;
+        }
+
+        return runAction(
+            () =>
+                declineMutualCancellation({
+                    connection,
+                    wallet,
+                    escrow,
+                }),
+            "Cancellation request declined."
+        );
+    };
+
     const submitReview = async (
         rating,
         comment
@@ -460,6 +567,61 @@ export default function OrderDetailsPage() {
 
         if (success) {
             navigate("/orders");
+        }
+    };
+
+    const withdrawOrder = async () => {
+        const sellerDeposit =
+            Number(
+                escrow.depositedB
+                    ?.toString?.() ??
+                    escrow.depositedB ??
+                    0
+            );
+
+        if (
+            escrow.status !==
+                ESCROW_STATUS.CREATED ||
+            sellerDeposit > 0
+        ) {
+            alert(
+                "This order can no longer be withdrawn because the seller has already accepted or deposited."
+            );
+            await loadOrder();
+            return;
+        }
+
+        const refundAmount =
+            lamportsToSol(
+                escrow.depositedA
+            );
+    
+        const confirmed =
+            window.confirm(
+                `Withdraw this order?\n\n` +
+                `${refundAmount} SOL will be returned to your wallet.\n\n` +
+                `This is only available before the seller deposits.`
+            );
+    
+        if (!confirmed) {
+            return;
+        }
+    
+        const success =
+            await runAction(
+                () =>
+                    withdrawBuyerOrder({
+                        connection,
+                        wallet,
+                        escrow,
+                    }),
+                "Order withdrawn and your deposit was refunded."
+            );
+    
+        if (success) {
+            navigate("/orders", {
+                replace: true,
+            });
         }
     };
 
@@ -542,6 +704,7 @@ export default function OrderDetailsPage() {
                 connection={connection}
                 escrow={escrow}
                 role={role}
+                wallet={wallet}
                 completionSignature={
                     completionSignature
                 }
@@ -556,6 +719,18 @@ export default function OrderDetailsPage() {
                 onRetrieveDeposit={
                     retrieveDeposit
                 }
+                onWithdrawOrder={
+                    withdrawOrder
+                }
+                onRequestCancellation={
+                    requestCancellation
+                }
+                onApproveCancellation={
+                    approveCancellation
+                }
+                onDeclineCancellation={
+                    declineCancellation
+                }
                 onCloseOrder={closeOrder}
                 onSubmitReview={submitReview}
             />
@@ -567,12 +742,17 @@ function OrderCard({
     connection,
     escrow,
     role,
+    wallet,
     completionSignature,
     loadingCompletionSignature,
     processing,
     onAccept,
     onProposeCompletion,
     onRetrieveDeposit,
+    onWithdrawOrder,
+    onRequestCancellation,
+    onApproveCancellation,
+    onDeclineCancellation,
     onCloseOrder,
     onSubmitReview,
 }) {
@@ -585,6 +765,21 @@ function OrderCard({
     const [reviewComment, setReviewComment] = useState("");
     const [reviewExists, setReviewExists] = useState(false);
     const [checkingReview, setCheckingReview] = useState(false);
+    const [showCancellationForm, setShowCancellationForm] = useState(false);
+    const [cancellationReason, setCancellationReason] = useState("Out of stock");
+    const [customCancellationReason, setCustomCancellationReason] = useState("");
+    const [showMutualCancellationForm, setShowMutualCancellationForm] =
+        useState(false);
+    const [mutualCancellationReason, setMutualCancellationReason] =
+        useState(
+            role === "buyer"
+                ? "Changed my mind"
+                : "Unable to fulfill the order"
+        );
+    const [customMutualCancellationReason, setCustomMutualCancellationReason] =
+        useState("");
+
+
 
     useEffect(() => {
         let cancelled = false;
@@ -634,21 +829,172 @@ function OrderCard({
     const timeline =
         getEscrowTimeline(escrow);
 
-    const sellerNeedsDeposit =
-        escrow.status ===
-            ESCROW_STATUS.CREATED &&
+    const sellerDepositedLamports =
         Number(
             escrow.depositedB
                 ?.toString?.() ??
                 escrow.depositedB ??
                 0
-        ) === 0;
+        );
 
+    const sellerHasDeposited =
+        Number.isFinite(
+            sellerDepositedLamports
+        ) &&
+        sellerDepositedLamports > 0;
+
+    const sellerNeedsDeposit =
+        escrow.status ===
+            ESCROW_STATUS.CREATED &&
+        !sellerHasDeposited;
+
+    const canBuyerWithdraw =
+        role === "buyer" &&
+        escrow.status ===
+            ESCROW_STATUS.CREATED &&
+        !sellerHasDeposited;
+
+    const canSellerRequestCancellation =
+        role === "seller" &&
+        escrow.status ===
+            ESCROW_STATUS.CREATED &&
+        !sellerHasDeposited;
+
+    const sendSellerCancellationRequest = async () => {
+        if (!canSellerRequestCancellation) {
+            alert(
+                "Cancellation cannot be requested after the seller has deposited."
+            );
+            return;
+        }
+
+        const selectedReason =
+            cancellationReason === "Other"
+                ? customCancellationReason.trim()
+                : cancellationReason;
+
+        if (!selectedReason) {
+            alert("Enter a cancellation reason.");
+            return;
+        }
+
+        const message =
+            `Seller requested order cancellation.\n` +
+            `Reason: ${selectedReason}\n\n` +
+            `Buyer may withdraw the order to receive a full refund.`;
+
+        try {
+            const result = await sendOrderMessage({
+                connection,
+                wallet,
+                escrowAddress: escrow.publicKey,
+                message,
+            });
+
+            alert(
+                `Cancellation request sent.\n\nTransaction: ${result.signature}`
+            );
+
+            setShowCancellationForm(false);
+            setCustomCancellationReason("");
+        } catch (error) {
+            console.error(
+                "Cancellation request failed:",
+                error
+            );
+
+            alert(
+                error?.message ||
+                "Failed to send cancellation request."
+            );
+        }
+    };
+
+    const mutualCancellationPending =
+        isMutualCancellationProposal(
+            escrow
+        );
+
+    const currentWalletAddress =
+        wallet.publicKey?.toBase58?.() ??
+        "";
+
+    const cancellationRequester =
+        addressToString(
+            escrow.finalizationProposer
+        );
+
+    const currentUserRequestedCancellation =
+        mutualCancellationPending &&
+        currentWalletAddress ===
+            cancellationRequester;
+
+    const canRequestMutualCancellation =
+        (role === "buyer" ||
+            role === "seller") &&
+        escrow.status ===
+            ESCROW_STATUS.DEPOSITS_COMPLETE &&
+        sellerHasDeposited;
+
+    const canRespondToMutualCancellation =
+        mutualCancellationPending &&
+        !currentUserRequestedCancellation &&
+        (
+            currentWalletAddress ===
+                getBuyerAddress(escrow) ||
+            currentWalletAddress ===
+                getSellerAddress(escrow)
+        );
+
+    const pendingCancellationReason =
+        getMutualCancellationReason(
+            escrow
+        );
+
+    const submitMutualCancellationRequest =
+        async () => {
+            const selectedReason =
+                mutualCancellationReason ===
+                    "Other"
+                    ? customMutualCancellationReason
+                        .trim()
+                    : mutualCancellationReason;
+
+            if (!selectedReason) {
+                alert(
+                    "Enter a cancellation reason."
+                );
+                return;
+            }
+
+            const success =
+                await onRequestCancellation(
+                    selectedReason
+                );
+
+            if (success) {
+                setShowMutualCancellationForm(
+                    false
+                );
+                setCustomMutualCancellationReason(
+                    ""
+                );
+            }
+        };
+
+    const isCancellationCompleted =
+        escrow.status ===
+            ESCROW_STATUS.COMPLETED &&
+        String(
+            escrow.finalizationNote ?? ""
+        ).startsWith(
+            MUTUAL_CANCELLATION_PREFIX
+        );
+    
     const sellerDisplayName =
         merchant?.storeName ||
-        shortenAddress(
-            getSellerAddress(escrow)
-        );
+        shortenAddress(getSellerAddress(escrow));
+
 
     const buyerRefundLamports =
         calculateBuyerRefund(escrow);
@@ -839,53 +1185,43 @@ function OrderCard({
                         {sellerDisplayName}
                     </p>
 
-                    {escrow.status ===
-                        ESCROW_STATUS.COMPLETED && (
-                        <div
-                            style={{
-                                marginTop: 16,
-                                padding: 14,
-                                border:
-                                    "1px solid #bbf7d0",
-                                borderRadius: 10,
-                                background: "#f0fdf4",
-                            }}
-                        >
-                            <strong>
-                                Payment Release Transaction
-                            </strong>
+                    {(
+                        escrow.status ===
+                            ESCROW_STATUS.COMPLETED ||
+                        completionSignature
+                    ) && (
+                        <div className="transaction-section">
+                            <h3>
+                                {isCancellationCompleted
+                                    ? "Cancellation Refund Transaction"
+                                    : "Payment Release Transaction"}
+                            </h3>
 
-                            {loadingCompletionSignature ? (
-                                <p>
-                                    Loading transaction...
-                                </p>
-                            ) : completionSignature ? (
+                            {completionSignature ? (
                                 <>
                                     <p
                                         style={{
-                                            overflowWrap:
-                                                "anywhere",
+                                            overflowWrap: "anywhere",
                                             fontSize: 13,
                                         }}
                                     >
+                                        <strong>Transaction ID:</strong>{" "}
                                         {completionSignature}
                                     </p>
 
                                     <a
-                                        href={
-                                            `https://explorer.solana.com/tx/` +
-                                            `${completionSignature}?cluster=devnet`
-                                        }
+                                        href={`https://explorer.solana.com/tx/${completionSignature}?cluster=devnet`}
                                         target="_blank"
-                                        rel="noreferrer"
+                                        rel="noopener noreferrer"
                                     >
-                                        View transaction on Solana Explorer
+                                        View on Solana Explorer
                                     </a>
                                 </>
+                            ) : loadingCompletionSignature ? (
+                                <p>Loading transaction...</p>
                             ) : (
                                 <p>
-                                    Completion transaction
-                                    not found yet.
+                                    Transaction signature not found.
                                 </p>
                             )}
                         </div>
@@ -938,6 +1274,114 @@ function OrderCard({
                                               escrow.requiredDepositB
                                           )} SOL`}
                                 </button>
+                            )}
+
+                            {canSellerRequestCancellation && (
+                                <div
+                                    style={{
+                                        marginTop: 14,
+                                        padding: 14,
+                                        border: "1px solid #fcd34d",
+                                        borderRadius: 10,
+                                        background: "#fffbeb",
+                                        maxWidth: 520,
+                                    }}
+                                >
+                                    <strong>Cannot fulfill this order?</strong>
+
+                                    {!showCancellationForm ? (
+                                        <>
+                                            <p>
+                                                Send a cancellation request directly
+                                                to the buyer through the order chat.
+                                            </p>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowCancellationForm(true)
+                                                }
+                                                disabled={processing}
+                                            >
+                                                Request Cancellation
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div style={{ marginTop: 12 }}>
+                                            <label style={{ display: "block", marginBottom: 8 }}>
+                                                Cancellation reason
+                                            </label>
+
+                                            <select
+                                                value={cancellationReason}
+                                                onChange={(event) =>
+                                                    setCancellationReason(event.target.value)
+                                                }
+                                                disabled={processing}
+                                                style={{
+                                                    width: "100%",
+                                                    padding: 10,
+                                                    boxSizing: "border-box",
+                                                }}
+                                            >
+                                                <option value="Out of stock">Out of stock</option>
+                                                <option value="Unable to fulfill the order">
+                                                    Unable to fulfill the order
+                                                </option>
+                                                <option value="Incorrect product information">
+                                                    Incorrect product information
+                                                </option>
+                                                <option value="Shipping is unavailable">
+                                                    Shipping is unavailable
+                                                </option>
+                                                <option value="Other">Other</option>
+                                            </select>
+
+                                            {cancellationReason === "Other" && (
+                                                <textarea
+                                                    value={customCancellationReason}
+                                                    onChange={(event) =>
+                                                        setCustomCancellationReason(event.target.value)
+                                                    }
+                                                    maxLength={160}
+                                                    rows={3}
+                                                    placeholder="Enter the reason..."
+                                                    disabled={processing}
+                                                    style={{
+                                                        width: "100%",
+                                                        padding: 10,
+                                                        marginTop: 10,
+                                                        boxSizing: "border-box",
+                                                        resize: "vertical",
+                                                    }}
+                                                />
+                                            )}
+
+                                            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={sendSellerCancellationRequest}
+                                                    disabled={processing}
+                                                >
+                                                    {processing
+                                                        ? "Sending..."
+                                                        : "Send Cancellation Request"}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setShowCancellationForm(false);
+                                                        setCustomCancellationReason("");
+                                                    }}
+                                                    disabled={processing}
+                                                >
+                                                    Back
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                         {role ===
@@ -1167,6 +1611,345 @@ function OrderCard({
                                     </button>
                                 </div>
                             )}
+
+                        {canRequestMutualCancellation && (
+                            <div
+                                style={{
+                                    padding: 14,
+                                    border:
+                                        "1px solid #fde68a",
+                                    borderRadius: 10,
+                                    background:
+                                        "#fffbeb",
+                                    maxWidth: 520,
+                                }}
+                            >
+                                <strong>
+                                    Need to cancel after acceptance?
+                                </strong>
+
+                                {!showMutualCancellationForm ? (
+                                    <>
+                                        <p>
+                                            Either buyer or seller may
+                                            request cancellation. The
+                                            other party must approve,
+                                            and each party receives its
+                                            own deposited funds.
+                                        </p>
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowMutualCancellationForm(
+                                                    true
+                                                )
+                                            }
+                                            disabled={
+                                                processing
+                                            }
+                                        >
+                                            Request Mutual Cancellation
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div
+                                        style={{
+                                            marginTop: 12,
+                                        }}
+                                    >
+                                        <label
+                                            style={{
+                                                display:
+                                                    "block",
+                                                marginBottom:
+                                                    8,
+                                            }}
+                                        >
+                                            Cancellation reason
+                                        </label>
+
+                                        <select
+                                            value={
+                                                mutualCancellationReason
+                                            }
+                                            onChange={(event) =>
+                                                setMutualCancellationReason(
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={
+                                                processing
+                                            }
+                                            style={{
+                                                width:
+                                                    "100%",
+                                                padding: 10,
+                                                boxSizing:
+                                                    "border-box",
+                                            }}
+                                        >
+                                            {role === "buyer" && (
+                                                <>
+                                                    <option value="Changed my mind">
+                                                        Changed my mind
+                                                    </option>
+                                                    <option value="Ordered by mistake">
+                                                        Ordered by mistake
+                                                    </option>
+                                                    <option value="Unable to complete the transaction">
+                                                        Unable to complete the transaction
+                                                    </option>
+                                                </>
+                                            )}
+
+                                            {role === "seller" && (
+                                                <>
+                                                    <option value="Unable to fulfill the order">
+                                                        Unable to fulfill the order
+                                                    </option>
+                                                    <option value="Out of stock">
+                                                        Out of stock
+                                                    </option>
+                                                    <option value="Shipping is unavailable">
+                                                        Shipping is unavailable
+                                                    </option>
+                                                </>
+                                            )}
+
+                                            <option value="Other">
+                                                Other
+                                            </option>
+                                        </select>
+
+                                        {mutualCancellationReason ===
+                                            "Other" && (
+                                            <textarea
+                                                value={
+                                                    customMutualCancellationReason
+                                                }
+                                                onChange={(event) =>
+                                                    setCustomMutualCancellationReason(
+                                                        event.target.value
+                                                    )
+                                                }
+                                                maxLength={
+                                                    120
+                                                }
+                                                rows={3}
+                                                placeholder="Enter the reason..."
+                                                disabled={
+                                                    processing
+                                                }
+                                                style={{
+                                                    width:
+                                                        "100%",
+                                                    padding:
+                                                        10,
+                                                    marginTop:
+                                                        10,
+                                                    boxSizing:
+                                                        "border-box",
+                                                    resize:
+                                                        "vertical",
+                                                }}
+                                            />
+                                        )}
+
+                                        <div
+                                            style={{
+                                                display:
+                                                    "flex",
+                                                gap: 10,
+                                                marginTop:
+                                                    14,
+                                                flexWrap:
+                                                    "wrap",
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={
+                                                    submitMutualCancellationRequest
+                                                }
+                                                disabled={
+                                                    processing
+                                                }
+                                            >
+                                                {processing
+                                                    ? "Submitting..."
+                                                    : "Submit Cancellation Request"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowMutualCancellationForm(
+                                                        false
+                                                    );
+                                                    setCustomMutualCancellationReason(
+                                                        ""
+                                                    );
+                                                }}
+                                                disabled={
+                                                    processing
+                                                }
+                                            >
+                                                Back
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {mutualCancellationPending && (
+                            <div
+                                style={{
+                                    padding: 14,
+                                    border:
+                                        "1px solid #c4b5fd",
+                                    borderRadius: 10,
+                                    background:
+                                        "#f5f3ff",
+                                    maxWidth: 520,
+                                }}
+                            >
+                                <strong>
+                                    Mutual cancellation requested
+                                </strong>
+
+                                <p>
+                                    Requested by{" "}
+                                    {cancellationRequester ===
+                                    getBuyerAddress(
+                                        escrow
+                                    )
+                                        ? "buyer"
+                                        : "seller"}
+                                    .
+                                </p>
+
+                                {pendingCancellationReason && (
+                                    <p>
+                                        <strong>
+                                            Reason:
+                                        </strong>{" "}
+                                        {
+                                            pendingCancellationReason
+                                        }
+                                    </p>
+                                )}
+
+                                <p>
+                                    Buyer refund:{" "}
+                                    <strong>
+                                        {lamportsToSol(
+                                            escrow.proposedPayoutA
+                                        )}{" "}
+                                        SOL
+                                    </strong>
+                                    <br />
+                                    Seller refund:{" "}
+                                    <strong>
+                                        {lamportsToSol(
+                                            escrow.proposedPayoutB
+                                        )}{" "}
+                                        SOL
+                                    </strong>
+                                </p>
+
+                                {currentUserRequestedCancellation ? (
+                                    <p
+                                        style={{
+                                            marginBottom:
+                                                0,
+                                        }}
+                                    >
+                                        Waiting for the other
+                                        party to approve or
+                                        decline.
+                                    </p>
+                                ) : canRespondToMutualCancellation ? (
+                                    <div
+                                        style={{
+                                            display:
+                                                "flex",
+                                            gap: 10,
+                                            flexWrap:
+                                                "wrap",
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={
+                                                onApproveCancellation
+                                            }
+                                            disabled={
+                                                processing
+                                            }
+                                        >
+                                            {processing
+                                                ? "Processing..."
+                                                : "Approve Cancellation"}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={
+                                                onDeclineCancellation
+                                            }
+                                            disabled={
+                                                processing
+                                            }
+                                        >
+                                            Decline
+                                        </button>
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
+
+                        {canBuyerWithdraw && (
+                                <div
+                                    style={{
+                                        padding: 14,
+                                        border:
+                                            "1px solid #fecaca",
+                                        borderRadius: 10,
+                                        background:
+                                            "#fef2f2",
+                                        maxWidth: 520,
+                                    }}
+                                >
+                                    <p
+                                        style={{
+                                            marginTop: 0,
+                                        }}
+                                    >
+                                        The seller has not accepted
+                                        this order yet. You may
+                                        withdraw and receive a full
+                                        refund.
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            onWithdrawOrder
+                                        }
+                                        disabled={
+                                            processing
+                                        }
+                                    >
+                                        {processing
+                                            ? "Withdrawing..."
+                                            : `Withdraw Order & Refund ${lamportsToSol(
+                                                escrow.depositedA
+                                            )} SOL`}
+                                    </button>
+                                </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1239,7 +2022,9 @@ function OrderCard({
                 </div>
             </div>
 
-            <OrderChat escrow={escrow} />
+            <div id="order-chat-section">
+                <OrderChat escrow={escrow} />
+            </div>
         </article>
     );
 }
