@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Dg1SUE2GAfMaxft1XFaMYck1n6uqxtx4F5m4cbB4c6dp");
+declare_id!("Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo");
 
 pub const ESCROW_PROGRAM_ID: Pubkey =
     pubkey!("E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ");
@@ -21,13 +21,6 @@ pub mod sol_bazaar {
         banner_uri: String,
         ships_from: String,
         seller_deposit_bps: u16,
-        email: String,
-        phone: String,
-        website: String,
-        facebook: String,
-        instagram: String,
-        telegram: String,
-        x: String,
         preferred_contact: String,
     ) -> Result<()> {
         require!(store_name.len() <= 64, MarketplaceError::TextTooLong);
@@ -35,13 +28,6 @@ pub mod sol_bazaar {
         require!(logo_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(banner_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(ships_from.len() <= 64, MarketplaceError::TextTooLong);
-        require!(email.len() <= 100, MarketplaceError::TextTooLong);
-        require!(phone.len() <= 30, MarketplaceError::TextTooLong);
-        require!(website.len() <= 150, MarketplaceError::TextTooLong);
-        require!(facebook.len() <= 100, MarketplaceError::TextTooLong);
-        require!(instagram.len() <= 100, MarketplaceError::TextTooLong);
-        require!(telegram.len() <= 100, MarketplaceError::TextTooLong);
-        require!(x.len() <= 100, MarketplaceError::TextTooLong);
         require!(seller_deposit_bps <= 10000, MarketplaceError::InvalidDepositPercent);
         require!(
             preferred_contact.len() <= 300,
@@ -57,13 +43,7 @@ pub mod sol_bazaar {
         merchant.banner_uri = banner_uri;
         merchant.ships_from = ships_from;
         merchant.seller_deposit_bps = seller_deposit_bps;
-        merchant.email = email;
-        merchant.phone = phone;
-        merchant.website = website;
-        merchant.facebook = facebook;
-        merchant.instagram = instagram;
-        merchant.telegram = telegram;
-        merchant.x = x;
+        merchant.total_sold = 0;
         merchant.preferred_contact = preferred_contact;
         merchant.active = true;
         merchant.created_at = Clock::get()?.unix_timestamp;
@@ -81,13 +61,6 @@ pub mod sol_bazaar {
         banner_uri: String,
         ships_from: String,
         seller_deposit_bps: u16,
-        email: String,
-        phone: String,
-        website: String,
-        facebook: String,
-        instagram: String,
-        telegram: String,
-        x: String,
         preferred_contact: String,
         active: bool,
     ) -> Result<()> {
@@ -96,13 +69,6 @@ pub mod sol_bazaar {
         require!(logo_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(banner_uri.len() <= 200, MarketplaceError::TextTooLong);
         require!(ships_from.len() <= 64, MarketplaceError::TextTooLong);
-        require!(email.len() <= 100, MarketplaceError::TextTooLong);
-        require!(phone.len() <= 30, MarketplaceError::TextTooLong);
-        require!(website.len() <= 150, MarketplaceError::TextTooLong);
-        require!(facebook.len() <= 100, MarketplaceError::TextTooLong);
-        require!(instagram.len() <= 100, MarketplaceError::TextTooLong);
-        require!(telegram.len() <= 100, MarketplaceError::TextTooLong);
-        require!(x.len() <= 100, MarketplaceError::TextTooLong);
         require!(seller_deposit_bps <= 10000, MarketplaceError::InvalidDepositPercent);
         require!(
             preferred_contact.len() <= 300,
@@ -117,13 +83,6 @@ pub mod sol_bazaar {
         merchant.banner_uri = banner_uri;
         merchant.ships_from = ships_from;
         merchant.seller_deposit_bps = seller_deposit_bps;
-        merchant.email = email;
-        merchant.phone = phone;
-        merchant.website = website;
-        merchant.facebook = facebook;
-        merchant.instagram = instagram;
-        merchant.telegram = telegram;
-        merchant.x = x;
         merchant.preferred_contact = preferred_contact;
         merchant.active = active;
 
@@ -196,21 +155,6 @@ pub mod sol_bazaar {
         Ok(())
     }
 
-    pub fn reduce_stock(
-        ctx: Context<ReduceStock>,
-        quantity: u32,
-    ) -> Result<()> {
-        let product = &mut ctx.accounts.product;
-
-        require!(product.active, MarketplaceError::ProductInactive);
-        require!(quantity > 0, MarketplaceError::InvalidQuantity);
-        require!(product.stock >= quantity, MarketplaceError::InsufficientStock);
-
-        // Reduce stock now; sold is recorded only after completed escrow.
-        product.stock -= quantity;
-
-        Ok(())
-    }
 
     pub fn delete_product(ctx: Context<DeleteProduct>) -> Result<()> {
         let product = &mut ctx.accounts.product;
@@ -442,10 +386,18 @@ pub mod sol_bazaar {
     ) -> Result<()> {
         require!(quantity > 0, MarketplaceError::InvalidQuantity);
     
-        let product = &ctx.accounts.product;
-    
-        require!(product.active, MarketplaceError::ProductInactive);
-        require!(!product.deleted, MarketplaceError::ProductInactive);
+        let product = &mut ctx.accounts.product;
+
+        require!(
+            product.active,
+            MarketplaceError::ProductInactive
+        );
+
+        require!(
+            !product.deleted,
+            MarketplaceError::ProductInactive
+        );
+
         require!(
             product.stock >= quantity,
             MarketplaceError::InsufficientStock
@@ -562,6 +514,17 @@ pub mod sol_bazaar {
                 == security_deposit,
             MarketplaceError::InvalidSellerDeposit
         );
+
+        product.stock = product
+            .stock
+            .checked_sub(quantity)
+            .ok_or(
+                MarketplaceError::InsufficientStock
+            )?;
+
+        product.updated_at =
+            Clock::get()?.unix_timestamp;
+
     
         let order = &mut ctx.accounts.order_record;
     
@@ -641,6 +604,15 @@ pub mod sol_bazaar {
     
         ctx.accounts.product.updated_at =
             Clock::get()?.unix_timestamp;
+
+        ctx.accounts.merchant_profile.total_sold =
+        ctx.accounts
+            .merchant_profile
+            .total_sold
+            .checked_add(quantity)
+            .ok_or(
+                MarketplaceError::MathOverflow
+            )?;
     
         let completed_sale =
             &mut ctx.accounts.completed_sale;
@@ -661,6 +633,86 @@ pub mod sol_bazaar {
     
         completed_sale.bump =
             ctx.bumps.completed_sale;
+    
+        Ok(())
+    }
+
+    pub fn restore_cancelled_order_stock(
+        ctx: Context<RestoreCancelledOrderStock>,
+    ) -> Result<()> {
+        let escrow_info =
+            ctx.accounts.escrow.to_account_info();
+    
+        require_keys_eq!(
+            *escrow_info.owner,
+            ESCROW_PROGRAM_ID,
+            MarketplaceError::InvalidEscrowOwner
+        );
+    
+        let data =
+            escrow_info.try_borrow_data()?;
+    
+        let external_escrow =
+            decode_external_escrow(data.as_ref())?;
+    
+        require!(
+            external_escrow.note.contains(
+                "\"marketplace\":\"solbazaar\""
+            ),
+            MarketplaceError::NotSolBazaarEscrow
+        );
+    
+        /*
+         * Palitan ang status values ayon sa actual
+         * cancelled/refunded statuses ng escrow program mo.
+         */
+        require!(
+            external_escrow.status == 4
+                || external_escrow.status == 5,
+            MarketplaceError::OrderNotCancelled
+        );
+    
+        require_keys_eq!(
+            external_escrow.party_a,
+            ctx.accounts.order_record.buyer,
+            MarketplaceError::InvalidOrderBuyer
+        );
+    
+        require_keys_eq!(
+            external_escrow.party_b,
+            ctx.accounts.order_record.seller,
+            MarketplaceError::InvalidOrderSeller
+        );
+    
+        let quantity =
+            ctx.accounts.order_record.quantity;
+    
+        ctx.accounts.product.stock =
+            ctx.accounts
+                .product
+                .stock
+                .checked_add(quantity)
+                .ok_or(MarketplaceError::MathOverflow)?;
+    
+        ctx.accounts.product.updated_at =
+            Clock::get()?.unix_timestamp;
+    
+        let restoration =
+            &mut ctx.accounts.stock_restoration;
+    
+        restoration.order_record =
+            ctx.accounts.order_record.key();
+    
+        restoration.product =
+            ctx.accounts.product.key();
+    
+        restoration.quantity = quantity;
+    
+        restoration.restored_at =
+            Clock::get()?.unix_timestamp;
+    
+        restoration.bump =
+            ctx.bumps.stock_restoration;
     
         Ok(())
     }
@@ -744,24 +796,6 @@ pub struct UpdateProduct<'info> {
     pub authority: Signer<'info>,
 }
 
-#[derive(Accounts)]
-pub struct ReduceStock<'info> {
-    #[account(
-        mut,
-        seeds = [
-            b"product",
-            authority.key().as_ref(),
-            &product.product_id.to_le_bytes()
-        ],
-        bump = product.bump,
-        constraint = product.merchant == authority.key()
-            @ MarketplaceError::Unauthorized
-    )]
-    pub product: Account<'info, Product>,
-
-    pub authority: Signer<'info>,
-}
-
 #[account]
 #[derive(InitSpace)]
 pub struct MerchantProfile {
@@ -782,31 +816,12 @@ pub struct MerchantProfile {
     #[max_len(64)]
     pub ships_from: String,
 
-    #[max_len(100)]
-    pub email: String,
-
-    #[max_len(30)]
-    pub phone: String,
-
-    #[max_len(150)]
-    pub website: String,
-
-    #[max_len(100)]
-    pub facebook: String,
-
-    #[max_len(100)]
-    pub instagram: String,
-
-    #[max_len(100)]
-    pub telegram: String,
-
-    #[max_len(100)]
-    pub x: String,
-
     #[max_len(300)]
     pub preferred_contact: String,
 
     pub seller_deposit_bps: u16,
+    pub total_sold: u32,
+
     pub active: bool,
     pub verified: bool,
     pub created_at: i64,
@@ -1317,6 +1332,7 @@ pub struct CreateOrderRecord<'info> {
     pub escrow: UncheckedAccount<'info>,
 
     #[account(
+        mut,
         constraint = product.active
             @ MarketplaceError::ProductInactive,
         constraint = !product.deleted
@@ -1358,26 +1374,64 @@ pub struct CreateOrderRecord<'info> {
 pub struct RecordCompletedSale<'info> {
     #[account(mut)]
     pub buyer: Signer<'info>,
-    /// CHECK: Verified in instruction.
+
+    /// CHECK: Verified inside the instruction.
     pub escrow: UncheckedAccount<'info>,
+
     #[account(
-        seeds = [b"order", escrow.key().as_ref()],
+        seeds = [
+            b"order",
+            escrow.key().as_ref()
+        ],
         bump = order_record.bump,
-        constraint = order_record.escrow == escrow.key() @ MarketplaceError::InvalidOrderRecord,
-        constraint = order_record.buyer == buyer.key() @ MarketplaceError::InvalidOrderBuyer,
-        constraint = order_record.product == product.key() @ MarketplaceError::InvalidReviewProduct
+        constraint =
+            order_record.escrow == escrow.key()
+                @ MarketplaceError::InvalidOrderRecord,
+        constraint =
+            order_record.buyer == buyer.key()
+                @ MarketplaceError::InvalidOrderBuyer,
+        constraint =
+            order_record.product == product.key()
+                @ MarketplaceError::InvalidReviewProduct
     )]
     pub order_record: Account<'info, OrderRecord>,
-    #[account(mut, constraint = product.merchant == order_record.seller @ MarketplaceError::InvalidOrderSeller)]
+
+    #[account(
+        mut,
+        constraint =
+            product.merchant == order_record.seller
+                @ MarketplaceError::InvalidOrderSeller
+    )]
     pub product: Account<'info, Product>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"merchant",
+            order_record.seller.as_ref()
+        ],
+        bump = merchant_profile.bump,
+        constraint =
+            merchant_profile.authority
+                == order_record.seller
+                @ MarketplaceError::InvalidOrderSeller
+    )]
+    pub merchant_profile:
+        Account<'info, MerchantProfile>,
+
     #[account(
         init,
         payer = buyer,
         space = 8 + CompletedSale::INIT_SPACE,
-        seeds = [b"completed-sale", order_record.key().as_ref()],
+        seeds = [
+            b"completed-sale",
+            order_record.key().as_ref()
+        ],
         bump
     )]
-    pub completed_sale: Account<'info, CompletedSale>,
+    pub completed_sale:
+        Account<'info, CompletedSale>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -1388,6 +1442,64 @@ pub struct CompletedSale {
     pub product: Pubkey,
     pub quantity: u32,
     pub completed_at: i64,
+    pub bump: u8,
+}
+
+#[derive(Accounts)]
+pub struct RestoreCancelledOrderStock<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: Verified inside the instruction.
+    pub escrow: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [
+            b"order",
+            escrow.key().as_ref()
+        ],
+        bump = order_record.bump,
+        constraint =
+            order_record.escrow == escrow.key()
+                @ MarketplaceError::InvalidOrderRecord,
+        constraint =
+            order_record.product == product.key()
+                @ MarketplaceError::InvalidReviewProduct
+    )]
+    pub order_record:
+        Account<'info, OrderRecord>,
+
+    #[account(
+        mut,
+        constraint =
+            product.merchant == order_record.seller
+                @ MarketplaceError::InvalidOrderSeller
+    )]
+    pub product: Account<'info, Product>,
+
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + StockRestoration::INIT_SPACE,
+        seeds = [
+            b"stock-restoration",
+            order_record.key().as_ref()
+        ],
+        bump
+    )]
+    pub stock_restoration:
+        Account<'info, StockRestoration>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct StockRestoration {
+    pub order_record: Pubkey,
+    pub product: Pubkey,
+    pub quantity: u32,
+    pub restored_at: i64,
     pub bump: u8,
 }
 
@@ -1483,4 +1595,7 @@ pub enum MarketplaceError {
 
     #[msg("Escrow is not in a valid state for order creation")]
     InvalidOrderStatus,
+
+    #[msg("Order must be cancelled or refunded")]
+    OrderNotCancelled,
 }

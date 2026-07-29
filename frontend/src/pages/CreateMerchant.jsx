@@ -1,113 +1,365 @@
 import { useState } from "react";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import {
+    PublicKey,
+    SystemProgram,
+} from "@solana/web3.js";
+import {
+    useConnection,
+    useWallet,
+} from "@solana/wallet-adapter-react";
 
 import idl from "../idl/sol_bazaar.json";
+
+function utf8ByteLength(value) {
+    return new TextEncoder().encode(
+        String(value ?? "")
+    ).length;
+}
+
+function FieldCounter({ value, maxBytes }) {
+    const characters = String(value ?? "").length;
+    const bytes = utf8ByteLength(value);
+    const overLimit = bytes > maxBytes;
+
+    return (
+        <div
+            style={{
+                fontSize: 12,
+                color: overLimit ? "#dc2626" : "#666",
+                marginTop: 4,
+            }}
+        >
+            {characters} characters · {bytes}/{maxBytes} bytes
+            {overLimit ? " — too long" : ""}
+        </div>
+    );
+}
 
 export default function CreateMerchant({ onCreated }) {
     const { connection } = useConnection();
     const wallet = useWallet();
 
     const [storeName, setStoreName] = useState("");
-    const [descriptionUri, setDescriptionUri] = useState("");
+    const [descriptionUri, setDescriptionUri] =
+        useState("");
     const [logoUri, setLogoUri] = useState("");
     const [bannerUri, setBannerUri] = useState("");
     const [shipsFrom, setShipsFrom] = useState("");
-    const [sellerDepositPercent, setSellerDepositPercent] = useState("10");
+    const [
+        sellerDepositPercent,
+        setSellerDepositPercent,
+    ] = useState("10");
+    const [
+        preferredContact,
+        setPreferredContact,
+    ] = useState("");
 
-    const [email, setEmail] = useState("");
-    const [phone, setPhone] = useState("");
-    const [website, setWebsite] = useState("");
-    const [facebook, setFacebook] = useState("");
-    const [instagram, setInstagram] = useState("");
-    const [telegram, setTelegram] = useState("");
-    const [x, setX] = useState("");
-    const [preferredContact, setPreferredContact] = useState("");
+    const [submitting, setSubmitting] =
+        useState(false);
+
+    const totalProfileBytes =
+        utf8ByteLength(storeName) +
+        utf8ByteLength(descriptionUri) +
+        utf8ByteLength(logoUri) +
+        utf8ByteLength(bannerUri) +
+        utf8ByteLength(shipsFrom) +
+        utf8ByteLength(preferredContact);
+
+    const transactionContentLimit = 950;
+
+    const profileTooLarge =
+        totalProfileBytes > transactionContentLimit;
 
     const createMerchant = async () => {
         if (!wallet.publicKey) {
-            alert("Connect wallet first");
+            alert("Connect wallet first.");
             return;
         }
 
-        const provider = new AnchorProvider(connection, wallet, {
-            commitment: "confirmed",
-        });
+        const cleanedStoreName = storeName.trim();
+        const cleanedDescription =
+            descriptionUri.trim();
+        const cleanedLogoUri = logoUri.trim();
+        const cleanedBannerUri = bannerUri.trim();
+        const cleanedShipsFrom = shipsFrom.trim();
+        const cleanedPreferredContact =
+            preferredContact.trim();
 
-        const program = new Program(idl, provider);
+        if (!cleanedStoreName) {
+            alert("Store name is required.");
+            return;
+        }
 
-        const [merchantPda] = PublicKey.findProgramAddressSync(
+        if (!cleanedDescription) {
+            alert("Seller description is required.");
+            return;
+        }
+
+        if (!cleanedShipsFrom) {
+            alert("Ships From is required.");
+            return;
+        }
+
+        const limits = [
             [
-                Buffer.from("merchant"),
-                wallet.publicKey.toBuffer(),
+                "Store name",
+                cleanedStoreName,
+                64,
             ],
-            program.programId
+            [
+                "Seller description",
+                cleanedDescription,
+                200,
+            ],
+            [
+                "Logo URL",
+                cleanedLogoUri,
+                200,
+            ],
+            [
+                "Banner URL",
+                cleanedBannerUri,
+                200,
+            ],
+            [
+                "Ships from",
+                cleanedShipsFrom,
+                64,
+            ],
+            [
+                "Preferred contact",
+                cleanedPreferredContact,
+                300,
+            ],
+        ];
+
+        for (const [label, value, maxBytes] of limits) {
+            const bytes = utf8ByteLength(value);
+
+            if (bytes > maxBytes) {
+                alert(
+                    `${label} must not exceed ${maxBytes} UTF-8 bytes.\n\n` +
+                        `Current size: ${bytes} bytes.`
+                );
+                return;
+            }
+        }
+
+        const cleanedTotalBytes = limits.reduce(
+            (total, [, value]) =>
+                total + utf8ByteLength(value),
+            0
         );
 
-        const sellerDepositBps =
-            Math.round(Number(sellerDepositPercent) * 100);
+        if (
+            cleanedTotalBytes >
+            transactionContentLimit
+        ) {
+            alert(
+                "Store profile is too large for one Solana transaction.\n\n" +
+                    `Current content: ${cleanedTotalBytes} bytes\n` +
+                    `Recommended maximum: ${transactionContentLimit} bytes\n\n` +
+                    "Shorten the description, URLs, or preferred contact."
+            );
+            return;
+        }
 
-        const tx = await program.methods
-            .createMerchant(
-                storeName,
-                descriptionUri,
-                logoUri,
-                bannerUri,
-                shipsFrom,
-                sellerDepositBps,
-                email || "",
-                phone || "",
-                website || "",
-                facebook || "",
-                instagram || "",
-                telegram || "",
-                x || "",
-                preferredContact || ""
-            )
-            .accountsStrict({
-                merchantProfile: merchantPda,
-                authority: wallet.publicKey,
-                systemProgram: SystemProgram.programId,
-            })
-            .rpc();
+        const depositPercent = Number(
+            sellerDepositPercent
+        );
 
-        alert("Merchant created: " + tx);
+        if (
+            !Number.isFinite(depositPercent) ||
+            depositPercent < 0 ||
+            depositPercent > 100
+        ) {
+            alert(
+                "Seller deposit must be between 0% and 100%."
+            );
+            return;
+        }
 
-        setStoreName("");
-        setDescriptionUri("");
-        setLogoUri("");
-        setBannerUri("");
-        setShipsFrom("");
-        setEmail("");
-        setPhone("");
-        setWebsite("");
-        setFacebook("");
-        setInstagram("");
-        setTelegram("");
-        setX("");
+        try {
+            setSubmitting(true);
 
-        if (onCreated) onCreated();
+            const provider = new AnchorProvider(
+                connection,
+                wallet,
+                {
+                    commitment: "confirmed",
+                }
+            );
+
+            const program = new Program(
+                idl,
+                provider
+            );
+
+            const [merchantPda] =
+                PublicKey.findProgramAddressSync(
+                    [
+                        Buffer.from("merchant"),
+                        wallet.publicKey.toBuffer(),
+                    ],
+                    program.programId
+                );
+
+            const existingAccount =
+                await connection.getAccountInfo(
+                    merchantPda
+                );
+
+            if (existingAccount) {
+                alert(
+                    "This wallet already has a merchant store."
+                );
+                return;
+            }
+
+            const sellerDepositBps = Math.round(
+                depositPercent * 100
+            );
+
+            const tx = await program.methods
+                .createMerchant(
+                    cleanedStoreName,
+                    cleanedDescription,
+                    cleanedLogoUri,
+                    cleanedBannerUri,
+                    cleanedShipsFrom,
+                    sellerDepositBps,
+                    cleanedPreferredContact
+                )
+                .accountsStrict({
+                    merchantProfile: merchantPda,
+                    authority: wallet.publicKey,
+                    systemProgram:
+                        SystemProgram.programId,
+                })
+                .rpc();
+
+            alert("Merchant created: " + tx);
+
+            setStoreName("");
+            setDescriptionUri("");
+            setLogoUri("");
+            setBannerUri("");
+            setShipsFrom("");
+            setSellerDepositPercent("10");
+            setPreferredContact("");
+
+            if (onCreated) {
+                onCreated();
+            }
+        } catch (error) {
+            console.error(
+                "Create merchant error:",
+                error
+            );
+
+            alert(
+                error?.message ||
+                    "Failed to create merchant."
+            );
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
         <div style={{ padding: 24 }}>
             <h2>Create Merchant</h2>
 
-            <input placeholder="Store Name" value={storeName} onChange={(e) => setStoreName(e.target.value)} />
-            <br /><br />
+            <label>Store Name</label>
+            <br />
 
-            <input placeholder="Description" value={descriptionUri} onChange={(e) => setDescriptionUri(e.target.value)} />
-            <br /><br />
+            <input
+                placeholder="Store Name"
+                value={storeName}
+                maxLength={64}
+                onChange={(event) =>
+                    setStoreName(event.target.value)
+                }
+            />
 
-            <input placeholder="Logo Image URL" value={logoUri} onChange={(e) => setLogoUri(e.target.value)} />
-            <br /><br />
+            <FieldCounter
+                value={storeName}
+                maxBytes={64}
+            />
 
-            <input placeholder="Banner Image URL" value={bannerUri} onChange={(e) => setBannerUri(e.target.value)} />
-            <br /><br />
+            <br />
 
-            <input placeholder="Ships From e.g. Cavite, Philippines" value={shipsFrom} onChange={(e) => setShipsFrom(e.target.value)} />
-            <br /><br />
+            <label>Seller Description</label>
+            <br />
+
+            <textarea
+                value={descriptionUri}
+                onChange={(event) =>
+                    setDescriptionUri(
+                        event.target.value
+                    )
+                }
+                rows={5}
+                maxLength={200}
+                placeholder="Describe your store, products, shipping, and other important information."
+                style={{
+                    width: "100%",
+                    maxWidth: 600,
+                    padding: 10,
+                    boxSizing: "border-box",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                }}
+            />
+
+            <FieldCounter
+                value={descriptionUri}
+                maxBytes={200}
+            />
+
+            <br />
+
+            <label>Logo URL</label>
+            <br />
+
+            <input
+                placeholder="Logo URL"
+                value={logoUri}
+                maxLength={200}
+                onChange={(event) =>
+                    setLogoUri(event.target.value)
+                }
+            />
+
+            <FieldCounter
+                value={logoUri}
+                maxBytes={200}
+            />
+
+            <br />
+
+            <label>Banner URL</label>
+            <br />
+
+            <input
+                placeholder="Banner URL"
+                value={bannerUri}
+                maxLength={200}
+                onChange={(event) =>
+                    setBannerUri(event.target.value)
+                }
+            />
+
+            <FieldCounter
+                value={bannerUri}
+                maxBytes={200}
+            />
+
+            <br />
+
+            <label>Seller Escrow Deposit %</label>
+            <br />
 
             <input
                 type="number"
@@ -116,57 +368,124 @@ export default function CreateMerchant({ onCreated }) {
                 step="0.1"
                 placeholder="Seller Escrow Deposit %"
                 value={sellerDepositPercent}
-                onChange={(e) => setSellerDepositPercent(e.target.value)}
+                onChange={(event) =>
+                    setSellerDepositPercent(
+                        event.target.value
+                    )
+                }
             />
 
-            <h3>Optional Contact Details</h3>
+            <div
+                style={{
+                    fontSize: 12,
+                    color: "#666",
+                    marginTop: 4,
+                }}
+            >
+                Allowed range: 0% to 100%
+            </div>
 
-            <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <br /><br />
+            <br />
 
-            <input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            <br /><br />
+            <label>Ships From</label>
+            <br />
 
-            <input placeholder="Website" value={website} onChange={(e) => setWebsite(e.target.value)} />
-            <br /><br />
+            <input
+                placeholder="Ships From e.g. Cavite, Philippines"
+                value={shipsFrom}
+                maxLength={64}
+                onChange={(event) =>
+                    setShipsFrom(event.target.value)
+                }
+            />
 
-            <input placeholder="Facebook" value={facebook} onChange={(e) => setFacebook(e.target.value)} />
-            <br /><br />
+            <FieldCounter
+                value={shipsFrom}
+                maxBytes={64}
+            />
 
-            <input placeholder="Instagram" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
-            <br /><br />
+            <br />
 
-            <input placeholder="Telegram" value={telegram} onChange={(e) => setTelegram(e.target.value)} />
-            <br /><br />
-
-            <input placeholder="X / Twitter" value={x} onChange={(e) => setX(e.target.value)} />
-            <br /><br />
+            <h3>Preferred Contact</h3>
 
             <textarea
-                placeholder={`Preferred Contact
-
-            Example:
-            Email: store@example.com
-            Telegram: @myshop
-            WhatsApp: +639171234567
-            Facebook: facebook.com/myshop`}
                 value={preferredContact}
-                onChange={(e) => setPreferredContact(e.target.value)}
-                rows={5}
+                onChange={(event) =>
+                    setPreferredContact(
+                        event.target.value
+                    )
+                }
+                rows={6}
+                maxLength={300}
+                placeholder={
+                    "Example:\n\n" +
+                    "Telegram: @johnshop\n\n" +
+                    "or\n\n" +
+                    "Email: john@example.com\n\n" +
+                    "or\n\n" +
+                    "GPG Fingerprint: xxxx xxxx xxxx"
+                }
                 style={{
                     width: "100%",
-                    maxWidth: "600px",
-                    padding: "10px",
+                    maxWidth: 600,
+                    padding: 10,
+                    boxSizing: "border-box",
                     resize: "vertical",
                     fontFamily: "inherit",
-                    fontSize: "14px",
-                    boxSizing: "border-box",
+                    fontSize: 14,
                 }}
             />
-            <br /><br />
 
-            <button onClick={createMerchant}>
-                Create Merchant
+            <FieldCounter
+                value={preferredContact}
+                maxBytes={300}
+            />
+
+            <div
+                style={{
+                    marginTop: 16,
+                    marginBottom: 16,
+                    padding: 12,
+                    maxWidth: 600,
+                    border: profileTooLarge
+                        ? "1px solid #dc2626"
+                        : "1px solid #ddd",
+                    borderRadius: 8,
+                    background: profileTooLarge
+                        ? "#fef2f2"
+                        : "#f9fafb",
+                    color: profileTooLarge
+                        ? "#dc2626"
+                        : "#333",
+                }}
+            >
+                <strong>
+                    Combined transaction content:
+                </strong>{" "}
+                {totalProfileBytes}/
+                {transactionContentLimit} recommended bytes
+
+                {profileTooLarge && (
+                    <div style={{ marginTop: 6 }}>
+                        Shorten the description, URLs,
+                        or preferred contact before
+                        creating the store.
+                    </div>
+                )}
+            </div>
+
+            <button
+                type="button"
+                onClick={createMerchant}
+                disabled={
+                    submitting ||
+                    profileTooLarge ||
+                    !wallet.publicKey
+                }
+            >
+                {submitting
+                    ? "Creating Merchant..."
+                    : "Create Merchant"}
             </button>
         </div>
     );
