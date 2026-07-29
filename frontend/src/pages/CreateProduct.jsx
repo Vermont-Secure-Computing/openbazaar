@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { BN, AnchorProvider, Program } from "@coral-xyz/anchor";
+import {
+    BN,
+    AnchorProvider,
+    Program,
+} from "@coral-xyz/anchor";
 import {
     PublicKey,
     SystemProgram,
@@ -12,6 +16,31 @@ import {
 
 import idl from "../idl/sol_bazaar.json";
 
+function utf8ByteLength(value) {
+    return new TextEncoder().encode(
+        String(value ?? "")
+    ).length;
+}
+
+function FieldCounter({ value, maxBytes }) {
+    const characters = String(value ?? "").length;
+    const bytes = utf8ByteLength(value);
+    const overLimit = bytes > maxBytes;
+
+    return (
+        <div
+            style={{
+                fontSize: 12,
+                color: overLimit ? "#dc2626" : "#666",
+                marginTop: 4,
+            }}
+        >
+            {characters} characters · {bytes}/{maxBytes} bytes
+            {overLimit ? " — too long" : ""}
+        </div>
+    );
+}
+
 export default function CreateProduct() {
     const { connection } = useConnection();
     const wallet = useWallet();
@@ -22,81 +51,165 @@ export default function CreateProduct() {
     const [category, setCategory] = useState("");
     const [price, setPrice] = useState("");
     const [stock, setStock] = useState("");
-    const [submitting, setSubmitting] = useState(false);
+    const [submitting, setSubmitting] =
+        useState(false);
+
+    const totalContentBytes =
+        utf8ByteLength(title) +
+        utf8ByteLength(description) +
+        utf8ByteLength(image) +
+        utf8ByteLength(category);
+
+    const transactionContentLimit = 500;
+
+    const productTooLarge =
+        totalContentBytes > transactionContentLimit;
 
     const createProduct = async () => {
         if (!wallet.publicKey) {
-            alert("Connect wallet first");
+            alert("Connect wallet first.");
+            return;
+        }
+
+        const cleanedTitle = title.trim();
+        const cleanedDescription =
+            description.trim();
+        const cleanedImage = image.trim();
+        const cleanedCategory = category.trim();
+
+        if (!cleanedTitle) {
+            alert("Product name is required.");
+            return;
+        }
+
+        if (!cleanedDescription) {
+            alert("Description is required.");
+            return;
+        }
+
+        if (!cleanedCategory) {
+            alert("Category is required.");
+            return;
+        }
+
+        const limits = [
+            ["Product name", cleanedTitle, 64],
+            [
+                "Product description",
+                cleanedDescription,
+                200,
+            ],
+            ["Image URL", cleanedImage, 250],
+            ["Category", cleanedCategory, 32],
+        ];
+
+        for (const [label, value, maxBytes] of limits) {
+            const bytes = utf8ByteLength(value);
+
+            if (bytes > maxBytes) {
+                alert(
+                    `${label} must not exceed ${maxBytes} UTF-8 bytes.\n\n` +
+                        `Current size: ${bytes} bytes.`
+                );
+                return;
+            }
+        }
+
+        const cleanedTotalBytes = limits.reduce(
+            (total, [, value]) =>
+                total + utf8ByteLength(value),
+            0
+        );
+
+        if (
+            cleanedTotalBytes >
+            transactionContentLimit
+        ) {
+            alert(
+                "Product information is too large for one transaction.\n\n" +
+                    `Current content: ${cleanedTotalBytes} bytes\n` +
+                    `Recommended maximum: ${transactionContentLimit} bytes\n\n` +
+                    "Shorten the description or image URL."
+            );
             return;
         }
 
         const priceNumber = Number(price);
         const stockNumber = Number(stock);
 
-        if (!title.trim()) {
-            alert("Product name is required.");
-            return;
-        }
-
-        if (!description.trim()) {
-            alert("Description is required.");
-            return;
-        }
-
-        if (!category.trim()) {
-            alert("Category is required.");
-            return;
-        }
-
-        if (!Number.isFinite(priceNumber) || priceNumber <= 0) {
+        if (
+            !Number.isFinite(priceNumber) ||
+            priceNumber <= 0
+        ) {
             alert("Enter a valid price in SOL.");
             return;
         }
 
-        if (!Number.isInteger(stockNumber) || stockNumber < 0) {
-            alert("Enter a valid whole-number stock quantity.");
+        if (
+            !Number.isInteger(stockNumber) ||
+            stockNumber < 0
+        ) {
+            alert(
+                "Enter a valid whole-number stock quantity."
+            );
             return;
         }
 
         try {
             setSubmitting(true);
 
-            const provider = new AnchorProvider(connection, wallet, {
-                commitment: "confirmed",
-            });
+            const provider = new AnchorProvider(
+                connection,
+                wallet,
+                {
+                    commitment: "confirmed",
+                }
+            );
 
-            const program = new Program(idl, provider);
+            const program = new Program(
+                idl,
+                provider
+            );
 
             const productId = new BN(Date.now());
 
             const priceLamports = new BN(
-                Math.round(priceNumber * LAMPORTS_PER_SOL)
+                Math.round(
+                    priceNumber *
+                        LAMPORTS_PER_SOL
+                )
             );
 
-            const [merchantPda] = PublicKey.findProgramAddressSync(
-                [
-                    Buffer.from("merchant"),
-                    wallet.publicKey.toBuffer(),
-                ],
-                program.programId
-            );
+            const [merchantPda] =
+                PublicKey.findProgramAddressSync(
+                    [
+                        Buffer.from("merchant"),
+                        wallet.publicKey.toBuffer(),
+                    ],
+                    program.programId
+                );
 
-            const [productPda] = PublicKey.findProgramAddressSync(
-                [
-                    Buffer.from("product"),
-                    wallet.publicKey.toBuffer(),
-                    productId.toArrayLike(Buffer, "le", 8),
-                ],
-                program.programId
-            );
+            const [productPda] =
+                PublicKey.findProgramAddressSync(
+                    [
+                        Buffer.from("product"),
+                        wallet.publicKey.toBuffer(),
+                        productId.toArrayLike(
+                            Buffer,
+                            "le",
+                            8
+                        ),
+                    ],
+                    program.programId
+                );
 
             const tx = await program.methods
                 .createProduct(
                     productId,
-                    title.trim(),
-                    description.trim(),
-                    image.trim(),
-                    category.trim(),
+                    cleanedTitle,
+                    cleanedDescription,
+                    cleanedImage,
+                    cleanedCategory,
                     priceLamports,
                     stockNumber
                 )
@@ -104,7 +217,8 @@ export default function CreateProduct() {
                     merchantProfile: merchantPda,
                     product: productPda,
                     authority: wallet.publicKey,
-                    systemProgram: SystemProgram.programId,
+                    systemProgram:
+                        SystemProgram.programId,
                 })
                 .rpc();
 
@@ -117,8 +231,15 @@ export default function CreateProduct() {
             setPrice("");
             setStock("");
         } catch (error) {
-            console.error("Create product error:", error);
-            alert(error?.message || "Failed to create product.");
+            console.error(
+                "Create product error:",
+                error
+            );
+
+            alert(
+                error?.message ||
+                    "Failed to create product."
+            );
         } finally {
             setSubmitting(false);
         }
@@ -128,40 +249,95 @@ export default function CreateProduct() {
         <div style={{ padding: 20 }}>
             <h2>Create Product</h2>
 
+            <label>Product Name</label>
+            <br />
+
             <input
                 placeholder="Product Name"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                maxLength={64}
+                onChange={(event) =>
+                    setTitle(event.target.value)
+                }
+            />
+
+            <FieldCounter
+                value={title}
+                maxBytes={64}
             />
 
             <br />
+
+            <label>Product Description</label>
             <br />
 
-            <input
-                placeholder="Description"
+            <textarea
+                placeholder="Describe the product, condition, size, materials, shipping details, and other important information."
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                maxLength={200}
+                rows={6}
+                onChange={(event) =>
+                    setDescription(
+                        event.target.value
+                    )
+                }
+                style={{
+                    width: "100%",
+                    maxWidth: 600,
+                    padding: 10,
+                    boxSizing: "border-box",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    fontSize: 14,
+                }}
+            />
+
+            <FieldCounter
+                value={description}
+                maxBytes={200}
             />
 
             <br />
+
+            <label>Image URL</label>
             <br />
 
             <input
                 placeholder="Image URL"
                 value={image}
-                onChange={(e) => setImage(e.target.value)}
+                maxLength={250}
+                onChange={(event) =>
+                    setImage(event.target.value)
+                }
+            />
+
+            <FieldCounter
+                value={image}
+                maxBytes={250}
             />
 
             <br />
+
+            <label>Category</label>
             <br />
 
             <input
                 placeholder="Category"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                maxLength={32}
+                onChange={(event) =>
+                    setCategory(event.target.value)
+                }
+            />
+
+            <FieldCounter
+                value={category}
+                maxBytes={32}
             />
 
             <br />
+
+            <label>Price in SOL</label>
             <br />
 
             <input
@@ -170,10 +346,24 @@ export default function CreateProduct() {
                 step="0.000000001"
                 placeholder="Price (SOL)"
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                onChange={(event) =>
+                    setPrice(event.target.value)
+                }
             />
 
+            <div
+                style={{
+                    fontSize: 12,
+                    color: "#666",
+                    marginTop: 4,
+                }}
+            >
+                Minimum price: 0.000000001 SOL
+            </div>
+
             <br />
+
+            <label>Available Stock</label>
             <br />
 
             <input
@@ -182,19 +372,68 @@ export default function CreateProduct() {
                 step="1"
                 placeholder="Available Stock"
                 value={stock}
-                onChange={(e) => setStock(e.target.value)}
+                onChange={(event) =>
+                    setStock(event.target.value)
+                }
             />
 
-            <br />
-            <br />
+            <div
+                style={{
+                    fontSize: 12,
+                    color: "#666",
+                    marginTop: 4,
+                }}
+            >
+                Enter a whole number, such as 0, 1, 5,
+                or 100.
+            </div>
+
+            <div
+                style={{
+                    marginTop: 16,
+                    marginBottom: 16,
+                    padding: 12,
+                    maxWidth: 600,
+                    border: productTooLarge
+                        ? "1px solid #dc2626"
+                        : "1px solid #ddd",
+                    borderRadius: 8,
+                    background: productTooLarge
+                        ? "#fef2f2"
+                        : "#f9fafb",
+                    color: productTooLarge
+                        ? "#dc2626"
+                        : "#333",
+                }}
+            >
+                <strong>
+                    Combined product content:
+                </strong>{" "}
+                {totalContentBytes}/
+                {transactionContentLimit} recommended bytes
+
+                {productTooLarge && (
+                    <div style={{ marginTop: 6 }}>
+                        Shorten the product description,
+                        image URL, or other fields before
+                        creating the product.
+                    </div>
+                )}
+            </div>
 
             <button
+                type="button"
                 onClick={createProduct}
-                disabled={submitting}
+                disabled={
+                    submitting ||
+                    productTooLarge ||
+                    !wallet.publicKey
+                }
             >
-                {submitting ? "Creating..." : "Create Product"}
+                {submitting
+                    ? "Creating..."
+                    : "Create Product"}
             </button>
         </div>
     );
 }
-

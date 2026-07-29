@@ -27,6 +27,7 @@ import {
     requestMutualCancellation,
     approveMutualCancellation,
     declineMutualCancellation,
+    rejectPendingFinalization,
     isMutualCancellationProposal,
     getMutualCancellationReason,
     MUTUAL_CANCELLATION_PREFIX,
@@ -505,6 +506,28 @@ export default function OrderDetailsPage() {
         );
     };
 
+    const rejectFinalization = async () => {
+        const confirmed = window.confirm(
+            "Reject the seller's ready status?\n\n" +
+            "The order will return to the accepted state. " +
+            "You may then request mutual cancellation."
+        );
+    
+        if (!confirmed) {
+            return false;
+        }
+    
+        return runAction(
+            () =>
+                rejectPendingFinalization({
+                    connection,
+                    wallet,
+                    escrow,
+                }),
+            "Ready status rejected. You may now request mutual cancellation."
+        );
+    };
+
     const submitReview = async (
         rating,
         comment
@@ -719,6 +742,9 @@ export default function OrderDetailsPage() {
                 onRetrieveDeposit={
                     retrieveDeposit
                 }
+                onRejectFinalization={
+                    rejectFinalization
+                }
                 onWithdrawOrder={
                     withdrawOrder
                 }
@@ -749,6 +775,7 @@ function OrderCard({
     onAccept,
     onProposeCompletion,
     onRetrieveDeposit,
+    onRejectFinalization,
     onWithdrawOrder,
     onRequestCancellation,
     onApproveCancellation,
@@ -932,9 +959,10 @@ function OrderCard({
     const canRequestMutualCancellation =
         (role === "buyer" ||
             role === "seller") &&
+        !mutualCancellationPending &&
+        sellerHasDeposited &&
         escrow.status ===
-            ESCROW_STATUS.DEPOSITS_COMPLETE &&
-        sellerHasDeposited;
+            ESCROW_STATUS.DEPOSITS_COMPLETE;
 
     const canRespondToMutualCancellation =
         mutualCancellationPending &&
@@ -1464,20 +1492,44 @@ function OrderCard({
                                             the product.
                                         </small>
                                     </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            onRetrieveDeposit
-                                        }
-                                        disabled={
-                                            processing
-                                        }
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            gap: 10,
+                                            flexWrap: "wrap",
+                                        }}
                                     >
-                                        {processing
-                                            ? "Processing..."
-                                            : "Retrieve Deposit & Release Payment"}
-                                    </button>
+                                        <button
+                                            type="button"
+                                            onClick={onRetrieveDeposit}
+                                            disabled={processing}
+                                        >
+                                            {processing
+                                                ? "Processing..."
+                                                : "Retrieve Deposit & Release Payment"}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={onRejectFinalization}
+                                            disabled={processing}
+                                        >
+                                            {processing
+                                                ? "Processing..."
+                                                : "Reject Ready Status"}
+                                        </button>
+                                    </div>
+
+                                    <p
+                                        style={{
+                                            marginTop: 10,
+                                            color: "#666",
+                                            fontSize: 13,
+                                        }}
+                                    >
+                                        Reject the ready status first if you need
+                                        to request mutual cancellation.
+                                    </p>
                                 </div>
                             )}
 
@@ -1519,6 +1571,10 @@ function OrderCard({
                                             <h4 style={{ marginTop: 0 }}>
                                                 Review this product
                                             </h4>
+
+                                            <p style={{ color: "#666", marginTop: 4 }}>
+                                                Optional: You may leave a review before closing the order.
+                                            </p>
 
                                             <label style={{ display: "block", marginBottom: 8 }}>
                                                 Rating
@@ -1597,16 +1653,10 @@ function OrderCard({
                                     <button
                                         type="button"
                                         onClick={onCloseOrder}
-                                        disabled={
-                                            processing ||
-                                            checkingReview ||
-                                            !reviewExists
-                                        }
+                                        disabled={processing}
                                     >
                                         {processing
                                             ? "Processing..."
-                                            : !reviewExists
-                                            ? "Submit Review Before Closing"
                                             : "Close Order and Recover Rent"}
                                     </button>
                                 </div>

@@ -1,32 +1,75 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getProductsByMerchant } from "../lib/product";
 import EditProduct from "./EditProduct";
 
 export default function MyProducts({ merchant }) {
     const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    const load = async () => {
-        const myProducts = await getProductsByMerchant(merchant);
-        setProducts(myProducts);
-    };
+    const load = useCallback(async () => {
+        if (!merchant) {
+            setProducts([]);
+            setLoading(false);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setError("");
+
+            const myProducts =
+                await getProductsByMerchant(merchant);
+
+            setProducts(myProducts || []);
+        } catch (loadError) {
+            console.error(
+                "Failed to load products:",
+                loadError
+            );
+
+            setError(
+                loadError?.message ||
+                    "Failed to load products."
+            );
+
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [merchant]);
 
     useEffect(() => {
         load();
-    }, [merchant]);
+    }, [load]);
 
     return (
         <div>
             <h2>My Products</h2>
 
-            {products.length === 0 && <p>No products yet.</p>}
+            {loading && <p>Loading products...</p>}
 
-            {products.map((product) => (
-                <EditProduct
-                    key={product.publicKey}
-                    product={product}
-                    onUpdated={load}
-                />
-            ))}
+            {!loading && error && (
+                <p style={{ color: "#dc2626" }}>
+                    {error}
+                </p>
+            )}
+
+            {!loading &&
+                !error &&
+                products.length === 0 && (
+                    <p>No products yet.</p>
+                )}
+
+            {!loading &&
+                !error &&
+                products.map((product) => (
+                    <EditProduct
+                        key={product.publicKey.toString()}
+                        product={product}
+                        onUpdated={load}
+                    />
+                ))}
         </div>
     );
 }

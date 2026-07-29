@@ -1847,3 +1847,54 @@ export async function withdrawBuyerOrder({
         })
         .rpc();
 }
+
+export async function rejectPendingFinalization({
+    connection,
+    wallet,
+    escrow,
+}) {
+    if (!wallet.publicKey) {
+        throw new Error(
+            "Connect wallet first."
+        );
+    }
+
+    if (
+        Number(escrow.status) !==
+        ESCROW_STATUS.FINALIZATION_SUGGESTED
+    ) {
+        throw new Error(
+            "No finalization proposal is pending."
+        );
+    }
+
+    const proposer =
+        normalizeAddress(
+            escrow.finalizationProposer
+        );
+
+    if (
+        wallet.publicKey.toBase58() ===
+        proposer
+    ) {
+        throw new Error(
+            "The party who proposed finalization cannot reject its own proposal."
+        );
+    }
+
+    const program =
+        getEscrowProgram(
+            connection,
+            wallet
+        );
+
+    return program.methods
+        .rejectFinalization()
+        .accounts({
+            signer: wallet.publicKey,
+            escrow: new PublicKey(
+                escrow.publicKey
+            ),
+        })
+        .rpc();
+}

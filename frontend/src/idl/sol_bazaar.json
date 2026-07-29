@@ -1,5 +1,5 @@
 {
-  "address": "Dg1SUE2GAfMaxft1XFaMYck1n6uqxtx4F5m4cbB4c6dp",
+  "address": "Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo",
   "metadata": {
     "name": "sol_bazaar",
     "version": "0.1.0",
@@ -81,34 +81,6 @@
           "type": "u16"
         },
         {
-          "name": "email",
-          "type": "string"
-        },
-        {
-          "name": "phone",
-          "type": "string"
-        },
-        {
-          "name": "website",
-          "type": "string"
-        },
-        {
-          "name": "facebook",
-          "type": "string"
-        },
-        {
-          "name": "instagram",
-          "type": "string"
-        },
-        {
-          "name": "telegram",
-          "type": "string"
-        },
-        {
-          "name": "x",
-          "type": "string"
-        },
-        {
           "name": "preferred_contact",
           "type": "string"
         }
@@ -140,7 +112,8 @@
           ]
         },
         {
-          "name": "product"
+          "name": "product",
+          "writable": true
         },
         {
           "name": "merchant_profile",
@@ -481,6 +454,32 @@
           "writable": true
         },
         {
+          "name": "merchant_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record.seller",
+                "account": "OrderRecord"
+              }
+            ]
+          }
+        },
+        {
           "name": "completed_sale",
           "writable": true,
           "pda": {
@@ -519,58 +518,91 @@
       "args": []
     },
     {
-      "name": "reduce_stock",
+      "name": "restore_cancelled_order_stock",
       "discriminator": [
-        105,
-        107,
+        38,
         54,
-        13,
-        198,
-        83,
-        145,
-        209
+        214,
+        195,
+        108,
+        252,
+        154,
+        221
       ],
       "accounts": [
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow"
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
           "name": "product",
+          "writable": true
+        },
+        {
+          "name": "stock_restoration",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  114,
+                  115,
+                  116,
                   111,
-                  100,
-                  117,
                   99,
-                  116
+                  107,
+                  45,
+                  114,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
                 ]
               },
               {
                 "kind": "account",
-                "path": "authority"
-              },
-              {
-                "kind": "account",
-                "path": "product.product_id",
-                "account": "Product"
+                "path": "order_record"
               }
             ]
           }
         },
         {
-          "name": "authority",
-          "signer": true
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
-      "args": [
-        {
-          "name": "quantity",
-          "type": "u32"
-        }
-      ]
+      "args": []
     },
     {
       "name": "send_message",
@@ -850,34 +882,6 @@
           "type": "u16"
         },
         {
-          "name": "email",
-          "type": "string"
-        },
-        {
-          "name": "phone",
-          "type": "string"
-        },
-        {
-          "name": "website",
-          "type": "string"
-        },
-        {
-          "name": "facebook",
-          "type": "string"
-        },
-        {
-          "name": "instagram",
-          "type": "string"
-        },
-        {
-          "name": "telegram",
-          "type": "string"
-        },
-        {
-          "name": "x",
-          "type": "string"
-        },
-        {
           "name": "preferred_contact",
           "type": "string"
         },
@@ -1057,6 +1061,19 @@
         224,
         229
       ]
+    },
+    {
+      "name": "StockRestoration",
+      "discriminator": [
+        114,
+        91,
+        212,
+        207,
+        100,
+        179,
+        209,
+        5
+      ]
     }
   ],
   "errors": [
@@ -1209,6 +1226,11 @@
       "code": 6029,
       "name": "InvalidOrderStatus",
       "msg": "Escrow is not in a valid state for order creation"
+    },
+    {
+      "code": 6030,
+      "name": "OrderNotCancelled",
+      "msg": "Order must be cancelled or refunded"
     }
   ],
   "types": [
@@ -1302,40 +1324,16 @@
             "type": "string"
           },
           {
-            "name": "email",
-            "type": "string"
-          },
-          {
-            "name": "phone",
-            "type": "string"
-          },
-          {
-            "name": "website",
-            "type": "string"
-          },
-          {
-            "name": "facebook",
-            "type": "string"
-          },
-          {
-            "name": "instagram",
-            "type": "string"
-          },
-          {
-            "name": "telegram",
-            "type": "string"
-          },
-          {
-            "name": "x",
-            "type": "string"
-          },
-          {
             "name": "preferred_contact",
             "type": "string"
           },
           {
             "name": "seller_deposit_bps",
             "type": "u16"
+          },
+          {
+            "name": "total_sold",
+            "type": "u32"
           },
           {
             "name": "active",
@@ -1539,6 +1537,34 @@
           },
           {
             "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StockRestoration",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order_record",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "restored_at",
             "type": "i64"
           },
           {

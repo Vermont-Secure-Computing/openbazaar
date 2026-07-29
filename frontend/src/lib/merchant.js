@@ -30,14 +30,8 @@ export async function getMerchants() {
                 bannerUri: merchant.bannerUri,
                 shipsFrom: merchant.shipsFrom,
                 sellerDepositBps: merchant.sellerDepositBps,
-                email: merchant.email,
-                phone: merchant.phone,
-                website: merchant.website,
-                facebook: merchant.facebook,
-                instagram: merchant.instagram,
-                telegram: merchant.telegram,
-                x: merchant.x,
                 preferredContact: merchant.preferredContact,
+                totalSold: Number(merchant.totalSold),
                 active: merchant.active,
                 verified: merchant.verified,
             });
@@ -57,6 +51,13 @@ export async function getMerchants() {
         merchants
     );
 
+    console.table(
+        merchants.map((merchant) => ({
+            storeName: merchant.storeName,
+            active: merchant.active,
+        }))
+    );
+    
     return merchants.filter(
         (merchant) => merchant.active
     );

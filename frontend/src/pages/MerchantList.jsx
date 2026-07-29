@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMerchants } from "../lib/merchant";
 
+function truncate(text, max = 120) {
+    if (!text) return "";
+
+    return text.length > max
+        ? text.slice(0, max) + "..."
+        : text;
+}
+
 export default function MerchantList() {
     const [merchants, setMerchants] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -13,7 +21,10 @@ export default function MerchantList() {
             setError("");
 
             const result = await getMerchants();
-            setMerchants(result);
+            console.log("getMerchants result:", result);
+            console.log("Is array:", Array.isArray(result));
+            console.log("Merchant count:", result?.length);
+            setMerchants(Array.isArray(result) ? result : []);
         } catch (err) {
             console.error("Merchant list error:", err);
             setError("Failed to load merchants.");
@@ -25,6 +36,9 @@ export default function MerchantList() {
     useEffect(() => {
         load();
     }, []);
+
+    console.log("MerchantList state:", merchants);
+    console.log("MerchantList state count:", merchants.length);
 
     return (
         <div style={{ padding: 24 }}>
@@ -40,7 +54,8 @@ export default function MerchantList() {
                 <p>No merchants yet.</p>
             )}
 
-            {merchants.map((merchant) => (
+            {Array.isArray(merchants) &&
+                merchants.map((merchant) => (
                 <div
                     key={merchant.publicKey}
                     style={{
@@ -55,7 +70,19 @@ export default function MerchantList() {
                         {merchant.verified && " ✔"}
                     </h2>
 
-                    <p>{merchant.descriptionUri}</p>
+                    <p
+                        style={{
+                            color: "#555",
+                            lineHeight: 1.5,
+                            marginBottom: 12,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                        }}
+                    >
+                        {truncate(merchant.descriptionUri, 120)}
+                    </p>
 
                     <p>📦 Ships from: {merchant.shipsFrom}</p>
 
