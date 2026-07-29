@@ -1118,10 +1118,13 @@ function OrderCard({
                             </h3>
 
                             <p>
-                                Order{" "}
-                                {shortenAddress(
-                                    escrow.publicKey
-                                )}
+                                Order {shortenAddress(escrow.publicKey)}{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => navigator.clipboard.writeText(escrow.publicKey)}
+                                >
+                                    Copy
+                                </button>
                             </p>
                         </div>
 
