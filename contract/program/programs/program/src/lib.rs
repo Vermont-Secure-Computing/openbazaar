@@ -94,14 +94,19 @@ pub mod sol_bazaar {
         product_id: u64,
         title: String,
         description_uri: String,
-        image_uri: String,
+        image_uris: Vec<String>,
         category: String,
         price: u64,
         stock: u32,
     ) -> Result<()> {
         require!(title.len() <= 64, MarketplaceError::TextTooLong);
         require!(description_uri.len() <= 200, MarketplaceError::TextTooLong);
-        require!(image_uri.len() <= 250, MarketplaceError::TextTooLong);
+        require!(image_uris.len() <= 3, MarketplaceError::TooManyImages);
+        for image_uri in &image_uris {
+            require!(!image_uri.trim().is_empty(), MarketplaceError::InvalidImageUri);
+
+            require!(image_uri.len() <= 250, MarketplaceError::TextTooLong);
+        }
         require!(category.len() <= 32, MarketplaceError::TextTooLong);
         require!(price > 0, MarketplaceError::InvalidPrice);
     
@@ -111,7 +116,7 @@ pub mod sol_bazaar {
         product.product_id = product_id;
         product.title = title;
         product.description_uri = description_uri;
-        product.image_uri = image_uri;
+        product.image_uris = image_uris;
         product.category = category;
         product.price = price;
         product.stock = stock;
@@ -129,7 +134,7 @@ pub mod sol_bazaar {
         ctx: Context<UpdateProduct>,
         title: String,
         description_uri: String,
-        image_uri: String,
+        image_uris: Vec<String>,
         category: String,
         price: u64,
         stock: u32,
@@ -137,7 +142,12 @@ pub mod sol_bazaar {
     ) -> Result<()> {
         require!(title.len() <= 64, MarketplaceError::TextTooLong);
         require!(description_uri.len() <= 200, MarketplaceError::TextTooLong);
-        require!(image_uri.len() <= 250, MarketplaceError::TextTooLong);
+        require!(image_uris.len() <= 3, MarketplaceError::TooManyImages);
+        for image_uri in &image_uris {
+            require!(!image_uri.trim().is_empty(), MarketplaceError::InvalidImageUri);
+
+            require!(image_uri.len() <= 250, MarketplaceError::TextTooLong);
+        }
         require!(category.len() <= 32, MarketplaceError::TextTooLong);
         require!(price > 0, MarketplaceError::InvalidPrice);
     
@@ -145,7 +155,7 @@ pub mod sol_bazaar {
     
         product.title = title;
         product.description_uri = description_uri;
-        product.image_uri = image_uri;
+        product.image_uris = image_uris;
         product.category = category;
         product.price = price;
         product.stock = stock;
@@ -840,8 +850,8 @@ pub struct Product {
     #[max_len(200)]
     pub description_uri: String,
 
-    #[max_len(250)]
-    pub image_uri: String,
+    #[max_len(3, 250)]
+    pub image_uris: Vec<String>,
 
     #[max_len(32)]
     pub category: String,
@@ -1598,4 +1608,10 @@ pub enum MarketplaceError {
 
     #[msg("Order must be cancelled or refunded")]
     OrderNotCancelled,
+
+    #[msg("A product can have a maximum of three images")]
+    TooManyImages,
+
+    #[msg("Image URL cannot be empty")]
+    InvalidImageUri,
 }

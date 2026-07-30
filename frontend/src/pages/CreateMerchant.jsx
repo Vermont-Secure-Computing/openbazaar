@@ -406,7 +406,7 @@ export default function CreateMerchant({ onCreated }) {
 
             <br />
 
-            <h3>Preferred Contact</h3>
+            <h3>Additional information</h3>
 
             <textarea
                 value={preferredContact}

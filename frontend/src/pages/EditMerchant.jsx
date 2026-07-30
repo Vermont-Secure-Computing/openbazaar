@@ -323,7 +323,7 @@ export default function EditMerchant({
             />
             <br />
 
-            <h3>Preferred Contact</h3>
+            <h3>Additional Information</h3>
 
             <textarea
                 value={preferredContact}
