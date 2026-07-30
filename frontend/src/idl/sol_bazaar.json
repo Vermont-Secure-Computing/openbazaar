@@ -263,8 +263,10 @@
           "type": "string"
         },
         {
-          "name": "image_uri",
-          "type": "string"
+          "name": "image_uris",
+          "type": {
+            "vec": "string"
+          }
         },
         {
           "name": "category",
@@ -948,8 +950,10 @@
           "type": "string"
         },
         {
-          "name": "image_uri",
-          "type": "string"
+          "name": "image_uris",
+          "type": {
+            "vec": "string"
+          }
         },
         {
           "name": "category",
@@ -1231,6 +1235,16 @@
       "code": 6030,
       "name": "OrderNotCancelled",
       "msg": "Order must be cancelled or refunded"
+    },
+    {
+      "code": 6031,
+      "name": "TooManyImages",
+      "msg": "A product can have a maximum of three images"
+    },
+    {
+      "code": 6032,
+      "name": "InvalidImageUri",
+      "msg": "Image URL cannot be empty"
     }
   ],
   "types": [
@@ -1504,8 +1518,10 @@
             "type": "string"
           },
           {
-            "name": "image_uri",
-            "type": "string"
+            "name": "image_uris",
+            "type": {
+              "vec": "string"
+            }
           },
           {
             "name": "category",
