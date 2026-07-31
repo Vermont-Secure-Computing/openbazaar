@@ -1,5 +1,26 @@
+# Node
 node_modules/
+
+# Build outputs
 target/
-.env
 dist/
 build/
+
+# Environment
+.env
+.env.*
+
+# Solana / Anchor keypairs
+**/*-keypair.json
+*.json.bak
+
+# Anchor test ledger
+test-ledger/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
