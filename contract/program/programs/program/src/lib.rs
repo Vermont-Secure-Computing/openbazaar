@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo");
+declare_id!("3FLnjMAkpaE2oYcsWJWas8mzxAy9p3aWT9CKHUUX1vou");
 
 pub const ESCROW_PROGRAM_ID: Pubkey =
-    pubkey!("E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ");
+    pubkey!("J6oeUYbGXSdKyH4d1YhtHoCuEA79d9FQurmsim82KN5A");
 
 pub const ESCROW_ACCOUNT_DISCRIMINATOR: [u8; 8] = [
     31, 213, 123, 187, 186, 22, 218, 155,
@@ -1614,4 +1614,14 @@ pub enum MarketplaceError {
 
     #[msg("Image URL cannot be empty")]
     InvalidImageUri,
+}
+
+solana_security_txt::security_txt! {
+    name: "Solzaar",
+    project_url: "https://github.com/Vermont-Secure-Computing/openbazaar",
+    contacts: "mailto:office@vtscc.org",
+    policy: "https://github.com/Vermont-Secure-Computing/openbazaar",
+    source_code: "https://github.com/Vermont-Secure-Computing/openbazaar",
+    preferred_languages: "en",
+    auditors: ""
 }
