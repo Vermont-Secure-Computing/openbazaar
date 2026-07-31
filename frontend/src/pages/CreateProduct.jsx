@@ -16,6 +16,9 @@ import {
 
 import idl from "../idl/sol_bazaar.json";
 
+const MAX_IMAGES = 3;
+const MAX_IMAGE_URI_BYTES = 250;
+
 function utf8ByteLength(value) {
     return new TextEncoder().encode(
         String(value ?? "")
@@ -47,7 +50,7 @@ export default function CreateProduct() {
 
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
-    const [image, setImage] = useState("");
+    const [imageUris, setImageUris] = useState(Array(MAX_IMAGES).fill(""));
     const [category, setCategory] = useState("");
     const [price, setPrice] = useState("");
     const [stock, setStock] = useState("");
@@ -57,13 +60,21 @@ export default function CreateProduct() {
     const totalContentBytes =
         utf8ByteLength(title) +
         utf8ByteLength(description) +
-        utf8ByteLength(image) +
+        imageUris.reduce((total, imageUri) => total + utf8ByteLength(imageUri), 0) +
         utf8ByteLength(category);
 
     const transactionContentLimit = 500;
 
     const productTooLarge =
         totalContentBytes > transactionContentLimit;
+
+    const updateImageUri = (index, value) => {
+        setImageUris((current) =>
+            current.map((imageUri, imageIndex) =>
+                imageIndex === index ? value : imageUri
+            )
+        );
+    };
 
     const createProduct = async () => {
         if (!wallet.publicKey) {
@@ -74,7 +85,9 @@ export default function CreateProduct() {
         const cleanedTitle = title.trim();
         const cleanedDescription =
             description.trim();
-        const cleanedImage = image.trim();
+        const cleanedImageUris = imageUris
+            .map((imageUri) => imageUri.trim())
+            .filter(Boolean);
         const cleanedCategory = category.trim();
 
         if (!cleanedTitle) {
@@ -99,9 +112,17 @@ export default function CreateProduct() {
                 cleanedDescription,
                 200,
             ],
-            ["Image URL", cleanedImage, 250],
             ["Category", cleanedCategory, 32],
         ];
+        cleanedImageUris.forEach(
+            (imageUri, index) => {
+                limits.push([
+                    `Image URL ${index + 1}`,
+                    imageUri,
+                    MAX_IMAGE_URI_BYTES,
+                ]);
+            }
+        );
 
         for (const [label, value, maxBytes] of limits) {
             const bytes = utf8ByteLength(value);
@@ -129,7 +150,7 @@ export default function CreateProduct() {
                 "Product information is too large for one transaction.\n\n" +
                     `Current content: ${cleanedTotalBytes} bytes\n` +
                     `Recommended maximum: ${transactionContentLimit} bytes\n\n` +
-                    "Shorten the description or image URL."
+                    "Shorten the description or image URLs."
             );
             return;
         }
@@ -208,7 +229,7 @@ export default function CreateProduct() {
                     productId,
                     cleanedTitle,
                     cleanedDescription,
-                    cleanedImage,
+                    cleanedImageUris,
                     cleanedCategory,
                     priceLamports,
                     stockNumber
@@ -226,7 +247,7 @@ export default function CreateProduct() {
 
             setTitle("");
             setDescription("");
-            setImage("");
+            setImageUris(Array(MAX_IMAGES).fill(""));
             setCategory("");
             setPrice("");
             setStock("");
@@ -299,22 +320,33 @@ export default function CreateProduct() {
 
             <br />
 
-            <label>Image URL</label>
-            <br />
+            <label>
+                Product Images (optional, up to 3)
+            </label>
 
-            <input
-                placeholder="Image URL"
-                value={image}
-                maxLength={250}
-                onChange={(event) =>
-                    setImage(event.target.value)
-                }
-            />
+            {imageUris.map((imageUri, index) => (
+                <div
+                    key={index}
+                    style={{ marginTop: 10 }}
+                >
+                    <input
+                        placeholder={`Image URL ${index + 1}`}
+                        value={imageUri}
+                        maxLength={MAX_IMAGE_URI_BYTES}
+                        onChange={(event) =>
+                            updateImageUri(
+                                index,
+                                event.target.value
+                            )
+                        }
+                    />
 
-            <FieldCounter
-                value={image}
-                maxBytes={250}
-            />
+                    <FieldCounter
+                        value={imageUri}
+                        maxBytes={MAX_IMAGE_URI_BYTES}
+                    />
+                </div>
+            ))}
 
             <br />
 
