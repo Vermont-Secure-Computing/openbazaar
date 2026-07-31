@@ -98,7 +98,7 @@ export async function getProducts() {
                 title: product.title,
                 description:
                     product.descriptionUri,
-                imageUri: product.imageUri,
+                imageUris: product.imageUris,
                 category: product.category,
                 price: product.price.toString(),
                 stock: Number(product.stock),

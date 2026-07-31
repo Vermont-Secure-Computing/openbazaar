@@ -147,6 +147,7 @@ export default function MerchantPage() {
         );
     }
 
+
     return (
         <div
             style={{
@@ -302,141 +303,127 @@ export default function MerchantPage() {
                         gap: 20,
                     }}
                 >
-                    {products.map(
-                        (product) => (
-                            <Link
-                                key={addressToString(
-                                    product.publicKey
-                                )}
-                                to={`/product/${addressToString(
-                                    product.publicKey
-                                )}`}
+                    {products.map((product) => (
+                        <Link
+                            key={addressToString(product.publicKey)}
+                            to={`/product/${addressToString(
+                                product.publicKey
+                            )}`}
+                            style={{
+                                textDecoration: "none",
+                                color: "inherit",
+                            }}
+                        >
+                            <div
                                 style={{
-                                    textDecoration:
-                                        "none",
-                                    color:
-                                        "inherit",
+                                    height: "100%",
+                                    border: "1px solid #ddd",
+                                    borderRadius: 12,
+                                    overflow: "hidden",
+                                    background: "#fff",
                                 }}
                             >
-                                <div
-                                    style={{
-                                        height:
-                                            "100%",
-                                        border:
-                                            "1px solid #ddd",
-                                        borderRadius:
-                                            12,
-                                        overflow:
-                                            "hidden",
-                                        background:
-                                            "#fff",
-                                    }}
-                                >
-                                    {product.imageUri && (
+                                {(() => {
+                                    const firstImage =
+                                        Array.isArray(product.imageUris)
+                                            ? product.imageUris.find(
+                                                (imageUri) =>
+                                                    typeof imageUri ===
+                                                        "string" &&
+                                                    imageUri.trim()
+                                            )
+                                            : product.imageUri || null;
+
+                                    return firstImage ? (
                                         <img
-                                            src={
-                                                product.imageUri
-                                            }
-                                            alt={
-                                                product.title
-                                            }
+                                            src={firstImage}
+                                            alt={product.title}
                                             style={{
-                                                width:
-                                                    "100%",
-                                                height:
-                                                    180,
-                                                objectFit:
-                                                    "cover",
+                                                width: "100%",
+                                                height: 180,
+                                                objectFit: "cover",
                                             }}
                                         />
-                                    )}
+                                    ) : (
+                                        <div
+                                            style={{
+                                                width: "100%",
+                                                height: 180,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent:
+                                                    "center",
+                                                background: "#f3f4f6",
+                                                color: "#666",
+                                            }}
+                                        >
+                                            No Image
+                                        </div>
+                                    );
+                                })()}
+
+                                <div style={{ padding: 16 }}>
+                                    <h3 style={{ marginTop: 0 }}>
+                                        {product.title}
+                                    </h3>
+
+                                    <p>{product.category}</p>
+
+                                    <strong>
+                                        {(
+                                            Number(product.price) /
+                                            LAMPORTS_PER_SOL
+                                        ).toFixed(3)}{" "}
+                                        SOL
+                                    </strong>
+
+                                    <br />
 
                                     <div
                                         style={{
-                                            padding:
-                                                16,
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            gap: 12,
+                                            marginTop: 10,
+                                            marginBottom: 8,
+                                            fontSize: 13,
+                                            color: "#555",
                                         }}
                                     >
-                                        <h3
-                                            style={{
-                                                marginTop:
-                                                    0,
-                                            }}
-                                        >
-                                            {
-                                                product.title
-                                            }
-                                        </h3>
+                                        <span>
+                                            ⭐{" "}
+                                            <strong>
+                                                {Number(
+                                                    product.averageRating || 0
+                                                ).toFixed(1)}
+                                            </strong>
+                                        </span>
 
-                                        <p>
-                                            {
-                                                product.category
-                                            }
-                                        </p>
+                                        <span>
+                                            <strong>
+                                                {product.totalReviews || 0}
+                                            </strong>{" "}
+                                            Review
+                                            {product.totalReviews === 1
+                                                ? ""
+                                                : "s"}
+                                        </span>
 
-                                        <strong>
-                                            {(
-                                                Number(
-                                                    product.price
-                                                ) /
-                                                LAMPORTS_PER_SOL
-                                            ).toFixed(
-                                                3
-                                            )}{" "}
-                                            SOL
-                                        </strong>
-
-                                        <br />
-
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                flexWrap: "wrap",
-                                                gap: 12,
-                                                marginTop: 10,
-                                                marginBottom: 8,
-                                                fontSize: 13,
-                                                color: "#555",
-                                            }}
-                                        >
-                                            <span>
-                                                ⭐{" "}
-                                                <strong>
-                                                    {Number(
-                                                        product.averageRating || 0
-                                                    ).toFixed(1)}
-                                                </strong>
-                                            </span>
-
-                                            <span>
-                                                <strong>
-                                                    {product.totalReviews || 0}
-                                                </strong>{" "}
-                                                Review
-                                                {product.totalReviews === 1
-                                                    ? ""
-                                                    : "s"}
-                                            </span>
-
-                                            <span>
-                                                <strong>
-                                                    {product.sold || 0}
-                                                </strong>{" "}
-                                                Sold
-                                            </span>
-                                        </div>
-
-                                        <small>
-                                            Available:{" "}
-                                            {
-                                                product.stock
-                                            }
-                                        </small>
+                                        <span>
+                                            <strong>
+                                                {product.sold || 0}
+                                            </strong>{" "}
+                                            Sold
+                                        </span>
                                     </div>
+
+                                    <small>
+                                        Available: {product.stock}
+                                    </small>
                                 </div>
-                            </Link>
-                        )
-                    )}
+                            </div>
+                        </Link>
+                    ))}
                 </div>
             </div>
         </div>

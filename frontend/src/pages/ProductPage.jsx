@@ -25,52 +25,102 @@ export default function ProductPage() {
     const [buying, setBuying] = useState(false);
     const [reputation, setReputation] = useState(null);
     const [quantity, setQuantity] = useState(1);
+    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
     const navigate = useNavigate();
 
     useEffect(() => {
+       
+
+        let cancelled = false;
 
         async function load() {
+            try {
+                
+                const p = await getProduct(product);
 
-            const p = await getProduct(product);
+                if (cancelled) {
+                    return;
+                }
 
-            setItem(p);
+                setItem(p);
+                setSelectedImageIndex(0);
 
-            if (!p) return;
+                if (!p) {
+                    return;
+                }
 
-            const merchants =
-                await getMerchants();
+                const merchants = await getMerchants();
 
-            const m = merchants.find(
-                merchant =>
-                    merchant.authority === p.merchant
-            );
+                if (cancelled) {
+                    return;
+                }
 
-            setMerchant(m);
+                const productMerchant =
+                    p.merchant?.toBase58?.() ??
+                    p.merchant?.toString?.() ??
+                    String(p.merchant ?? "");
 
-            if (m) {
-                const rep =
-                    await getMerchantReputation({
-                        connection,
-                        wallet,
-                        merchantAuthority: m.authority,
+                const matchedMerchant =
+                    merchants.find((entry) => {
+                        const authority =
+                            entry.authority?.toBase58?.() ??
+                            entry.authority?.toString?.() ??
+                            String(entry.authority ?? "");
+
+                        return authority === productMerchant;
                     });
-            
-                setReputation(rep);
-            }
 
+                setMerchant(matchedMerchant || null);
+
+                if (matchedMerchant) {
+                    const rep =
+                        await getMerchantReputation({
+                            connection,
+                            wallet,
+                            merchantAuthority:
+                                matchedMerchant.authority,
+                        });
+
+                    if (!cancelled) {
+                        setReputation(rep);
+                    }
+                }
+            } catch (error) {
+                console.error(
+                    "Failed to load product:",
+                    error
+                );
+            }
         }
 
         load();
 
-    }, [product, connection, wallet]);
+        return () => {
+            cancelled = true;
+        };
+    }, [product, connection]);
 
     if (!item) {
+
         return (
             <div style={{ padding: 24 }}>
                 Loading product...
             </div>
         );
     }
+
+    const productImages = Array.isArray(item.imageUris)
+        ? item.imageUris.filter(
+            (imageUri) =>
+                typeof imageUri === "string" &&
+                imageUri.trim()
+        )
+        : item.imageUri
+        ? [item.imageUri]
+        : [];
+
+    const selectedImage = productImages[selectedImageIndex] || productImages[0] || null;
 
     const unitPriceLamports =
         Number(item.price ?? 0);
@@ -275,32 +325,118 @@ export default function ProductPage() {
                 }}
             >
 
-                <div style={{ flex: 1 }}>
+                <div
+                    style={{ flex: 1, minWidth: 280, }}
+                >
+                    {selectedImage ? (
+                        <>
+                            <div
+                                style={{
+                                    width: "100%",
+                                    aspectRatio: "1 / 1",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: 16,
+                                    overflow: "hidden",
+                                    background: "#f9fafb",
+                                }}
+                            >
+                                <img
+                                    src={selectedImage}
+                                    alt={`${item.title} image ${
+                                        selectedImageIndex + 1
+                                    }`}
+                                    onError={(event) => {
+                                        event.currentTarget.style.display =
+                                            "none";
+                                    }}
+                                    style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "contain",
+                                        display: "block",
+                                    }}
+                                />
+                            </div>
 
-                    {item.imageUri ? (
-                        <img
-                            src={item.imageUri}
-                            alt={item.title}
-                            style={{
-                                width: "100%",
-                                borderRadius: 16,
-                            }}
-                        />
+                            {productImages.length > 1 && (
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        gap: 10,
+                                        marginTop: 12,
+                                        flexWrap: "wrap",
+                                    }}
+                                >
+                                    {productImages.map(
+                                        (imageUri, index) => {
+                                            const selected =
+                                                index ===
+                                                selectedImageIndex;
+
+                                            return (
+                                                <button
+                                                    key={`${imageUri}-${index}`}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setSelectedImageIndex(
+                                                            index
+                                                        )
+                                                    }
+                                                    aria-label={`View product image ${
+                                                        index + 1
+                                                    }`}
+                                                    style={{
+                                                        width: 82,
+                                                        height: 82,
+                                                        padding: 0,
+                                                        border: selected
+                                                            ? "2px solid #111827"
+                                                            : "1px solid #d1d5db",
+                                                        borderRadius: 10,
+                                                        overflow: "hidden",
+                                                        background:
+                                                            "#f9fafb",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={imageUri}
+                                                        alt={`${item.title} thumbnail ${
+                                                            index + 1
+                                                        }`}
+                                                        style={{
+                                                            width: "100%",
+                                                            height: "100%",
+                                                            objectFit:
+                                                                "cover",
+                                                            display:
+                                                                "block",
+                                                        }}
+                                                    />
+                                                </button>
+                                            );
+                                        }
+                                    )}
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <div
                             style={{
-                                height: 350,
+                                width: "100%",
+                                aspectRatio: "1 / 1",
                                 border: "1px solid #ddd",
                                 borderRadius: 16,
                                 display: "flex",
                                 justifyContent: "center",
                                 alignItems: "center",
+                                background: "#f9fafb",
+                                color: "#666",
                             }}
                         >
                             No Image
                         </div>
                     )}
-
                 </div>
 
                 <div style={{ flex: 1 }}>
