@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("3FLnjMAkpaE2oYcsWJWas8mzxAy9p3aWT9CKHUUX1vou");
+declare_id!("BbMWGQMAp4otzQLps5dkwHrCzaykdTCdBMqwomhBBwZV");
 
 pub const ESCROW_PROGRAM_ID: Pubkey =
     pubkey!("J6oeUYbGXSdKyH4d1YhtHoCuEA79d9FQurmsim82KN5A");
