@@ -1,22 +1,19 @@
-import { program } from "./anchor";
+import { getReadOnlyProgram } from "./anchor";
 
 export async function getMerchants() {
-    const rawAccounts =
-        await program.provider.connection.getProgramAccounts(
-            program.programId
-        );
+    const program = getReadOnlyProgram();
 
-    console.log(
-        "Total program accounts:",
-        rawAccounts.length
+    const rawAccounts = await program.provider.connection.getProgramAccounts(
+        program.programId
     );
+
+    console.log("Total program accounts:", rawAccounts.length);
 
     const merchants = [];
 
     for (const item of rawAccounts) {
         try {
-            const merchant =
-                program.coder.accounts.decode(
+            const merchant = program.coder.accounts.decode(
                     "merchantProfile",
                     item.account.data
                 );
@@ -47,10 +44,7 @@ export async function getMerchants() {
         }
     }
 
-    console.log(
-        "Successfully decoded merchants:",
-        merchants
-    );
+    console.log("Successfully decoded merchants:", merchants);
 
     console.table(
         merchants.map((merchant) => ({
@@ -59,16 +53,13 @@ export async function getMerchants() {
         }))
     );
     
-    return merchants.filter(
-        (merchant) => merchant.active
-    );
+    return merchants.filter((merchant) => merchant.active);
 }
 
 export async function getMerchantByAuthority(authority) {
     const merchants = await getMerchants();
 
     return merchants.find(
-        (merchant) =>
-            merchant.authority === authority
+        merchant => merchant.authority === authority
     );
 }

@@ -540,3 +540,60 @@
         text-align: left;
     }
 }
+
+
+:root[data-theme="light"] .product-page {
+    color: var(--text-primary);
+}
+
+:root[data-theme="light"] .product-card,
+:root[data-theme="light"] .product-thumbnail,
+:root[data-theme="light"] .quantity-controls,
+:root[data-theme="light"] .quantity-controls button {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+
+:root[data-theme="light"] .product-image-wrap,
+:root[data-theme="light"] .product-meta-item,
+:root[data-theme="light"] .quantity-controls input {
+    background: var(--surface-secondary);
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+
+:root[data-theme="light"] .product-title,
+:root[data-theme="light"] .product-price,
+:root[data-theme="light"] .product-section-title,
+:root[data-theme="light"] .seller-name,
+:root[data-theme="light"] .product-meta-item strong,
+:root[data-theme="light"] .product-breakdown-row strong,
+:root[data-theme="light"] .product-total strong {
+    color: var(--text-primary);
+}
+
+:root[data-theme="light"] .product-muted,
+:root[data-theme="light"] .product-rating,
+:root[data-theme="light"] .product-meta-label,
+:root[data-theme="light"] .product-available,
+:root[data-theme="light"] .seller-stat-label {
+    color: var(--text-muted);
+}
+
+:root[data-theme="light"] .product-description {
+    color: var(--text-secondary);
+}
+
+:root[data-theme="light"] .escrow-notice {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
+}
+
+:root[data-theme="light"] .escrow-notice strong {
+    color: #5b21b6;
+}
+
+:root[data-theme="light"] .escrow-notice p {
+    color: #6d28d9;
+}

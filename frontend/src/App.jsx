@@ -1,6 +1,8 @@
-import { NavLink, Routes, Route, Link } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, Routes, Route } from "react-router-dom";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
+import NetworkSettingsModal from "./components/NetworkSettingsModal";
 import Home from "./pages/Home";
 import SellerPage from "./pages/SellerPage";
 import Dashboard from "./pages/Dashboard";
@@ -9,10 +11,15 @@ import ProductPage from "./pages/ProductPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import OrderNotificationBadge from "./components/OrderNotificationBadge";
+import InstructionsPage from "./pages/InstructionsPage";
+
+import { useTheme } from "./context/themeContext";
 
 import "./App.css";
 
 function App() {
+    const { theme, toggleTheme } = useTheme();
+    const [ networkSettingsOpen, setNetworkSettingsOpen ] = useState(false);
     return (
         <div className="app">
            <header className="app-header">
@@ -48,9 +55,33 @@ function App() {
                             Orders
                             <OrderNotificationBadge />
                         </NavLink>
+                        <NavLink
+                            to="/instructions"
+                            className={({ isActive }) =>
+                                `app-nav-link${isActive ? " active" : ""}`
+                            }
+                        >
+                            Instructions
+                        </NavLink>
                     </nav>
 
                     <div className="app-actions">
+                        <button
+                            type="button"
+                            className="app-header-button network-settings-button"
+                            onClick={() => setNetworkSettingsOpen(true)}
+                        >
+                            <span className="network-label-full">Network Settings</span>
+                            <span className="network-label-short">Network</span>
+                        </button>
+                        <button
+                            type="button"
+                            className="app-header-button"
+                            onClick={toggleTheme}
+                            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                        >
+                            {theme === "dark" ? "Light" : "Dark"}
+                        </button>
                         <NavLink to="/seller" className="app-seller-link">
                             Become a Seller
                         </NavLink>
@@ -68,8 +99,13 @@ function App() {
                     <Route path="/product/:product" element={<ProductPage />} />
                     <Route path="/orders" element={<OrdersPage />} />
                     <Route path="/orders/:role/:escrowAddress" element={<OrderDetailsPage />} />
+                    <Route path="/instructions" element={<InstructionsPage />}/>
                 </Routes>
             </div>
+            <NetworkSettingsModal
+                open={networkSettingsOpen}
+                onClose={() => setNetworkSettingsOpen(false)}
+            />
         </div>
     );
 }

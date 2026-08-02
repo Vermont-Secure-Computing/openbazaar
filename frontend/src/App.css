@@ -42,8 +42,8 @@ a {
 
 .app {
     min-height: 100vh;
-    background: #09090b;
-    color: #f4f4f5;
+    background: var(--page-bg);
+    color: var(--text-primary);
 }
 
 .app-header {
@@ -51,8 +51,8 @@ a {
     top: 0;
     z-index: 100;
     width: 100%;
-    border-bottom: 1px solid #27272a;
-    background: rgba(9, 9, 11, 0.92);
+    border-bottom: 1px solid var(--border);
+    background: var(--header-bg);
     backdrop-filter: blur(16px);
 }
 
@@ -68,7 +68,7 @@ a {
 
 .app-logo {
     flex: 0 0 auto;
-    color: #fafafa;
+    color: var(--text-primary);
     font-size: 18px;
     font-weight: 800;
     letter-spacing: -0.04em;
@@ -87,19 +87,16 @@ a {
     display: flex;
     align-items: center;
     padding: 0 11px;
-    color: #a1a1aa;
+    color: var(--text-muted);
     font-size: 13px;
     font-weight: 600;
     text-decoration: none;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition: color 0.15s ease;
 }
 
-.app-nav-link:hover {
-    color: #f4f4f5;
-}
-
+.app-nav-link:hover,
 .app-nav-link.active {
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .app-nav-link.active::after {
@@ -110,7 +107,7 @@ a {
     left: 11px;
     height: 2px;
     border-radius: 2px;
-    background: #8b5cf6;
+    background: var(--accent);
 }
 
 .app-orders-link {
@@ -120,29 +117,33 @@ a {
 .app-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     margin-left: auto;
 }
 
+.app-header-button,
 .app-seller-link {
     height: 34px;
     padding: 0 13px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid #3f3f46;
+    border: 1px solid var(--border-strong);
     border-radius: 8px;
-    background: #18181b;
-    color: #e4e4e7;
+    background: var(--surface);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 700;
     text-decoration: none;
-    transition: border-color 0.15s ease, background 0.15s ease;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+.app-header-button:hover,
 .app-seller-link:hover {
-    border-color: #52525b;
-    background: #27272a;
+    border-color: var(--accent);
+    background: var(--surface-hover);
 }
 
 .app-shell {
@@ -156,36 +157,56 @@ a {
     height: 34px !important;
     padding: 0 13px !important;
     border-radius: 8px !important;
-    background: #7c3aed !important;
+    background: var(--accent) !important;
     font-size: 12px !important;
     font-weight: 700 !important;
     line-height: 1 !important;
 }
 
 .wallet-adapter-button:hover {
-    background: #8b5cf6 !important;
+    background: var(--accent-hover) !important;
 }
 
 .wallet-adapter-button-trigger {
-    background: #7c3aed !important;
+    background: var(--accent) !important;
 }
 
 .wallet-adapter-modal-wrapper {
-    border: 1px solid #27272a !important;
-    background: #18181b !important;
-    color: #f4f4f5 !important;
+    border: 1px solid var(--border) !important;
+    background: var(--surface) !important;
+    color: var(--text-primary) !important;
 }
 
 .wallet-adapter-modal-title {
-    color: #fafafa !important;
+    color: var(--text-primary) !important;
 }
 
 .wallet-adapter-modal-list li {
-    background: #27272a !important;
+    background: var(--surface-secondary) !important;
 }
 
 .wallet-adapter-modal-list li:hover {
-    background: #3f3f46 !important;
+    background: var(--surface-hover) !important;
+}
+
+.network-label-short {
+    display: none;
+}
+
+@media (max-width: 560px) {
+    .network-label-full {
+        display: none;
+    }
+
+    .network-label-short {
+        display: inline;
+    }
+}
+
+@media (max-width: 680px) {
+    .app-seller-link {
+        display: none;
+    }
 }
 
 @media (max-width: 760px) {
@@ -207,8 +228,8 @@ a {
         z-index: 120;
         height: 54px;
         justify-content: space-around;
-        border-top: 1px solid #27272a;
-        background: rgba(9, 9, 11, 0.96);
+        border-top: 1px solid var(--border);
+        background: var(--header-bg);
         backdrop-filter: blur(14px);
     }
 
@@ -230,6 +251,7 @@ a {
         gap: 7px;
     }
 
+    .app-header-button,
     .app-seller-link {
         height: 32px;
         padding: 0 10px;
@@ -253,17 +275,23 @@ a {
     }
 }
 
+@media (max-width: 560px) {
+    .app-seller-link {
+        display: none;
+    }
+}
+
 @media (max-width: 430px) {
     .app-header-inner {
         padding: 0 12px;
     }
 
-    .app-seller-link {
-        display: none;
+    .app-header-button {
+        padding: 0 9px;
     }
 
     .wallet-adapter-button {
-        max-width: 155px;
+        max-width: 135px;
     }
 
     .app-shell {

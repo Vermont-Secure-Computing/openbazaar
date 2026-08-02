@@ -1,4 +1,4 @@
-import { program } from "./anchor";
+import { getReadOnlyProgram } from "./anchor";
 
 function addressToString(value) {
     if (!value) return "";
@@ -14,17 +14,14 @@ function addressToString(value) {
     return value.toString?.() || "";
 }
 
-async function getProductReviewStats() {
+async function getProductReviewStats(program) {
     const stats = new Map();
 
     try {
-        const reviewAccounts =
-            await program.account.merchantReview.all();
+        const reviewAccounts = await program.account.merchantReview.all();
 
         for (const { account } of reviewAccounts) {
-            const productAddress = addressToString(
-                account.product
-            );
+            const productAddress = addressToString(account.product);
 
             if (!productAddress) {
                 continue;
@@ -32,9 +29,7 @@ async function getProductReviewStats() {
 
             const rating = Number(account.rating);
 
-            const current = stats.get(
-                productAddress
-            ) || {
+            const current = stats.get(productAddress) || {
                 totalReviews: 0,
                 totalRating: 0,
             };
@@ -55,30 +50,27 @@ async function getProductReviewStats() {
 }
 
 export async function getProducts() {
-    const [rawAccounts, reviewStats] =
-        await Promise.all([
-            program.provider.connection.getProgramAccounts(
-                program.programId
-            ),
-            getProductReviewStats(),
-        ]);
+    const program = getReadOnlyProgram();
+
+    const [rawAccounts, reviewStats] = await Promise.all([
+        program.provider.connection.getProgramAccounts(
+            program.programId
+        ),
+        getProductReviewStats(program),
+    ]);
 
     const products = [];
 
     for (const item of rawAccounts) {
         try {
-            const product =
-                program.coder.accounts.decode(
-                    "product",
-                    item.account.data
-                );
+            const product = program.coder.accounts.decode(
+                "product",
+                item.account.data
+            );
 
-            const publicKey =
-                item.pubkey.toBase58();
+            const publicKey = item.pubkey.toBase58();
 
-            const stats = reviewStats.get(
-                publicKey
-            ) || {
+            const stats = reviewStats.get(publicKey) || {
                 totalReviews: 0,
                 totalRating: 0,
             };
@@ -123,9 +115,7 @@ export async function getProducts() {
     );
 }
 
-export async function getProductsByMerchant(
-    merchant
-) {
+export async function getProductsByMerchant(merchant) {
     const products = await getProducts();
 
     return products.filter(

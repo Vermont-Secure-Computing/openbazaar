@@ -3,7 +3,7 @@ import "./Home.css";
 
 export default function Home() {
     return (
-        <main className="home-app">
+        <main className="home-page">
             <section className="home-hero">
                 <div className="home-hero-content">
                     <h1>Shop from Solana merchants</h1>
