@@ -1,4 +1,4 @@
-import { Routes, Route, Link } from "react-router-dom";
+import { NavLink, Routes, Route, Link } from "react-router-dom";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 import Home from "./pages/Home";
@@ -10,63 +10,66 @@ import OrdersPage from "./pages/OrdersPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import OrderNotificationBadge from "./components/OrderNotificationBadge";
 
+import "./App.css";
+
 function App() {
     return (
-        <div>
-            <header
-                style={{
-                    padding: "16px 24px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 20,
-                    borderBottom: "1px solid #eee",
-                }}
-            >
-                <Link to="/" style={{ fontWeight: "bold", fontSize: 22 }}>
-                    SolBazaar
-                </Link>
+        <div className="app">
+           <header className="app-header">
+                <div className="app-header-inner">
+                    <NavLink to="/" className="app-logo">SolBazaar</NavLink>
 
-                <Link to="/">Marketplace</Link>
+                    <nav className="app-nav">
+                        <NavLink
+                            to="/"
+                            end
+                            className={({ isActive }) =>
+                                `app-nav-link${isActive ? " active" : ""}`
+                            }
+                        >
+                            Marketplace
+                        </NavLink>
 
-                <Link
-                    to="/seller"
-                    style={{
-                        marginLeft: "auto",
-                        padding: "10px 16px",
-                        border: "1px solid #ddd",
-                        borderRadius: 8,
-                        textDecoration: "none",
-                    }}
-                >
-                    Become a Seller
-                </Link>
+                        <NavLink
+                            to="/dashboard"
+                            className={({ isActive }) =>
+                                `app-nav-link${isActive ? " active" : ""}`
+                            }
+                        >
+                            Dashboard
+                        </NavLink>
 
-                <Link to="/dashboard">Dashboard</Link>
+                        <NavLink
+                            to="/orders"
+                            className={({ isActive }) =>
+                                `app-nav-link app-orders-link${isActive ? " active" : ""}`
+                            }
+                        >
+                            Orders
+                            <OrderNotificationBadge />
+                        </NavLink>
+                    </nav>
 
-                <Link
-                    to="/orders"
-                    style={{
-                        position: "relative",
-                        display: "inline-block",
-                        textDecoration: "none",
-                    }}
-                >
-                    Orders
-                    <OrderNotificationBadge />
-                </Link>
-
-                <WalletMultiButton />
+                    <div className="app-actions">
+                        <NavLink to="/seller" className="app-seller-link">
+                            Become a Seller
+                        </NavLink>
+                        <WalletMultiButton />
+                    </div>
+                </div>
             </header>
 
-            <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/seller" element={<SellerPage />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/merchant/:merchant" element={<MerchantPage />} />
-                <Route path="/product/:product" element={<ProductPage />} />
-                <Route path="/orders" element={<OrdersPage />} />
-                <Route path="/orders/:role/:escrowAddress" element={<OrderDetailsPage />} />
-            </Routes>
+            <div className="app-shell">
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/seller" element={<SellerPage />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/merchant/:merchant" element={<MerchantPage />} />
+                    <Route path="/product/:product" element={<ProductPage />} />
+                    <Route path="/orders" element={<OrdersPage />} />
+                    <Route path="/orders/:role/:escrowAddress" element={<OrderDetailsPage />} />
+                </Routes>
+            </div>
         </div>
     );
 }

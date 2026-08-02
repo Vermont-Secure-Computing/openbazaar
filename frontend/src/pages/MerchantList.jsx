@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMerchants } from "../lib/merchant";
 
+import "./MerchantList.css";
+
 function truncate(text, max = 120) {
     if (!text) return "";
 
@@ -10,10 +12,19 @@ function truncate(text, max = 120) {
         : text;
 }
 
+function getMerchantAddress(merchant) {
+    return (
+        merchant.authority?.toBase58?.() ??
+        merchant.authority?.toString?.() ??
+        String(merchant.authority ?? "")
+    );
+}
+
 export default function MerchantList() {
     const [merchants, setMerchants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [failedLogos, setFailedLogos] = useState({});
 
     const load = async () => {
         try {
@@ -41,60 +52,138 @@ export default function MerchantList() {
     console.log("MerchantList state count:", merchants.length);
 
     return (
-        <div style={{ padding: 24 }}>
-            <h1>Merchant List</h1>
+        <section className="merchant-list-section">
+            <div className="merchant-list-header">
+                <div>
+                    <h2>Merchant List</h2>
+                </div>
 
-            <button onClick={load}>Refresh</button>
+                <button
+                    type="button"
+                    className="merchant-refresh-button"
+                    onClick={load}
+                    disabled={loading}
+                >
+                    {loading ? "Refreshing..." : "Refresh"}
+                </button>
+            </div>
 
-            {loading && <p>Loading merchants...</p>}
+            {loading && <div className="merchant-message">Loading merchants... </div>}
 
-            {error && <p style={{ color: "red" }}>{error}</p>}
-
-            {!loading && merchants.length === 0 && !error && (
-                <p>No merchants yet.</p>
+            {error && (
+                <div className="merchant-message merchant-error">
+                    <span>{error}</span>
+                    <button
+                        type="button"
+                        onClick={load}
+                    >
+                        Try again
+                    </button>
+                </div>
             )}
 
-            {Array.isArray(merchants) &&
-                merchants.map((merchant) => (
-                <div
-                    key={merchant.publicKey}
-                    style={{
-                        border: "1px solid #ddd",
-                        padding: 16,
-                        borderRadius: 12,
-                        marginBottom: 16,
-                    }}
-                >
-                    <h2>
-                        {merchant.storeName}
-                        {merchant.verified && " ✔"}
-                    </h2>
-
-                    <p
-                        style={{
-                            color: "#555",
-                            lineHeight: 1.5,
-                            marginBottom: 12,
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                        }}
-                    >
-                        {truncate(merchant.descriptionUri, 120)}
+            {!loading && !error && merchants.length === 0 && (
+                <div className="merchant-empty">
+                    <strong>No merchants yet</strong>
+                    <p>
+                        Stores will appear here after merchants register.
                     </p>
-
-                    <p>📦 Ships from: {merchant.shipsFrom}</p>
-
-                    <small>{merchant.authority}</small>
-
-                    <br />
-
-                    <Link to={`/merchant/${merchant.authority}`}>
-                        Visit Store
-                    </Link>
                 </div>
-            ))}
-        </div>
+            )}
+
+
+            {!loading && !error && merchants.length > 0 && (
+                <div className="merchant-grid">
+                    {merchants.map((merchant) => {
+                        const merchantAddress = getMerchantAddress(merchant);
+                        const logoUri =  merchant.logoUri || "";
+
+                        const logoFailed = failedLogos[merchantAddress];
+                        
+                        const merchantInitial =
+                            ( merchant.storeName || "S" )
+                            .slice(0, 1)
+                            .toUpperCase();
+
+                        return (
+                            <article
+                                key={
+                                    merchant.publicKey?.toString?.() ??
+                                    merchantAddress
+                                }
+                                className="merchant-card"
+                            >
+                                <div className="merchant-card-header">
+                                    <div className="merchant-avatar">
+                                        {logoUri && !logoFailed ? (
+                                            <img
+                                                src={logoUri}
+                                                alt={`${merchant.storeName || "Merchant"} logo`}
+                                                className="merchant-avatar-image"
+                                                onError={() => {
+                                                    setFailedLogos((current) => ({
+                                                        ...current,
+                                                        [merchantAddress]: true,
+                                                    }));
+                                                }}
+                                            />
+                                        ) : (
+                                            <span className="merchant-avatar-fallback">
+                                                {merchantInitial}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="merchant-card-title">
+                                        <div className="merchant-name-row">
+                                            <h3>
+                                                {merchant.storeName ||
+                                                    "Unnamed Store"}
+                                            </h3>
+
+                                            {merchant.verified && (
+                                                <span className="merchant-verified">
+                                                    Verified
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <span className="merchant-location">
+                                            Ships from{" "}
+                                            {merchant.shipsFrom ||
+                                                "Not specified"}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <p className="merchant-description">
+                                    {truncate(
+                                        merchant.descriptionUri ||
+                                            "No store description provided.",
+                                        140
+                                    )}
+                                </p>
+
+                                <div className="merchant-footer">
+                                    <span className="merchant-sold">
+                                        {Number(merchant.totalSold ?? 0)}{" "}
+                                        {Number(merchant.totalSold ?? 0) === 1
+                                            ? "item sold"
+                                            : "items sold"}
+                                    </span>
+                                </div>
+
+                                <Link
+                                    to={`/merchant/${merchantAddress}`}
+                                    className="merchant-visit-link"
+                                >
+                                    Visit Store
+                                </Link>
+                            </article>
+                        );
+                    })}
+                </div>
+            )}
+        </section>
     );
 }

@@ -20,7 +20,8 @@ export async function getMerchants() {
                     "merchantProfile",
                     item.account.data
                 );
-
+            
+            console.log("merchant details from getMerchant: ", merchant)
             merchants.push({
                 publicKey: item.pubkey.toBase58(),
                 authority: merchant.authority.toBase58(),

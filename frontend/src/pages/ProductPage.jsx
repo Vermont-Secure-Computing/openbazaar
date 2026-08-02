@@ -12,6 +12,7 @@ import { getMerchantReputation } from "../lib/reputation";
 import ProductReviews from "../components/ProductReviews";
 import SellerReputation from "../components/SellerReputation";
 import "../components/review.css";
+import "./ProductPage.css";
 
 
 export default function ProductPage() {
@@ -161,6 +162,42 @@ export default function ProductPage() {
         productPriceLamports +
         securityDepositLamports;
 
+
+    /**
+     * Variables for product page design enhancement
+     */
+    const soldCount = Number(item.sold ?? 0);
+    const averageRating = Number(item.averageRating ?? reputation?.average ?? 0);
+    const totalReviews = Number(item.totalReviews ?? reputation?.totalReviews ?? 0);
+
+    const stockLabel = availableStock <= 0
+        ? "Out of Stock"
+        : availableStock <= 5
+        ? `Only ${availableStock} left`
+        : "In Stock";
+
+    const stockColor = availableStock <= 0
+        ? "#fca5a5"
+        : availableStock <= 5
+        ? "#fcd34d"
+        : "#86efac";
+
+    const stockBackground = availableStock <= 0
+        ? "#450a0a"
+        : availableStock <= 5
+        ? "#422006"
+        : "#052e16";
+
+    const buyDisabled =
+        availableStock <= 0 ||
+        buying ||
+        !merchant ||
+        !Number.isInteger(Number(quantity)) ||
+        Number(quantity) < 1 ||
+        Number(quantity) > availableStock;
+
+
+
     const buyNow = async () => {
         if (!wallet.publicKey) {
             alert("Connect your wallet first.");
@@ -304,535 +341,261 @@ export default function ProductPage() {
     };
 
     return (
-        <div
-            style={{
-                maxWidth: 900,
-                margin: "40px auto",
-                padding: 24,
-            }}
-        >
+        <main className="product-page">
+            <div className="product-shell">
+                <Link to="/" className="product-back">← Back to Marketplace</Link>
 
-            <Link to="/">
-                ← Back
-            </Link>
+                <div className="product-layout">
+                    <section>
+                        <div className="product-card">
+                            <div className="product-image-wrap">
+                                {soldCount > 0 && <span className="product-sold-badge">{soldCount} sold</span>}
 
-            <div
-                style={{
-                    display: "flex",
-                    gap: 40,
-                    marginTop: 30,
-                    flexWrap: "wrap",
-                }}
-            >
-
-                <div
-                    style={{ flex: 1, minWidth: 280, }}
-                >
-                    {selectedImage ? (
-                        <>
-                            <div
-                                style={{
-                                    width: "100%",
-                                    aspectRatio: "1 / 1",
-                                    border: "1px solid #e5e7eb",
-                                    borderRadius: 16,
-                                    overflow: "hidden",
-                                    background: "#f9fafb",
-                                }}
-                            >
-                                <img
-                                    src={selectedImage}
-                                    alt={`${item.title} image ${
-                                        selectedImageIndex + 1
-                                    }`}
-                                    onError={(event) => {
-                                        event.currentTarget.style.display =
-                                            "none";
-                                    }}
-                                    style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        objectFit: "contain",
-                                        display: "block",
-                                    }}
-                                />
-                            </div>
-
-                            {productImages.length > 1 && (
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        gap: 10,
-                                        marginTop: 12,
-                                        flexWrap: "wrap",
-                                    }}
-                                >
-                                    {productImages.map(
-                                        (imageUri, index) => {
-                                            const selected =
-                                                index ===
-                                                selectedImageIndex;
-
-                                            return (
-                                                <button
-                                                    key={`${imageUri}-${index}`}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setSelectedImageIndex(
-                                                            index
-                                                        )
-                                                    }
-                                                    aria-label={`View product image ${
-                                                        index + 1
-                                                    }`}
-                                                    style={{
-                                                        width: 82,
-                                                        height: 82,
-                                                        padding: 0,
-                                                        border: selected
-                                                            ? "2px solid #111827"
-                                                            : "1px solid #d1d5db",
-                                                        borderRadius: 10,
-                                                        overflow: "hidden",
-                                                        background:
-                                                            "#f9fafb",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    <img
-                                                        src={imageUri}
-                                                        alt={`${item.title} thumbnail ${
-                                                            index + 1
-                                                        }`}
-                                                        style={{
-                                                            width: "100%",
-                                                            height: "100%",
-                                                            objectFit:
-                                                                "cover",
-                                                            display:
-                                                                "block",
-                                                        }}
-                                                    />
-                                                </button>
-                                            );
-                                        }
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div
-                            style={{
-                                width: "100%",
-                                aspectRatio: "1 / 1",
-                                border: "1px solid #ddd",
-                                borderRadius: 16,
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-                                background: "#f9fafb",
-                                color: "#666",
-                            }}
-                        >
-                            No Image
-                        </div>
-                    )}
-                </div>
-
-                <div style={{ flex: 1 }}>
-
-                    <h1>{item.title}</h1>
-
-                    <h2>
-                        {(Number(item.price) / LAMPORTS_PER_SOL).toFixed(3)} SOL
-                    </h2>
-
-                    <p>
-                        {item.description}
-                    </p>
-
-                    <hr />
-
-                    <p>
-
-                        <strong>Category</strong>
-
-                        <br />
-
-                        {item.category}
-
-                    </p>
-
-                    {item.stock === 0 ? (
-                        <p style={{ color: "#dc2626", fontWeight: "bold" }}>
-                            🔴 Out of Stock
-                        </p>
-                    ) : item.stock <= 5 ? (
-                        <p style={{ color: "#d97706", fontWeight: "bold" }}>
-                            🟡 Only {item.stock} left
-                        </p>
-                    ) : (
-                        <p style={{ color: "#16a34a", fontWeight: "bold" }}>
-                            🟢 {item.stock} available
-                        </p>
-                    )}
-
-                    {availableStock > 0 && (
-                        <div
-                            style={{
-                                marginTop: 18,
-                                marginBottom: 18,
-                            }}
-                        >
-                            <strong>Quantity</strong>
-
-                            <div
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    marginTop: 10,
-                                }}
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setQuantity((current) =>
-                                            Math.max(
-                                                1,
-                                                current - 1
-                                            )
-                                        )
-                                    }
-                                    disabled={
-                                        buying ||
-                                        quantity <= 1
-                                    }
-                                    style={{
-                                        width: 42,
-                                        height: 42,
-                                        fontSize: 22,
-                                        cursor:
-                                            buying ||
-                                            quantity <= 1
-                                                ? "not-allowed"
-                                                : "pointer",
-                                    }}
-                                >
-                                    −
-                                </button>
-
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max={availableStock}
-                                    step="1"
-                                    value={quantity}
-                                    disabled={buying}
-                                    onChange={(event) => {
-                                        const value =
-                                            event.target.value;
-
-                                        if (value === "") {
-                                            setQuantity("");
-                                            return;
-                                        }
-
-                                        const nextQuantity =
-                                            Number(value);
-
-                                        if (
-                                            Number.isInteger(
-                                                nextQuantity
-                                            )
-                                        ) {
-                                            setQuantity(
-                                                Math.min(
-                                                    Math.max(
-                                                        nextQuantity,
-                                                        1
-                                                    ),
-                                                    availableStock
-                                                )
-                                            );
-                                        }
-                                    }}
-                                    onBlur={() => {
-                                        const parsed =
-                                            Number(quantity);
-
-                                        if (
-                                            !Number.isInteger(parsed) ||
-                                            parsed < 1
-                                        ) {
-                                            setQuantity(1);
-                                        } else if (
-                                            parsed >
-                                            availableStock
-                                        ) {
-                                            setQuantity(
-                                                availableStock
-                                            );
-                                        }
-                                    }}
-                                    style={{
-                                        width: 80,
-                                        height: 42,
-                                        boxSizing:
-                                            "border-box",
-                                        textAlign: "center",
-                                        fontSize: 18,
-                                    }}
-                                />
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setQuantity((current) =>
-                                            Math.min(
-                                                Number(current) + 1,
-                                                availableStock
-                                            )
-                                        )
-                                    }
-                                    disabled={
-                                        buying ||
-                                        Number(quantity) >=
-                                            availableStock
-                                    }
-                                    style={{
-                                        width: 42,
-                                        height: 42,
-                                        fontSize: 22,
-                                        cursor:
-                                            buying ||
-                                            Number(quantity) >=
-                                                availableStock
-                                                ? "not-allowed"
-                                                : "pointer",
-                                    }}
-                                >
-                                    +
-                                </button>
-
-                                <span
-                                    style={{
-                                        marginLeft: 6,
-                                        color: "#666",
-                                        fontSize: 14,
-                                    }}
-                                >
-                                    {availableStock} available
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    <p>
-
-                        <strong>Sold</strong>
-
-                        <br />
-
-                        {item.sold}
-
-                    </p>
-
-                    {merchant && (
-
-                        <>
-
-                            <hr />
-
-                            <p>
-
-                                <strong>Merchant</strong>
-
-                                {reputation ? (
-                                    <>
-
-                                        <p
-                                            style={{
-                                                marginTop: 8,
-                                                fontSize: 22,
-                                                fontWeight: "bold",
-                                            }}
-                                        >
-                                            ⭐ {reputation.average.toFixed(1)}
-                                        </p>
-
-                                        <p>
-                                            {reputation.totalReviews} Reviews
-                                        </p>
-
-                                    </>
+                                {selectedImage ? (
+                                    <img
+                                        src={selectedImage}
+                                        alt={`${item.title} image ${selectedImageIndex + 1}`}
+                                        className="product-image"
+                                    />
                                 ) : (
-                                    <p>
-                                        ⭐ No reviews yet
-                                    </p>
+                                    <div className="product-no-image">No product image</div>
                                 )}
+                            </div>
+                        </div>
 
-                                <br />
+                        {productImages.length > 1 && (
+                            <div className="product-thumbnails">
+                                {productImages.map((imageUri, index) => (
+                                    <button
+                                        key={`${imageUri}-${index}`}
+                                        type="button"
+                                        aria-label={`View image ${index + 1}`}
+                                        className={`product-thumbnail ${selectedImageIndex === index ? "active" : ""}`}
+                                        onClick={() => setSelectedImageIndex(index)}
+                                    >
+                                        <img src={imageUri} alt={`${item.title} thumbnail ${index + 1}`} />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </section>
 
-                                {merchant.storeName}
-
-                            </p>
-
-                            <p>
-
-                            <strong>Ships From</strong>
-                            <br />
-                            {merchant.shipsFrom}
-
-                            </p>
-
-                            <SellerReputation
-                                merchantAuthority={
-                                    merchant.authority
-                                }
-                            />
-
-                        </>
-
-                    )}
-
-                        {merchant && (
-                            <div
+                    <aside className="product-card product-purchase">
+                        <div className="product-badges">
+                            <span
+                                className="product-badge stock"
                                 style={{
-                                    marginTop: 20,
-                                    padding: 14,
-                                    border:
-                                        "1px solid #ddd",
-                                    borderRadius: 10,
+                                    "--stock-color": stockColor,
+                                    "--stock-background": stockBackground,
                                 }}
                             >
-                                <p>
-                                    <strong>
-                                        Price per item:
-                                    </strong>{" "}
-                                    {(
-                                        unitPriceLamports /
-                                        LAMPORTS_PER_SOL
-                                    ).toFixed(4)}{" "}
-                                    SOL
-                                </p>
+                                {stockLabel}
+                            </span>
 
-                                <p>
-                                    <strong>
-                                        Quantity:
-                                    </strong>{" "}
-                                    {safeQuantity}
-                                </p>
 
-                                <p>
-                                    <strong>
-                                        Product total:
-                                    </strong>{" "}
-                                    {(
-                                        productPriceLamports /
-                                        LAMPORTS_PER_SOL
-                                    ).toFixed(4)}{" "}
-                                    SOL
-                                </p>
+                            {merchant?.shipsFrom && (
+                                <span className="product-badge shipping">
+                                    Ships from {merchant.shipsFrom}
+                                </span>
+                            )}
+                        </div>
 
-                                <p>
-                                    <strong>
-                                        Refundable Security
-                                        Deposit:
-                                    </strong>{" "}
-                                    {(
-                                        securityDepositLamports /
-                                        LAMPORTS_PER_SOL
-                                    ).toFixed(9)}{" "}
-                                    SOL
-                                </p>
+                        <h1 className="product-title">{item.title}</h1>
 
-                                <p
-                                    style={{
-                                        fontSize: 18,
-                                        marginBottom: 10,
-                                    }}
-                                >
-                                    <strong>
-                                        Total Buyer Deposit:
-                                    </strong>{" "}
-                                    {(
-                                        buyerTotalLamports /
-                                        LAMPORTS_PER_SOL
-                                    ).toFixed(9)}{" "}
-                                    SOL
-                                </p>
+                        <div className="product-rating">
+                            <span className="product-stars">★</span>
+                            <strong>{averageRating.toFixed(1)}</strong>
+                            <span>({totalReviews} review{totalReviews === 1 ? "" : "s"})</span>
+                            <span>{soldCount} sold</span>
+                        </div>
 
-                                <p>
-                                    <strong>
-                                        Security Deposit Rate:
-                                    </strong>{" "}
-                                    {(depositBps / 100).toFixed(1)}
-                                    %
-                                </p>
+                        <h2 className="product-price">
+                            {(unitPriceLamports / LAMPORTS_PER_SOL).toFixed(3)} SOL
+                        </h2>
 
-                                <small>
-                                    Your refundable security
-                                    deposit will be returned when
-                                    you confirm receipt and approve
-                                    the escrow release.
-                                </small>
+                        <p className="product-muted product-price-label">Price per item</p>
+
+                        <div className="product-meta">
+                            <div className="product-meta-item">
+                                <span className="product-meta-label">Category</span>
+                                <strong>{item.category || "Uncategorized"}</strong>
+                            </div>
+
+                            <div className="product-meta-item">
+                                <span className="product-meta-label">Stock</span>
+                                <strong style={{ color: stockColor }}>
+                                    {availableStock} item{availableStock === 1 ? "" : "s"}
+                                </strong>
+                            </div>
+                        </div>
+
+                        {availableStock > 0 && (
+                            <div className="product-quantity">
+                                <div>
+                                    <strong>Quantity</strong>
+                                    <div className="product-available">{availableStock} available</div>
+                                </div>
+
+                                <div className="quantity-controls">
+                                    <button
+                                        type="button"
+                                        disabled={buying || Number(quantity) <= 1}
+                                        onClick={() => setQuantity(current => Math.max(1, Number(current) - 1))}
+                                    >
+                                        −
+                                    </button>
+
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max={availableStock}
+                                        step="1"
+                                        value={quantity}
+                                        disabled={buying}
+                                        onChange={event => {
+                                            const value = event.target.value;
+
+                                            if (value === "") {
+                                                setQuantity("");
+                                                return;
+                                            }
+
+                                            const nextQuantity = Number(value);
+
+                                            if (Number.isInteger(nextQuantity)) {
+                                                setQuantity(Math.min(Math.max(nextQuantity, 1), availableStock));
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            const parsed = Number(quantity);
+
+                                            if (!Number.isInteger(parsed) || parsed < 1) {
+                                                setQuantity(1);
+                                            } else if (parsed > availableStock) {
+                                                setQuantity(availableStock);
+                                            }
+                                        }}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        disabled={buying || Number(quantity) >= availableStock}
+                                        onClick={() => setQuantity(current => Math.min(Number(current) + 1, availableStock))}
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
                         )}
 
-                <button
-                    onClick={buyNow}
-                    disabled={
-                        availableStock <= 0 ||
-                        buying ||
-                        !merchant ||
-                        !Number.isInteger(
-                            Number(quantity)
-                        ) ||
-                        Number(quantity) < 1 ||
-                        Number(quantity) >
-                            availableStock
-                    }
-                    style={{
-                        marginTop: 20,
-                        padding: "12px 30px",
-                        fontSize: 18,
-                        cursor:
-                            availableStock <= 0 ||
-                            buying ||
-                            !merchant
-                                ? "not-allowed"
-                                : "pointer",
-                        opacity:
-                            availableStock <= 0 ||
-                            buying ||
-                            !merchant
-                                ? 0.5
-                                : 1,
-                    }}
-                >
-                    {availableStock <= 0
-                        ? "Out of Stock"
-                        : buying
-                        ? "Creating Order..."
-                        : `Buy ${safeQuantity} ${
-                                safeQuantity === 1
-                                    ? "Item"
-                                    : "Items"
-                            }`}
-                </button>
+                        <div className="escrow-notice">
+                            <strong>Escrow Protection</strong>
+                            <p>
+                                Payment is released to the seller only after you confirm delivery.
+                            </p>
+                        </div>
 
+                        <div className="product-breakdown">
+                            <div className="product-breakdown-row">
+                                <span className="product-muted">Product total</span>
+                                <strong>
+                                    {(productPriceLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                                </strong>
+                            </div>
+
+                            <div className="product-breakdown-row">
+                                <span className="product-muted">
+                                    Refundable deposit ({(depositBps / 100).toFixed(1)}%)
+                                </span>
+                                <strong>
+                                    {(securityDepositLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                                </strong>
+                            </div>
+
+                            <div className="product-total">
+                                <strong>Total locked</strong>
+                                <strong>
+                                    {(buyerTotalLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                                </strong>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="product-buy-button"
+                            onClick={buyNow}
+                            disabled={buyDisabled}
+                        >
+                            {availableStock <= 0
+                                ? "Out of Stock"
+                                : buying
+                                ? "Creating Order..."
+                                : `Buy ${safeQuantity} ${safeQuantity === 1 ? "Item" : "Items"}`}
+                        </button>
+                    </aside>
                 </div>
 
+                <div className="product-details-grid">
+                    <section className="product-card product-section">
+                        <h2 className="product-section-title">Description</h2>
+                        <p className="product-description">
+                            {item.description || "No description provided."}
+                        </p>
+                    </section>
+
+                    <section className="product-card product-section">
+                        <div className="seller-title-row">
+                            <h2 className="product-section-title">Sold by</h2>
+                        </div>
+
+                        {merchant ? (
+                            <>
+                                <div className="seller-header">
+                                    <div className="seller-avatar">
+                                        {(merchant.storeName || "S").slice(0, 1).toUpperCase()}
+                                    </div>
+
+                                    <div>
+                                        <strong className="seller-name">{merchant.storeName}</strong>
+
+                                        <div className="product-rating seller-rating">
+                                            <strong>{averageRating.toFixed(1)}</strong>
+                                            <span>{totalReviews} reviews</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="seller-stats">
+                                    <div className="seller-stat">
+                                        <strong>{totalReviews}</strong>
+                                        <div className="seller-stat-label">Reviews</div>
+                                    </div>
+
+                                    <div className="seller-stat">
+                                        <strong>{soldCount}</strong>
+                                        <div className="seller-stat-label">Sold</div>
+                                    </div>
+
+                                    <div className="seller-stat">
+                                        <strong>{merchant.shipsFrom || "—"}</strong>
+                                        <div className="seller-stat-label">Ships from</div>
+                                    </div>
+                                </div>
+
+                                <div className="seller-reputation">
+                                    <SellerReputation merchantAuthority={merchant.authority} />
+                                </div>
+                            </>
+                        ) : (
+                            <p className="product-muted">Seller information is unavailable.</p>
+                        )}
+                    </section>
+                </div>
+
+                <section className="product-reviews">
+                    <ProductReviews product={item.publicKey || product} />
+                </section>
             </div>
-
-            <ProductReviews
-                product={
-                    item.publicKey ||
-                    product
-                }
-            />
-
-        </div>
+        </main>
     );
 }
