@@ -1,0 +1,146 @@
+.instructions-page {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+    text-align: left;
+}
+
+.instructions-header,
+.instructions-section,
+.instructions-warning {
+    padding: 20px;
+    border: 1px solid var(--border, #e4e4e7);
+    border-radius: 14px;
+    background: var(--surface, #fff);
+}
+
+.instructions-header {
+    margin-bottom: 14px;
+}
+
+.instructions-header h1 {
+    margin: 0;
+    color: var(--text-primary, #18181b);
+    font-size: 30px;
+    line-height: 1.2;
+}
+
+.instructions-header p {
+    margin: 8px 0 0;
+    color: var(--text-secondary, #52525b);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.instructions-warning {
+    margin-bottom: 14px;
+    border-color: #a16207;
+    background: #fefce8;
+    color: #713f12;
+}
+
+.instructions-warning p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.65;
+}
+
+.instructions-warning p + p {
+    margin-top: 10px;
+}
+
+.instructions-section {
+    margin-top: 14px;
+}
+
+.instructions-section h2 {
+    margin: 0 0 12px;
+    color: var(--text-primary, #18181b);
+    font-size: 19px;
+}
+
+.instructions-section h3 {
+    margin: 18px 0 10px;
+    color: var(--text-primary, #18181b);
+    font-size: 15px;
+}
+
+.instructions-section p,
+.instructions-section li {
+    color: var(--text-secondary, #52525b);
+    font-size: 12px;
+    line-height: 1.75;
+}
+
+.instructions-section p {
+    margin: 0;
+}
+
+.instructions-section p + p {
+    margin-top: 12px;
+}
+
+.instructions-section ol {
+    margin: 12px 0 0;
+    padding-left: 22px;
+}
+
+.instructions-section li + li {
+    margin-top: 16px;
+}
+
+.instructions-section li strong {
+    color: var(--text-primary, #18181b);
+}
+
+.instructions-section li p {
+    margin-top: 5px;
+}
+
+.instructions-danger {
+    margin-top: 18px;
+    padding: 14px;
+    border: 1px solid #dc2626;
+    border-radius: 10px;
+    background: #fef2f2;
+}
+
+.instructions-danger strong {
+    color: #991b1b;
+    font-size: 12px;
+}
+
+.instructions-danger p {
+    color: #7f1d1d;
+}
+
+:root[data-theme="dark"] .instructions-warning {
+    border-color: #713f12;
+    background: #271a08;
+    color: #fcd34d;
+}
+
+:root[data-theme="dark"] .instructions-danger {
+    border-color: #7f1d1d;
+    background: #2b1014;
+}
+
+:root[data-theme="dark"] .instructions-danger strong,
+:root[data-theme="dark"] .instructions-danger p {
+    color: #fca5a5;
+}
+
+@media (max-width: 700px) {
+    .instructions-page {
+        max-width: none;
+    }
+
+    .instructions-header,
+    .instructions-section,
+    .instructions-warning {
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+    }
+}

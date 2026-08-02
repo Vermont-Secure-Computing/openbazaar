@@ -1,20 +1,52 @@
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { Connection } from "@solana/web3.js";
 import idl from "../idl/sol_bazaar.json";
+import { DEFAULT_RPC_URL } from "../context/NetworkContext";
 
-const connection = new Connection("https://devnet.helius-rpc.com/?api-key=7656b607-68f1-48f5-9636-ba3e9118125d", "confirmed");
+export function getRpcUrl() {
+    return (
+        localStorage.getItem("customRpcUrl") ||
+        localStorage.getItem("lastWorkingRpc") ||
+        DEFAULT_RPC_URL
+    );
+}
 
-// Read-only provider
-const provider = new AnchorProvider(
-    connection,
-    {
+export function getConnection(rpcUrl = getRpcUrl()) {
+    return new Connection(rpcUrl, "confirmed");
+}
+
+function getReadOnlyWallet() {
+    return {
         publicKey: null,
-        signTransaction: async (tx) => tx,
-        signAllTransactions: async (txs) => txs,
-    },
-    {
-        commitment: "confirmed",
-    }
-);
+        signTransaction: async transaction => transaction,
+        signAllTransactions: async transactions => transactions,
+    };
+}
 
-export const program = new Program(idl, provider);
+export function getReadOnlyProgram(rpcUrl = getRpcUrl()) {
+    const connection = getConnection(rpcUrl);
+
+    const provider = new AnchorProvider(
+        connection,
+        getReadOnlyWallet(),
+        {
+            commitment: "confirmed",
+        }
+    );
+
+    return new Program(idl, provider);
+}
+
+export function getProgram(wallet, connection, rpcUrl) {
+    const programConnection = connection || getConnection(rpcUrl || getRpcUrl());
+
+    const provider = new AnchorProvider(
+        programConnection,
+        wallet,
+        {
+            commitment: "confirmed",
+        }
+    );
+
+    return new Program(idl, provider);
+}
