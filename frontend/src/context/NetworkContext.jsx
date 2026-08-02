@@ -3,7 +3,7 @@ import { ConnectionProvider } from "@solana/wallet-adapter-react";
 
 const NetworkContext = createContext(null);
 
-export const DEFAULT_RPC_URL = "https://api.devnet.solana.com"
+export const DEFAULT_RPC_URL = "https://api.mainnet-beta.solana.com"
 
 export const FALLBACK_RPC_URLS = [
     DEFAULT_RPC_URL,
