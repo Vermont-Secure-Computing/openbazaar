@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev-devnet": "vite --mode devnet",
+    "build-devnet": "vite build --mode devnet",
+    "dev-mainnet": "vite --mode mainnet",
+    "build-mainnet": "vite build --mode mainnet"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

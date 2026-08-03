@@ -1,14 +1,8 @@
-import {
-    AnchorProvider,
-    Program,
-} from "@coral-xyz/anchor";
+import { AnchorProvider, Program } from "@coral-xyz/anchor";
 
-import {
-    PublicKey,
-    SystemProgram,
-} from "@solana/web3.js";
+import { PublicKey, SystemProgram,} from "@solana/web3.js";
 
-import idl from "../idl/sol_bazaar.json";
+import { solBazaarIdl as idl } from "../idl/sol_bazaar.json";
 
 function getProgram(connection, wallet) {
     const provider = new AnchorProvider(
@@ -26,8 +20,7 @@ export function deriveOrderRecordPda({
     escrowAddress,
     programId,
 }) {
-    const escrowPublicKey =
-        new PublicKey(escrowAddress);
+    const escrowPublicKey = new PublicKey(escrowAddress);
 
     return PublicKey.findProgramAddressSync(
         [
@@ -64,14 +57,9 @@ export async function createOrderRecord({
         wallet
     );
 
-    const escrowPublicKey =
-        new PublicKey(escrowAddress);
-
-    const productPublicKey =
-        new PublicKey(productAddress);
-
-    const merchantPublicKey =
-        new PublicKey(merchantAuthority);
+    const escrowPublicKey = new PublicKey(escrowAddress);
+    const productPublicKey = new PublicKey(productAddress);
+    const merchantPublicKey = new PublicKey(merchantAuthority);
 
     const [merchantProfilePda] =
         PublicKey.findProgramAddressSync(
@@ -131,31 +119,14 @@ export async function getOrderRecord({
             );
 
         return {
-            publicKey:
-                orderRecordPda.toBase58(),
-
-            escrow:
-                account.escrow.toBase58(),
-
-            product:
-                account.product.toBase58(),
-
-            buyer:
-                account.buyer.toBase58(),
-
-            seller:
-                account.seller.toBase58(),
-
-            quantity:
-                Number(account.quantity),
-
-            price:
-                account.price.toString(),
-
-            createdAt:
-                Number(
-                    account.createdAt.toString()
-                ),
+            publicKey: orderRecordPda.toBase58(),
+            escrow: account.escrow.toBase58(),
+            product: account.product.toBase58(),
+            buyer: account.buyer.toBase58(),
+            seller: account.seller.toBase58(),
+            quantity: Number(account.quantity),
+            price: account.price.toString(),
+            createdAt: Number(account.createdAt.toString()),
         };
     } catch {
         return null;

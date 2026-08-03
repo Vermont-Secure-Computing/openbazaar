@@ -6,7 +6,7 @@ import {
     useWallet,
 } from "@solana/wallet-adapter-react";
 
-import idl from "../idl/sol_bazaar.json";
+import { solBazaarIdl as idl } from "../idl";
 
 function utf8ByteLength(value) {
     return new TextEncoder().encode(

@@ -14,7 +14,7 @@ import {
     useWallet,
 } from "@solana/wallet-adapter-react";
 
-import idl from "../idl/sol_bazaar.json";
+import { solBazaarIdl as idl } from "../idl";
 
 const MAX_IMAGES = 3;
 const MAX_IMAGE_URI_BYTES = 250;

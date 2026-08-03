@@ -1,12 +1,12 @@
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { Connection } from "@solana/web3.js";
-import idl from "../idl/sol_bazaar.json";
+import { solBazaarIdl as idl } from "../idl";
 import { DEFAULT_RPC_URL } from "../context/NetworkContext";
+import { getRpcStorageKey, getLastWorkingRpcStorageKey } from "../config/network";
 
 export function getRpcUrl() {
-    return (
-        localStorage.getItem("customRpcUrl") ||
-        localStorage.getItem("lastWorkingRpc") ||
+    return (localStorage.getItem(getRpcStorageKey()) ||
+        localStorage.getItem(getLastWorkingRpcStorageKey()) ||
         DEFAULT_RPC_URL
     );
 }
@@ -26,9 +26,7 @@ function getReadOnlyWallet() {
 export function getReadOnlyProgram(rpcUrl = getRpcUrl()) {
     const connection = getConnection(rpcUrl);
 
-    const provider = new AnchorProvider(
-        connection,
-        getReadOnlyWallet(),
+    const provider = new AnchorProvider(connection, getReadOnlyWallet(),
         {
             commitment: "confirmed",
         }
@@ -37,12 +35,10 @@ export function getReadOnlyProgram(rpcUrl = getRpcUrl()) {
     return new Program(idl, provider);
 }
 
-export function getProgram(wallet, connection, rpcUrl) {
+export function getProgram( wallet, connection, rpcUrl) {
     const programConnection = connection || getConnection(rpcUrl || getRpcUrl());
 
-    const provider = new AnchorProvider(
-        programConnection,
-        wallet,
+    const provider = new AnchorProvider(programConnection, wallet,
         {
             commitment: "confirmed",
         }

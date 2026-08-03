@@ -10,8 +10,7 @@ import {
     Transaction
 } from "@solana/web3.js";
 
-import escrowIdl from "../idl/sol_shop_escrow.json";
-import marketplaceIdl from "../idl/sol_bazaar.json";
+import { escrowIdl, solBazaarIdl } from "../idl";
 
 /*
  * Website donation wallet.
@@ -51,7 +50,7 @@ function getMarketplaceProgram(
     );
 
     return new Program(
-        marketplaceIdl,
+        solBazaarIdl,
         provider
     );
 }
