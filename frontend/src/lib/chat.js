@@ -4,7 +4,7 @@ import {
     SystemProgram,
 } from "@solana/web3.js";
 
-import idl from "../idl/sol_bazaar.json";
+import { solBazaarIdl as idl } from "../idl";
 
 function createProgram(connection, wallet) {
     const provider = new AnchorProvider(

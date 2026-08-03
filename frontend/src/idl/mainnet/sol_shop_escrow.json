@@ -1,0 +1,581 @@
+{
+  "address": "J6oeUYbGXSdKyH4d1YhtHoCuEA79d9FQurmsim82KN5A",
+  "metadata": {
+    "name": "sol_shop_escrow",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "accept_finalization",
+      "discriminator": [
+        112,
+        112,
+        7,
+        104,
+        19,
+        211,
+        17,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "party_a",
+          "writable": true
+        },
+        {
+          "name": "party_b",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "donation_recipient",
+          "writable": true,
+          "address": "61Gt8siRo84pmGziia5dHuJMkx9ne1d4Cb5aHsyQGP85"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_completed_escrow",
+      "discriminator": [
+        131,
+        185,
+        232,
+        62,
+        15,
+        22,
+        16,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_escrow",
+      "discriminator": [
+        253,
+        215,
+        165,
+        116,
+        36,
+        108,
+        68,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "arg",
+                "path": "escrow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "_escrow_id",
+          "type": "u64"
+        },
+        {
+          "name": "escrow_type",
+          "type": "u8"
+        },
+        {
+          "name": "party_a",
+          "type": "pubkey"
+        },
+        {
+          "name": "party_b",
+          "type": "pubkey"
+        },
+        {
+          "name": "reference_amount",
+          "type": "u64"
+        },
+        {
+          "name": "required_deposit_a",
+          "type": "u64"
+        },
+        {
+          "name": "required_deposit_b",
+          "type": "u64"
+        },
+        {
+          "name": "note",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "depositor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "reject_finalization",
+      "discriminator": [
+        44,
+        116,
+        45,
+        79,
+        43,
+        43,
+        86,
+        77
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "suggest_finalization",
+      "discriminator": [
+        71,
+        105,
+        12,
+        151,
+        128,
+        239,
+        253,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "payout_a",
+          "type": "u64"
+        },
+        {
+          "name": "payout_b",
+          "type": "u64"
+        },
+        {
+          "name": "proposed_donation",
+          "type": "u64"
+        },
+        {
+          "name": "finalization_note",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_before_complete",
+      "discriminator": [
+        40,
+        0,
+        254,
+        7,
+        88,
+        174,
+        147,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "withdrawer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "creator",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Escrow",
+      "discriminator": [
+        31,
+        213,
+        123,
+        187,
+        186,
+        22,
+        218,
+        155
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount"
+    },
+    {
+      "code": 6001,
+      "name": "NoteTooLong",
+      "msg": "Note is too long"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidStatus",
+      "msg": "Invalid escrow status"
+    },
+    {
+      "code": 6003,
+      "name": "AlreadyDeposited",
+      "msg": "This wallet has already deposited"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidDepositAmount",
+      "msg": "Deposit amount must match the required amount exactly"
+    },
+    {
+      "code": 6005,
+      "name": "Unauthorized",
+      "msg": "Unauthorized wallet"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidVault",
+      "msg": "Invalid vault"
+    },
+    {
+      "code": 6007,
+      "name": "CreatorMustBeParty",
+      "msg": "Creator must be either Party A or Party B"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidParty",
+      "msg": "Invalid party setup"
+    },
+    {
+      "code": 6009,
+      "name": "NothingToWithdraw",
+      "msg": "Nothing to withdraw"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidFinalization",
+      "msg": "Invalid finalization amounts"
+    },
+    {
+      "code": 6011,
+      "name": "CannotAcceptOwnFinalization",
+      "msg": "You cannot accept your own finalization"
+    },
+    {
+      "code": 6012,
+      "name": "CannotRejectOwnFinalization",
+      "msg": "You cannot reject your own finalization"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidDonation",
+      "msg": "Invalid donation"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidDonationRecipient",
+      "msg": "Invalid donation recipient"
+    }
+  ],
+  "types": [
+    {
+      "name": "Escrow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "party_a",
+            "type": "pubkey"
+          },
+          {
+            "name": "party_b",
+            "type": "pubkey"
+          },
+          {
+            "name": "escrow_type",
+            "type": "u8"
+          },
+          {
+            "name": "required_deposit_a",
+            "type": "u64"
+          },
+          {
+            "name": "required_deposit_b",
+            "type": "u64"
+          },
+          {
+            "name": "deposited_a",
+            "type": "u64"
+          },
+          {
+            "name": "deposited_b",
+            "type": "u64"
+          },
+          {
+            "name": "proposed_payout_a",
+            "type": "u64"
+          },
+          {
+            "name": "proposed_payout_b",
+            "type": "u64"
+          },
+          {
+            "name": "finalization_proposer",
+            "type": "pubkey"
+          },
+          {
+            "name": "finalization_note",
+            "type": "string"
+          },
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "deposit_at",
+            "type": "i64"
+          },
+          {
+            "name": "finalized_at",
+            "type": "i64"
+          },
+          {
+            "name": "note",
+            "type": "string"
+          },
+          {
+            "name": "reference_amount",
+            "type": "u64"
+          },
+          {
+            "name": "proposed_donation",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

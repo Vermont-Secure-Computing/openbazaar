@@ -9,6 +9,7 @@ export default function NetworkSettingsModal({ open, onClose }) {
         rpcUrl,
         setRpcUrl,
         resetRpcUrl,
+        networkName,
         defaultRpcUrl,
         fallbackRpcUrls,
     } = useNetwork();
@@ -121,7 +122,7 @@ export default function NetworkSettingsModal({ open, onClose }) {
                     <div>
                         <h2 id="network-modal-title">Network Settings</h2>
                         <p>
-                            Choose the Solana Devnet RPC used by the marketplace.
+                            Choose the {networkName} RPC used by the marketplace.
                         </p>
                     </div>
 
@@ -133,6 +134,11 @@ export default function NetworkSettingsModal({ open, onClose }) {
                     >
                         Close
                     </button>
+                </div>
+
+                <div className="network-modal-current">
+                    <span>Network</span>
+                    <strong>{networkName}</strong>
                 </div>
 
                 <div className="network-modal-current">
@@ -159,7 +165,7 @@ export default function NetworkSettingsModal({ open, onClose }) {
                     />
 
                     <p className="network-modal-help">
-                        The selected RPC is stored only in this browser.
+                        Use an RPC endpoint for {networkName}. The selected URL is stored only in this browser.
                     </p>
 
                     <div className="network-modal-actions">

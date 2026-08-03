@@ -1,18 +1,23 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import { ConnectionProvider } from "@solana/wallet-adapter-react";
+import { NETWORK_CONFIG, getRpcStorageKey, getLastWorkingRpcStorageKey,} from "../config/network";
 
 const NetworkContext = createContext(null);
-
-export const DEFAULT_RPC_URL = "https://api.mainnet-beta.solana.com"
-
-export const FALLBACK_RPC_URLS = [
-    DEFAULT_RPC_URL,
-];
+export const NETWORK = NETWORK_CONFIG.network;
+export const NETWORK_NAME = NETWORK_CONFIG.networkName;
+export const DEFAULT_RPC_URL = NETWORK_CONFIG.defaultRpcUrl;
+export const FALLBACK_RPC_URLS = NETWORK_CONFIG.isMainnet ? 
+    [
+        "https://api.mainnet-beta.solana.com",
+    ]
+    : 
+    [
+        "https://api.devnet.solana.com",
+    ];
 
 function getInitialRpcUrl() {
-    return (
-        localStorage.getItem("customRpcUrl") ||
-        localStorage.getItem("lastWorkingRpc") ||
+    return ( localStorage.getItem( getRpcStorageKey() ) ||
+        localStorage.getItem(getLastWorkingRpcStorageKey()) ||
         DEFAULT_RPC_URL
     );
 }
@@ -27,14 +32,14 @@ export function NetworkProvider({ children }) {
             return;
         }
 
-        localStorage.setItem("customRpcUrl", nextRpcUrl);
-        localStorage.setItem("lastWorkingRpc", nextRpcUrl);
+        localStorage.setItem(getRpcStorageKey(), nextRpcUrl);
+        localStorage.setItem(getLastWorkingRpcStorageKey(), nextRpcUrl);
         setRpcUrlState(nextRpcUrl);
     };
 
     const resetRpcUrl = () => {
-        localStorage.removeItem("customRpcUrl");
-        localStorage.removeItem("lastWorkingRpc");
+        localStorage.removeItem(getRpcStorageKey());
+        localStorage.removeItem(getLastWorkingRpcStorageKey());
         setRpcUrlState(DEFAULT_RPC_URL);
     };
 
@@ -43,8 +48,12 @@ export function NetworkProvider({ children }) {
             rpcUrl,
             setRpcUrl,
             resetRpcUrl,
+            network: NETWORK,
+            networkName: NETWORK_NAME,
             defaultRpcUrl: DEFAULT_RPC_URL,
             fallbackRpcUrls: FALLBACK_RPC_URLS,
+            isMainnet: NETWORK_CONFIG.isMainnet,
+            isDevnet: NETWORK_CONFIG.isDevnet,
         }),
         [rpcUrl]
     );

@@ -1,10 +1,10 @@
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
-import marketplaceIdl from "../idl/sol_bazaar.json";
+import { solBazaarIdl as solBazaarIdl } from "../idl";
 
 const PROGRAM_ID = new PublicKey(
-  marketplaceIdl.address ||
-    marketplaceIdl.metadata?.address ||
+  solBazaarIdl.address ||
+    solBazaarIdl.metadata?.address ||
     "Dg1SUE2GAfMaxft1XFaMYck1n6uqxtx4F5m4cbB4c6dp"
 );
 
@@ -27,7 +27,7 @@ function getMarketplaceProgram(connection, wallet) {
     { commitment: "confirmed" }
   );
 
-  return new Program(marketplaceIdl, provider);
+  return new Program(solBazaarIdl, provider);
 }
 
 function requireConnectedWallet(wallet) {
