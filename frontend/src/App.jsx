@@ -12,6 +12,7 @@ import ProductPage from "./pages/ProductPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import InstructionsPage from "./pages/InstructionsPage";
+import Footer from "./pages/Footer";
 
 import "./App.css";
 
@@ -48,6 +49,8 @@ function App() {
                     />
                 </Routes>
             </main>
+
+            <Footer />
 
             <NetworkSettingsModal
                 open={networkSettingsOpen}

@@ -16,6 +16,8 @@ import {
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
 
+import "./OrdersPage.css";
+
 function lamportsToSol(value) {
     try {
         const lamports = Number(
@@ -37,13 +39,19 @@ function lamportsToSol(value) {
 function addressToString(address) {
     if (!address) return "";
     if (typeof address === "string") return address;
+
     if (typeof address?.toBase58 === "function") {
         return address.toBase58();
     }
+
     if (typeof address?.toString === "function") {
         const value = address.toString();
-        return value === "[object Object]" ? "" : value;
+
+        return value === "[object Object]"
+            ? ""
+            : value;
     }
+
     return "";
 }
 
@@ -69,8 +77,10 @@ function getSellerAddress(escrow) {
 
 function shortenAddress(address) {
     const value = addressToString(address);
+
     if (!value) return "Address unavailable";
     if (value.length <= 14) return value;
+
     return `${value.slice(0, 6)}...${value.slice(-6)}`;
 }
 
@@ -84,9 +94,12 @@ export default function OrdersPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    const enrichOrders = async (escrows, merchants) => {
+    const enrichOrders = async (
+        escrows,
+        merchants
+    ) => {
         return Promise.all(
-            escrows.map(async (escrow) => {
+            escrows.map(async escrow => {
                 let product = null;
 
                 if (escrow.order?.product) {
@@ -105,12 +118,13 @@ export default function OrdersPage() {
                 const sellerAddress =
                     getSellerAddress(escrow);
 
-                const sellerMerchant = merchants.find(
-                    (merchant) =>
-                        addressToString(
-                            merchant.authority
-                        ) === sellerAddress
-                );
+                const sellerMerchant =
+                    merchants.find(
+                        merchant =>
+                            addressToString(
+                                merchant.authority
+                            ) === sellerAddress
+                    );
 
                 return {
                     ...escrow,
@@ -187,44 +201,41 @@ export default function OrdersPage() {
 
     if (!wallet.publicKey) {
         return (
-            <main style={{ padding: 24 }}>
-                <h1>Orders</h1>
-                <p>
-                    Connect your wallet to view your
-                    purchases and seller orders.
-                </p>
+            <main className="orders-page">
+                <header className="orders-header">
+                    <h1>Orders</h1>
+                </header>
+
+                <div className="orders-state">
+                    <p>
+                        Connect your wallet to view your
+                        purchases and seller orders.
+                    </p>
+                </div>
             </main>
         );
     }
 
     if (loading) {
         return (
-            <main style={{ padding: 24 }}>
-                <h1>Orders</h1>
-                <p>Loading orders...</p>
+            <main className="orders-page">
+                <header className="orders-header">
+                    <h1>Orders</h1>
+                </header>
+
+                <div className="orders-state">
+                    <p>Loading orders...</p>
+                </div>
             </main>
         );
     }
 
     return (
-        <main
-            style={{
-                maxWidth: 1100,
-                margin: "0 auto",
-                padding: 24,
-            }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 16,
-                    flexWrap: "wrap",
-                }}
-            >
+        <main className="orders-page">
+            <header className="orders-header">
                 <div>
                     <h1>Orders</h1>
+
                     <p>
                         Manage your purchases and seller
                         transactions.
@@ -233,26 +244,28 @@ export default function OrdersPage() {
 
                 <button
                     type="button"
+                    className="orders-refresh-button"
                     onClick={loadOrders}
                     disabled={loading}
                 >
                     Refresh Orders
                 </button>
-            </div>
+            </header>
 
             {error && (
-                <p style={{ color: "#dc2626" }}>
+                <div className="orders-error">
                     {error}
-                </p>
+                </div>
             )}
 
-            <section style={{ marginTop: 32 }}>
+            <section className="orders-section">
                 <h2>My Purchases</h2>
+
                 <OrderList
                     orders={buyerOrders}
                     role="buyer"
                     emptyMessage="No purchase orders yet."
-                    onSelect={(escrow) =>
+                    onSelect={escrow =>
                         navigate(
                             `/orders/buyer/${addressToString(
                                 escrow.publicKey
@@ -262,13 +275,14 @@ export default function OrdersPage() {
                 />
             </section>
 
-            <section style={{ marginTop: 48 }}>
+            <section className="orders-section">
                 <h2>Seller Orders</h2>
+
                 <OrderList
                     orders={sellerOrders}
                     role="seller"
                     emptyMessage="No seller orders yet."
-                    onSelect={(escrow) =>
+                    onSelect={escrow =>
                         navigate(
                             `/orders/seller/${addressToString(
                                 escrow.publicKey
@@ -288,98 +302,59 @@ function OrderList({
     onSelect,
 }) {
     if (orders.length === 0) {
-        return <p>{emptyMessage}</p>;
+        return (
+            <div className="orders-empty">
+                <p>{emptyMessage}</p>
+            </div>
+        );
     }
 
     return (
-        <div
-            style={{
-                display: "grid",
-                gap: 12,
-                marginTop: 16,
-            }}
-        >
-            {orders.map((escrow) => {
+        <div className="orders-list">
+            {orders.map(escrow => {
                 const product = escrow.product;
-                const merchant = escrow.sellerMerchant;
+                const merchant =
+                    escrow.sellerMerchant;
                 const escrowKey =
-                    addressToString(escrow.publicKey);
+                    addressToString(
+                        escrow.publicKey
+                    );
 
                 return (
                     <button
                         key={escrowKey}
                         type="button"
-                        onClick={() => onSelect(escrow)}
-                        style={{
-                            width: "100%",
-                            display: "grid",
-                            gridTemplateColumns:
-                                "72px minmax(0, 1fr) auto",
-                            gap: 14,
-                            alignItems: "center",
-                            textAlign: "left",
-                            padding: 14,
-                            border: "1px solid #ddd",
-                            borderRadius: 14,
-                            background: "#fff",
-                            cursor: "pointer",
-                        }}
+                        className="order-list-card"
+                        onClick={() =>
+                            onSelect(escrow)
+                        }
                     >
-                        {product?.imageUri ? (
-                            <img
-                                src={product.imageUri}
-                                alt={
-                                    product.title ||
-                                    "Product"
-                                }
-                                style={{
-                                    width: 72,
-                                    height: 72,
-                                    objectFit: "cover",
-                                    borderRadius: 10,
-                                }}
-                            />
-                        ) : (
-                            <div
-                                style={{
-                                    width: 72,
-                                    height: 72,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    border:
-                                        "1px solid #ddd",
-                                    borderRadius: 10,
-                                    fontSize: 12,
-                                    color: "#666",
-                                }}
-                            >
-                                No Image
-                            </div>
-                        )}
+                        <div className="order-list-image-wrap">
+                            {product?.imageUri ? (
+                                <img
+                                    src={
+                                        product.imageUri
+                                    }
+                                    alt={
+                                        product.title ||
+                                        "Product"
+                                    }
+                                    className="order-list-image"
+                                />
+                            ) : (
+                                <div className="order-list-no-image">
+                                    No Image
+                                </div>
+                            )}
+                        </div>
 
-                        <div style={{ minWidth: 0 }}>
-                            <strong
-                                style={{
-                                    display: "block",
-                                    fontSize: 16,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow:
-                                        "ellipsis",
-                                }}
-                            >
+                        <div className="order-list-content">
+                            <strong className="order-list-title">
                                 {product?.title ||
                                     "Product unavailable"}
                             </strong>
 
-                            <div
-                                style={{
-                                    marginTop: 5,
-                                    color: "#555",
-                                    fontSize: 14,
-                                }}
-                            >
+                            <div className="order-list-party">
                                 {role === "buyer"
                                     ? merchant?.storeName ||
                                       `Seller ${shortenAddress(
@@ -394,27 +369,20 @@ function OrderList({
                                       )}`}
                             </div>
 
-                            <div
-                                style={{
-                                    marginTop: 5,
-                                    display: "flex",
-                                    gap: 12,
-                                    flexWrap: "wrap",
-                                    color: "#666",
-                                    fontSize: 13,
-                                }}
-                            >
+                            <div className="order-list-meta">
                                 <span>
                                     Qty:{" "}
                                     {escrow.order
                                         ?.quantity || 1}
                                 </span>
+
                                 <span>
                                     {lamportsToSol(
                                         escrow.referenceAmount
                                     )}{" "}
                                     SOL
                                 </span>
+
                                 <span>
                                     Order{" "}
                                     {shortenAddress(
@@ -424,23 +392,12 @@ function OrderList({
                             </div>
                         </div>
 
-                        <div
-                            style={{
-                                display: "grid",
-                                justifyItems: "end",
-                                gap: 8,
-                            }}
-                        >
+                        <div className="order-list-action">
                             <StatusBadge
                                 status={escrow.status}
                             />
-                            <span
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: 700,
-                                    color: "#2563eb",
-                                }}
-                            >
+
+                            <span className="order-list-view">
                                 View Details →
                             </span>
                         </div>
@@ -452,42 +409,36 @@ function OrderList({
 }
 
 function StatusBadge({ status }) {
-    const label = getEscrowStatusLabel(status);
-    let background = "#e5e7eb";
-    let color = "#111827";
+    const label =
+        getEscrowStatusLabel(status);
 
-    if (status === ESCROW_STATUS.CREATED) {
-        background = "#fef3c7";
-        color = "#92400e";
-    } else if (
-        status === ESCROW_STATUS.DEPOSITS_COMPLETE
+    let statusClass = "default";
+
+    if (
+        status ===
+        ESCROW_STATUS.CREATED
     ) {
-        background = "#dbeafe";
-        color = "#1e40af";
+        statusClass = "created";
+    } else if (
+        status ===
+        ESCROW_STATUS.DEPOSITS_COMPLETE
+    ) {
+        statusClass = "deposits-complete";
     } else if (
         status ===
         ESCROW_STATUS.FINALIZATION_SUGGESTED
     ) {
-        background = "#ede9fe";
-        color = "#5b21b6";
+        statusClass = "finalization";
     } else if (
-        status === ESCROW_STATUS.COMPLETED
+        status ===
+        ESCROW_STATUS.COMPLETED
     ) {
-        background = "#dcfce7";
-        color = "#166534";
+        statusClass = "completed";
     }
 
     return (
         <span
-            style={{
-                display: "inline-block",
-                padding: "6px 10px",
-                borderRadius: 999,
-                background,
-                color,
-                fontWeight: 700,
-                fontSize: 13,
-            }}
+            className={`order-status-badge ${statusClass}`}
         >
             {label}
         </span>

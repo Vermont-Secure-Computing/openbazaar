@@ -7,6 +7,7 @@ import EditMerchant from "./EditMerchant";
 import MyProducts from "./MyProducts";
 import SellerReputation from "../components/SellerReputation";
 import "../components/review.css";
+import "./Dashboard.css";
 
 import { getMerchantByAuthority } from "../lib/merchant";
 
@@ -23,9 +24,11 @@ export default function Dashboard() {
 
         setLoading(true);
 
-        const m = await getMerchantByAuthority(wallet.publicKey.toBase58());
-        setMerchant(m || null);
+        const m = await getMerchantByAuthority(
+            wallet.publicKey.toBase58()
+        );
 
+        setMerchant(m || null);
         setLoading(false);
     };
 
@@ -35,51 +38,75 @@ export default function Dashboard() {
 
     if (!wallet.publicKey) {
         return (
-            <div style={{ padding: 24 }}>
-                <h1>Seller Dashboard</h1>
-                <p>Please connect your wallet.</p>
-            </div>
+            <main className="dashboard-page">
+                <section className="dashboard-header">
+                    <h1>Seller Dashboard</h1>
+                </section>
+
+                <section className="dashboard-state">
+                    <p>Please connect your wallet.</p>
+                </section>
+            </main>
         );
     }
 
     if (loading) {
-        return <p style={{ padding: 24 }}>Loading dashboard...</p>;
+        return (
+            <main className="dashboard-page">
+                <section className="dashboard-state">
+                    <p>Loading dashboard...</p>
+                </section>
+            </main>
+        );
     }
 
     return (
-        <div style={{ padding: 24 }}>
-            <h1>Seller Dashboard</h1>
-    
+        <main className="dashboard-page">
+            <section className="dashboard-header">
+                <h1>Seller Dashboard</h1>
+            </section>
+
             {!merchant ? (
-                <>
-                    <p>You do not have a merchant profile yet.</p>
-                    <CreateMerchant onCreated={load} />
-                </>
+                <div className="dashboard-content">
+                    <section className="dashboard-panel">
+                        <p className="dashboard-empty-text">
+                            You do not have a merchant profile yet.
+                        </p>
+
+                        <CreateMerchant onCreated={load} />
+                    </section>
+                </div>
             ) : (
-                <>
-                    <EditMerchant
-                        merchant={merchant}
-                        onUpdated={load}
-                    />
-    
-                    <SellerReputation
-                        merchantAuthority={
-                            merchant.authority
-                        }
-                        allowInitialize
-                    />
-    
-                    <hr />
-    
-                    <CreateProduct />
-    
-                    <hr />
-    
-                    <MyProducts
-                        merchant={merchant.authority}
-                    />
-                </>
+                <div className="dashboard-content">
+                    <div className="dashboard-top-grid">
+                        <section className="dashboard-panel">
+                            <EditMerchant
+                                merchant={merchant}
+                                onUpdated={load}
+                            />
+                        </section>
+
+                        <section className="dashboard-panel">
+                            <SellerReputation
+                                merchantAuthority={
+                                    merchant.authority
+                                }
+                                allowInitialize
+                            />
+                        </section>
+                    </div>
+
+                    <section className="dashboard-panel">
+                        <CreateProduct />
+                    </section>
+
+                    <section className="dashboard-panel">
+                        <MyProducts
+                            merchant={merchant.authority}
+                        />
+                    </section>
+                </div>
             )}
-        </div>
+        </main>
     );
 }

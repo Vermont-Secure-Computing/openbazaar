@@ -1,52 +1,42 @@
 import { Link } from "react-router-dom";
 
+import "./SellerPage.css";
+
 export default function SellerPage() {
     return (
-        <div style={{ padding: 32, maxWidth: 900, margin: "0 auto" }}>
-            <h1>Become a Seller on SolBazaar</h1>
+        <main className="seller-page">
+            <header className="seller-header">
+                <h1>Become a Seller on SolBazaar</h1>
 
-            <p>
-                Create your store, list your products, and sell directly through
-                Solana wallet transactions.
-            </p>
+                <p>
+                    Create your store, list your products, and sell directly through
+                    Solana wallet transactions.
+                </p>
+            </header>
 
-            <div
-                style={{
-                    marginTop: 24,
-                    display: "grid",
-                    gap: 16,
-                }}
-            >
-                <div style={{ border: "1px solid #ddd", padding: 20, borderRadius: 12 }}>
+            <div className="seller-steps">
+                <section className="seller-step-card">
                     <h3>1. Connect your wallet</h3>
                     <p>Your wallet becomes your merchant identity.</p>
-                </div>
+                </section>
 
-                <div style={{ border: "1px solid #ddd", padding: 20, borderRadius: 12 }}>
+                <section className="seller-step-card">
                     <h3>2. Create your store</h3>
                     <p>Add your store name, description, location, logo, and banner.</p>
-                </div>
+                </section>
 
-                <div style={{ border: "1px solid #ddd", padding: 20, borderRadius: 12 }}>
+                <section className="seller-step-card">
                     <h3>3. Add your products</h3>
                     <p>Paste image URLs, set prices, and manage available stock.</p>
-                </div>
+                </section>
             </div>
 
             <Link
                 to="/dashboard"
-                style={{
-                    display: "inline-block",
-                    marginTop: 30,
-                    padding: "14px 22px",
-                    background: "#111",
-                    color: "white",
-                    borderRadius: 10,
-                    textDecoration: "none",
-                }}
+                className="seller-start-link"
             >
                 Start Selling
             </Link>
-        </div>
+        </main>
     );
 }

@@ -36,6 +36,18 @@ export default function InstructionsPage() {
                     It is recommended (for both merchants and customers) to run the user interface locally on your own machine, 
                     rather than relying on a server at a domain name.  Instructions for doing so should be available at the code repository.
                 </p>
+                <p>
+                    GitHub Repository:
+                    {" "}
+                    <a
+                        href="https://github.com/Vermont-Secure-Computing/openbazaar"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="instructions-link"
+                    >
+                        https://github.com/Vermont-Secure-Computing/openbazaar
+                    </a>
+                </p>
 
                 <p>
                     Interfacting with solana contracts requires either running your own node, or using a solana api service, for which 

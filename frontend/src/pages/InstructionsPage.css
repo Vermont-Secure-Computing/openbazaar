@@ -1,9 +1,7 @@
 .instructions-page {
     width: 100%;
-    max-width: 900px;
-    margin: 0 auto;
+    min-height: 100%;
     padding-bottom: 40px;
-    text-align: left;
 }
 
 .instructions-header,
@@ -113,6 +111,18 @@
 
 .instructions-danger p {
     color: #7f1d1d;
+}
+
+.instructions-link {
+    color: var(--accent);
+    text-decoration: none;
+    word-break: break-word;
+    transition: color 0.15s ease;
+}
+
+.instructions-link:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
 }
 
 :root[data-theme="dark"] .instructions-warning {

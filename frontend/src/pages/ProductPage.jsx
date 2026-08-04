@@ -5,8 +5,6 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useNavigate } from "react-router-dom";
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
-// import { createBuyerEscrow } from "../lib/escrow";
-// import { createOrderRecord } from "../lib/orderRecord";
 import { createBuyOrder } from "../lib/buyOrder";
 import { getMerchantReputation } from "../lib/reputation";
 import ProductReviews from "../components/ProductReviews";

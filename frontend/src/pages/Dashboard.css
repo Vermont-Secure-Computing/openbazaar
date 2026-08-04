@@ -1,0 +1,383 @@
+.dashboard-page {
+    width: 100%;
+    min-height: 100%;
+    padding-bottom: 40px;
+    color: var(--text-primary, #f4f4f5);
+    text-align: left;
+}
+
+.dashboard-header {
+    margin-bottom: 16px;
+    padding: 2px 0;
+}
+
+.dashboard-header h1 {
+    margin: 0;
+    color: var(--text-primary, #f8fafc);
+    font-size: clamp(24px, 3vw, 31px);
+    font-weight: 750;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+}
+
+.dashboard-content {
+    display: grid;
+    gap: 16px;
+}
+
+.dashboard-top-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.dashboard-panel,
+.dashboard-state {
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--border, #243044);
+    border-radius: 14px;
+    background: var(--surface, #111827);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.dashboard-state {
+    min-height: 180px;
+    display: grid;
+    place-items: center;
+    color: var(--text-muted, #94a3b8);
+    text-align: center;
+}
+
+.dashboard-state p {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.dashboard-empty-text {
+    margin: 0 0 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border, #243044);
+    color: var(--text-muted, #94a3b8);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.dashboard-panel > :first-child {
+    margin-top: 0;
+}
+
+.dashboard-panel > :last-child {
+    margin-bottom: 0;
+}
+
+.dashboard-panel hr {
+    margin: 18px 0;
+    border: 0;
+    border-top: 1px solid var(--border, #243044);
+}
+
+/* Headings inside dashboard child components */
+.dashboard-panel h1,
+.dashboard-panel h2,
+.dashboard-panel h3,
+.dashboard-panel h4 {
+    color: var(--text-primary, #f8fafc);
+    letter-spacing: -0.015em;
+}
+
+.dashboard-panel h1 {
+    margin: 0 0 14px;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.dashboard-panel h2 {
+    margin: 0 0 12px;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.dashboard-panel h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.dashboard-panel h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* General text inside dashboard forms */
+.dashboard-panel p,
+.dashboard-panel small,
+.dashboard-panel span {
+    line-height: 1.5;
+}
+
+.dashboard-panel p {
+    color: var(--text-secondary, #cbd5e1);
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.dashboard-panel small {
+    color: var(--text-muted, #94a3b8);
+    font-size: 10px;
+}
+
+/* Form labels */
+.dashboard-panel label {
+    display: block;
+    margin: 0 0 6px;
+    color: var(--text-secondary, #cbd5e1);
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+/* Inputs */
+.dashboard-panel input,
+.dashboard-panel textarea,
+.dashboard-panel select {
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid var(--border-strong, #334155);
+    border-radius: 9px;
+    outline: none;
+    background: var(--surface-secondary, #0f172a);
+    color: var(--text-primary, #f8fafc);
+    font-size: 12px;
+    font-weight: 400;
+    transition:
+        border-color 0.15s ease,
+        background 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.dashboard-panel input,
+.dashboard-panel select {
+    min-height: 38px;
+    padding: 0 11px;
+}
+
+.dashboard-panel textarea {
+    min-height: 88px;
+    padding: 10px 11px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.dashboard-panel input::placeholder,
+.dashboard-panel textarea::placeholder {
+    color: var(--text-muted, #64748b);
+    opacity: 0.85;
+}
+
+.dashboard-panel input:hover,
+.dashboard-panel textarea:hover,
+.dashboard-panel select:hover {
+    border-color: var(--border-hover, #475569);
+}
+
+.dashboard-panel input:focus,
+.dashboard-panel textarea:focus,
+.dashboard-panel select:focus {
+    border-color: var(--accent, #7c3aed);
+    background: var(--surface, #111827);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14);
+}
+
+.dashboard-panel input:disabled,
+.dashboard-panel textarea:disabled,
+.dashboard-panel select:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Number inputs */
+.dashboard-panel input[type="number"] {
+    appearance: textfield;
+}
+
+.dashboard-panel input[type="number"]::-webkit-inner-spin-button,
+.dashboard-panel input[type="number"]::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
+}
+
+/* Checkboxes and radio buttons */
+.dashboard-panel input[type="checkbox"],
+.dashboard-panel input[type="radio"] {
+    width: 15px;
+    min-height: 15px;
+    height: 15px;
+    padding: 0;
+    accent-color: var(--accent, #7c3aed);
+}
+
+/* Buttons */
+.dashboard-panel button {
+    min-height: 36px;
+    max-width: 100%;
+    padding: 0 13px;
+    border: 1px solid var(--border-strong, #334155);
+    border-radius: 9px;
+    background: var(--surface-secondary, #0f172a);
+    color: var(--text-secondary, #e5e7eb);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        border-color 0.15s ease,
+        background 0.15s ease,
+        opacity 0.15s ease;
+}
+
+.dashboard-panel button:hover:not(:disabled) {
+    border-color: var(--accent, #7c3aed);
+    background: var(--surface-hover, #1e293b);
+}
+
+.dashboard-panel button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/*
+ * Preserve primary action buttons that already define a stronger
+ * inline or component background.
+ */
+.dashboard-panel button[style*="background"],
+.dashboard-panel button[style*="backgroundColor"] {
+    border-radius: 9px;
+}
+
+/* Links */
+.dashboard-panel a {
+    color: var(--accent-text, #a5b4fc);
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.dashboard-panel a:hover {
+    text-decoration: underline;
+}
+
+/* Tables */
+.dashboard-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--text-secondary, #cbd5e1);
+    font-size: 11px;
+}
+
+.dashboard-panel th,
+.dashboard-panel td {
+    padding: 10px;
+    border-bottom: 1px solid var(--border, #243044);
+    text-align: left;
+}
+
+.dashboard-panel th {
+    color: var(--text-muted, #94a3b8);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* Reusable light/dark content boxes inside child components */
+.dashboard-panel fieldset,
+.dashboard-panel form > div {
+    max-width: 100%;
+}
+
+.dashboard-panel fieldset {
+    padding: 14px;
+    border: 1px solid var(--border, #243044);
+    border-radius: 10px;
+    background: var(--surface-secondary, #0f172a);
+}
+
+.dashboard-panel legend {
+    padding: 0 5px;
+    color: var(--text-secondary, #cbd5e1);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* Reduce oversized inline text in child components */
+.dashboard-panel [style*="font-size: 24"],
+.dashboard-panel [style*="fontSize: 24"] {
+    font-size: 18px !important;
+}
+
+.dashboard-panel [style*="font-size: 20"],
+.dashboard-panel [style*="fontSize: 20"] {
+    font-size: 16px !important;
+}
+
+.dashboard-panel [style*="font-weight: bold"],
+.dashboard-panel [style*="fontWeight: bold"] {
+    font-weight: 700 !important;
+}
+
+@media (max-width: 920px) {
+    .dashboard-top-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .dashboard-page {
+        padding-bottom: 24px;
+    }
+
+    .dashboard-header {
+        margin-bottom: 12px;
+        padding: 4px 14px 0;
+    }
+
+    .dashboard-content,
+    .dashboard-top-grid {
+        gap: 10px;
+    }
+
+    .dashboard-panel,
+    .dashboard-state {
+        padding: 15px 14px;
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .dashboard-panel input,
+    .dashboard-panel select {
+        min-height: 40px;
+    }
+
+    .dashboard-panel button {
+        min-height: 38px;
+    }
+}
+
+@media (max-width: 420px) {
+    .dashboard-header h1 {
+        font-size: 24px;
+    }
+
+    .dashboard-panel,
+    .dashboard-state {
+        padding: 14px 12px;
+    }
+}
