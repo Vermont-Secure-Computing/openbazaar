@@ -305,7 +305,7 @@ export default function CreateMerchant({ onCreated }) {
                 placeholder="Describe your store, products, shipping, and other important information."
                 style={{
                     width: "100%",
-                    maxWidth: 600,
+                    maxWidth: "100%",
                     padding: 10,
                     boxSizing: "border-box",
                     resize: "vertical",
@@ -427,7 +427,7 @@ export default function CreateMerchant({ onCreated }) {
                 }
                 style={{
                     width: "100%",
-                    maxWidth: 600,
+                    maxWidth: "100%",
                     padding: 10,
                     boxSizing: "border-box",
                     resize: "vertical",
