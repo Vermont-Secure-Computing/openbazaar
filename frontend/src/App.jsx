@@ -13,6 +13,7 @@ import OrdersPage from "./pages/OrdersPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import InstructionsPage from "./pages/InstructionsPage";
 import Footer from "./pages/Footer";
+import InstructionsModal from "./components/InstructionsModal";
 
 import "./App.css";
 
@@ -51,6 +52,8 @@ function App() {
             </main>
 
             <Footer />
+
+            <InstructionsModal />
 
             <NetworkSettingsModal
                 open={networkSettingsOpen}
