@@ -40,14 +40,10 @@ Open this address in your browser to use the locally running SolZaar interface.
 RPC Configuration
 
 SolZaar is configured with a default RPC endpoint so the interface can be used without requiring the user to first obtain an RPC provider.
-
 Users may also use their own Solana RPC endpoint. Open Network Settings in the SolZaar interface and enter the RPC URL provided by your preferred Solana RPC service.
-
 Using your own RPC provider can be useful if the default RPC is unavailable, rate limited, or if you prefer to connect through your own Solana infrastructure.
-
-Interfacing with Solana contracts requires either running your own node or using a Solana RPC/API service. Free and paid RPC services are available.  
-
-Interfacing with solana contracts requires either running your own node, or using a solana api service, for which 
+  
+Interfacing with Solana contracts requires either running your own node, or using a solana api service, for which 
 free and paid services are available.  
 
 All items are priced and paid with solana, the wallets which were used for testing are Phantom and Solflare.  
