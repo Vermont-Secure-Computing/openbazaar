@@ -85,8 +85,116 @@ a {
     min-width: 0;
     flex: 0 0 auto;
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.program-short {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .program-full {
+        display: none;
+    }
+
+    .program-short {
+        display: inline;
+    }
+}
+
+.app-brand-main {
+    display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.app-program-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.app-program-value {
+    min-width: 0;
+    max-width: 420px;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 8px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-program-short {
+    display: none;
+}
+
+.app-program-copy {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.app-program-copy:hover:not(:disabled) {
+    background: var(--surface-hover, #27272a);
+    color: var(--text-primary, #f4f4f5);
+}
+
+.app-program-copy:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+@media (max-width: 1100px) {
+    .app-program-full {
+        display: none;
+    }
+
+    .app-program-short {
+        display: inline;
+    }
+
+    .app-program-value {
+        max-width: 150px;
+        font-size: 8px;
+    }
+}
+
+@media (max-width: 760px) {
+    .app-brand {
+        gap: 3px;
+    }
+
+    .app-brand-main {
+        gap: 6px;
+    }
+
+    .app-program-value {
+        max-width: 120px;
+        font-size: 7px;
+    }
+
+    .app-program-copy {
+        width: 18px;
+        height: 18px;
+        font-size: 11px;
+    }
 }
 
 .app-logo {
