@@ -13,9 +13,9 @@ import OrdersPage from "./pages/OrdersPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import InstructionsPage from "./pages/InstructionsPage";
 import Footer from "./pages/Footer";
-import InstructionsModal from "./components/InstructionsModal";
 
 import "./App.css";
+import DisclaimerModal from "./components/DisclaimerModal";
 
 function App() {
     const [networkSettingsOpen, setNetworkSettingsOpen] = useState(false);
@@ -53,7 +53,7 @@ function App() {
 
             <Footer />
 
-            <InstructionsModal />
+            <DisclaimerModal />
 
             <NetworkSettingsModal
                 open={networkSettingsOpen}

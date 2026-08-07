@@ -59,24 +59,19 @@ function Brand({ onNavigate }) {
 
     return (
         <div className="app-brand">
-            <NavLink
-                to="/"
-                className="app-logo"
-                onClick={onNavigate}
-            >
-                SolBazaar
-            </NavLink>
+            <div className="app-brand-main">
+                <NavLink to="/" className="app-logo" onClick={onNavigate}>
+                    SolBazaar
+                </NavLink>
 
-            <span
-                className={`app-network-badge ${
-                    isMainnet ? "mainnet" : "devnet"
-                }`}
-            >
-                {isMainnet ? "Mainnet" : "Devnet"}
-            </span>
+                <span className={`app-network-badge ${isMainnet ? "mainnet" : "devnet"}`}>
+                    {isMainnet ? "Mainnet" : "Devnet"}
+                </span>
+            </div>
         </div>
     );
 }
+
 
 function MenuButton({ open, onClick }) {
     return (

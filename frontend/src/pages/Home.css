@@ -27,7 +27,7 @@
 
 .home-hero-content {
     width: 100%;
-    max-width: 680px;
+    max-width: 760px;
     margin: 0 auto;
     text-align: center;
 }
@@ -48,6 +48,89 @@
     line-height: 1.65;
 }
 
+.home-program-id {
+    max-width: 680px;
+    margin: 24px auto 0;
+    padding: 11px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-secondary);
+    text-align: left;
+}
+
+.home-program-title {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.home-program-value {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.home-program-value code {
+    min-width: 0;
+    flex: 1;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.program-short {
+    display: none;
+}
+
+.home-program-copy {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.home-program-copy:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--surface-hover);
+}
+
+.home-program-copy:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+    .program-full {
+        display: none;
+    }
+
+    .program-short {
+        display: block;
+    }
+}
+
 @media (max-width: 600px) {
     .home-hero {
         padding: 38px 18px;
@@ -63,5 +146,32 @@
 
     .home-hero p {
         font-size: 13px;
+    }
+
+    .home-program-id {
+        margin-top: 20px;
+        padding: 10px;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .home-program-value {
+        width: 100%;
+    }
+
+    .home-program-value code {
+        font-size: 10px;
+    }
+
+    .home-program-copy {
+        width: 27px;
+        height: 27px;
+    }
+}
+
+@media (max-width: 380px) {
+    .home-program-value code {
+        font-size: 9px;
     }
 }
