@@ -11,9 +11,43 @@ HOW TO USE SOLZAAR
 
 Solzaar is FREE TO USE.  However every transaction or interaction with the contract is a solana transaction and requires a small solana transaction fee.  If data is being added, this fee is slighly larger and is referred to as "rent".  The costs are still quite small but rent can be recovered by the user when the data is deleted or removed from the contract.  
 
-It is recommended (for both merchants and customers) to run the user interface locally on your own machine, rather than relying on a server at a domain name.  Instructions for doing so should be available at the code repository.   
+It is recommended (for both merchants and customers) to run the user interface locally on your own machine, rather than relying on a server at a domain name.
 
-Interfacting with solana contracts requires either running your own node, or using a solana api service, for which 
+Running SolZaar Locally
+
+Clone the repository:
+
+    git clone https://github.com/Vermont-Secure-Computing/openbazaar.git
+    cd openbazaar/frontend
+
+Install the required packages:
+
+    npm install
+
+To run the interface on mainnet:
+
+    npm run dev-mainnet
+
+To run the interface on devnet:
+
+    npm run dev-devnet
+
+Vite will display the local address in the terminal, normally:
+http://localhost:5173
+
+Open this address in your browser to use the locally running SolZaar interface.
+
+RPC Configuration
+
+SolZaar is configured with a default RPC endpoint so the interface can be used without requiring the user to first obtain an RPC provider.
+
+Users may also use their own Solana RPC endpoint. Open Network Settings in the SolZaar interface and enter the RPC URL provided by your preferred Solana RPC service.
+
+Using your own RPC provider can be useful if the default RPC is unavailable, rate limited, or if you prefer to connect through your own Solana infrastructure.
+
+Interfacing with Solana contracts requires either running your own node or using a Solana RPC/API service. Free and paid RPC services are available.  
+
+Interfacing with solana contracts requires either running your own node, or using a solana api service, for which 
 free and paid services are available.  
 
 All items are priced and paid with solana, the wallets which were used for testing are Phantom and Solflare.  
