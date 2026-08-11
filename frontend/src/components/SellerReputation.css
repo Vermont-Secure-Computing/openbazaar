@@ -1,0 +1,114 @@
+.seller-reputation {
+    max-width: 520px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-secondary);
+}
+
+.seller-reputation h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.seller-reputation > p,
+.seller-reputation-loading {
+    margin: 7px 0 0;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.seller-rating-summary {
+    margin-top: 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.seller-rating-summary strong {
+    color: var(--text-primary);
+    font-size: 18px;
+}
+
+.seller-rating-summary span {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.rating-breakdown {
+    margin-top: 12px;
+    display: grid;
+    gap: 6px;
+}
+
+.rating-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 24px;
+    gap: 8px;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.rating-row span:last-child {
+    text-align: right;
+}
+
+.rating-row progress {
+    width: 100%;
+    height: 6px;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    appearance: none;
+}
+
+.rating-row progress::-webkit-progress-bar {
+    background: var(--surface);
+    border-radius: 999px;
+}
+
+.rating-row progress::-webkit-progress-value {
+    background: var(--accent);
+    border-radius: 999px;
+}
+
+.rating-row progress::-moz-progress-bar {
+    background: var(--accent);
+    border-radius: 999px;
+}
+
+.seller-reputation button {
+    min-height: 34px;
+    margin-top: 12px;
+    padding: 0 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.seller-reputation button:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--surface-hover);
+}
+
+.seller-reputation button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.review-error {
+    color: #f87171 !important;
+}
+
+@media (max-width: 600px) {
+    .seller-reputation {
+        max-width: none;
+        padding: 12px;
+    }
+}

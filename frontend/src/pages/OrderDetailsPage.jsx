@@ -42,6 +42,7 @@ import {
     submitProductReview,
     hasOrderReview,
 } from "../lib/review";
+import "./OrderDetailsPage.css";
 
 function lamportsToSol(value) {
     try {
@@ -691,23 +692,12 @@ export default function OrderDetailsPage() {
     }
 
     return (
-        <main
-            style={{
-                maxWidth: 1100,
-                margin: "0 auto",
-                padding: 24,
-            }}
-        >
+        <main className="order-details-page">
             <Link to="/orders">
                 ← Back to Orders
             </Link>
 
-            <div
-                style={{
-                    marginTop: 24,
-                    marginBottom: 20,
-                }}
-            >
+            <div className="order-details-header">
                 <h1 style={{ marginBottom: 4 }}>
                     Order Details
                 </h1>
@@ -795,16 +785,14 @@ function OrderCard({
     const [showCancellationForm, setShowCancellationForm] = useState(false);
     const [cancellationReason, setCancellationReason] = useState("Out of stock");
     const [customCancellationReason, setCustomCancellationReason] = useState("");
-    const [showMutualCancellationForm, setShowMutualCancellationForm] =
-        useState(false);
+    const [showMutualCancellationForm, setShowMutualCancellationForm] = useState(false);
     const [mutualCancellationReason, setMutualCancellationReason] =
         useState(
             role === "buyer"
                 ? "Changed my mind"
                 : "Unable to fulfill the order"
         );
-    const [customMutualCancellationReason, setCustomMutualCancellationReason] =
-        useState("");
+    const [customMutualCancellationReason, setCustomMutualCancellationReason] = useState("");
 
 
 
@@ -853,8 +841,7 @@ function OrderCard({
         escrow.publicKey,
     ]);
 
-    const timeline =
-        getEscrowTimeline(escrow);
+    const timeline = getEscrowTimeline(escrow);
 
     const sellerDepositedLamports =
         Number(
@@ -1024,203 +1011,110 @@ function OrderCard({
         shortenAddress(getSellerAddress(escrow));
 
 
-    const buyerRefundLamports =
-        calculateBuyerRefund(escrow);
+    const buyerRefundLamports = calculateBuyerRefund(escrow);
+
+    console.log("order details page product: ", product)
 
     return (
-        <article
-            style={{
-                border:
-                    "1px solid #ddd",
-                borderRadius: 16,
-                padding: 20,
-                marginTop: 16,
-                background: "#fff",
-            }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    gap: 20,
-                    flexWrap: "wrap",
-                }}
-            >
-                <div
-                    style={{
-                        width: 160,
-                        flexShrink: 0,
-                    }}
-                >
-                    {product?.imageUri ? (
-                        <img
-                            src={
-                                product.imageUri
-                            }
-                            alt={
-                                product.title
-                            }
-                            style={{
-                                width: "100%",
-                                height: 150,
-                                objectFit:
-                                    "cover",
-                                borderRadius:
-                                    12,
-                            }}
-                        />
+        <article className="order-detail-card">
+            <div className="order-detail-main">
+                <div className="order-detail-media">
+                    {Array.isArray(product?.imageUris) && product.imageUris.length > 0 ? (
+                        <>
+                            <img
+                                src={product.imageUris[0]}
+                                alt={product.title}
+                                className="order-detail-image"
+                            />
+
+                            {product.imageUris.length > 1 && (
+                                <div className="order-detail-thumbnails">
+                                    {product.imageUris.map((imageUri, index) => (
+                                        <img
+                                            key={`${imageUri}-${index}`}
+                                            src={imageUri}
+                                            alt={`${product.title} ${index + 1}`}
+                                            className="order-detail-thumbnail"
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     ) : (
-                        <div
-                            style={{
-                                width: "100%",
-                                height: 150,
-                                borderRadius:
-                                    12,
-                                border:
-                                    "1px solid #ddd",
-                                display:
-                                    "flex",
-                                alignItems:
-                                    "center",
-                                justifyContent:
-                                    "center",
-                            }}
-                        >
+                        <div className="order-detail-no-image">
                             No Image
                         </div>
                     )}
                 </div>
 
-                <div
-                    style={{
-                        flex: 1,
-                        minWidth: 260,
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent:
-                                "space-between",
-                            gap: 16,
-                            flexWrap:
-                                "wrap",
-                        }}
-                    >
+                <div className="order-detail-content">
+                    <div className="order-detail-title-row">
                         <div>
-                            <h3
-                                style={{
-                                    marginTop:
-                                        0,
-                                }}
-                            >
-                                {product?.title ||
-                                    "Product unavailable"}
-                            </h3>
-
-                            <p>
-                                Order {shortenAddress(escrow.publicKey)}{" "}
+                            <h3>{product?.title || "Product unavailable"}</h3>
+                            <div className="order-detail-number">
+                                <span>Order {shortenAddress(escrow.publicKey)}</span>
                                 <button
                                     type="button"
                                     onClick={() => navigator.clipboard.writeText(escrow.publicKey)}
                                 >
                                     Copy
                                 </button>
-                            </p>
+                            </div>
                         </div>
-
-                        <StatusBadge
-                            status={
-                                escrow.status
-                            }
-                        />
+                        <StatusBadge status={escrow.status} />
                     </div>
 
-                    <p>
-                        <strong>
-                            Quantity:
-                        </strong>{" "}
-                        {escrow.order
-                            ?.quantity || 1}
-                    </p>
+                    <div className="order-detail-stats">
+                        <div className="order-detail-stat">
+                            <span>Quantity:</span>
+                            <strong>{escrow.order?.quantity || 1}</strong>
+                        </div>
+                        <div className="order-detail-stat">
+                            <span>Product price:</span>
+                            <strong>{lamportsToSol(escrow.referenceAmount)} SOL</strong>
+                        </div>
+                        <div className="order-detail-stat">
+                            <span>Buyer total locked:</span>
+                            <strong>{lamportsToSol(escrow.requiredDepositA)} SOL</strong>
+                        </div>
+                        <div className="order-detail-stat">
+                            <span>Refundable buyer deposit:</span>
+                            <strong>{lamportsToSol(buyerRefundLamports)} SOL</strong>
+                        </div>
+                        <div className="order-detail-stat">
+                            <span>Seller refundable deposit:</span>
+                            <strong>{lamportsToSol(escrow.requiredDepositB)} SOL</strong>
+                        </div>
+                    </div>
 
-                    <p>
-                        <strong>
-                            Product price:
-                        </strong>{" "}
-                        {lamportsToSol(
-                            escrow.referenceAmount
-                        )}{" "}
-                        SOL
-                    </p>
-
-                    <p>
-                        <strong>
-                            Buyer total locked:
-                        </strong>{" "}
-                        {lamportsToSol(
-                            escrow.requiredDepositA
-                        )}{" "}
-                        SOL
-                    </p>
-
-                    <p>
-                        <strong>
-                            Refundable buyer
-                            deposit:
-                        </strong>{" "}
-                        {lamportsToSol(
-                            buyerRefundLamports
-                        )}{" "}
-                        SOL
-                    </p>
-
-                    <p>
-                        <strong>
-                            Seller refundable
-                            deposit:
-                        </strong>{" "}
-                        {lamportsToSol(
-                            escrow.requiredDepositB
-                        )}{" "}
-                        SOL
-                    </p>
-
-                    <p>
-                        <strong>
-                            Buyer:
-                        </strong>{" "}
-                        <span title={getBuyerAddress(escrow)}>
-                            {shortenAddress(
-                                getBuyerAddress(escrow)
+                    <div className="order-detail-parties">
+                        <div className="order-detail-party">
+                            <span>Buyer:</span>
+                            <strong title={getBuyerAddress(escrow)}>
+                                {shortenAddress(getBuyerAddress(escrow))}
+                            </strong>
+                            {getBuyerAddress(escrow) && (
+                                <code>{getBuyerAddress(escrow)}</code>
                             )}
-                        </span>
-                    </p>
+                        </div>
 
-                    {getBuyerAddress(escrow) && (
-                        <p
-                            style={{
-                                marginTop: -8,
-                                fontSize: 12,
-                                color: "#666",
-                                overflowWrap: "anywhere",
-                            }}
-                        >
-                            {getBuyerAddress(escrow)}
-                        </p>
-                    )}
+                        <div className="order-detail-party">
+                            <span>Seller:</span>
+                            <strong>{sellerDisplayName}</strong>
+                            {getSellerAddress(escrow) && (
+                                <code>{getSellerAddress(escrow)}</code>
+                            )}
+                        </div>
 
-                    <p>
-                        <strong>
-                            Seller:
-                        </strong>{" "}
-                        {sellerDisplayName}
-                    </p>
+                        {merchant?.shipsFrom && (
+                            <div className="order-detail-party">
+                                <span>Ships from:</span>
+                                <strong>{merchant.shipsFrom}</strong>
+                            </div>
+                        )}
+                    </div>
 
-                    {(
-                        escrow.status ===
-                            ESCROW_STATUS.COMPLETED ||
-                        completionSignature
-                    ) && (
+                    {(escrow.status === ESCROW_STATUS.COMPLETED || completionSignature) && (
                         <div className="transaction-section">
                             <h3>
                                 {isCancellationCompleted
@@ -1230,16 +1124,9 @@ function OrderCard({
 
                             {completionSignature ? (
                                 <>
-                                    <p
-                                        style={{
-                                            overflowWrap: "anywhere",
-                                            fontSize: 13,
-                                        }}
-                                    >
-                                        <strong>Transaction ID:</strong>{" "}
-                                        {completionSignature}
+                                    <p className="transaction-signature">
+                                        <strong>Transaction ID:</strong> {completionSignature}
                                     </p>
-
                                     <a
                                         href={`https://explorer.solana.com/tx/${completionSignature}?cluster=devnet`}
                                         target="_blank"
@@ -1251,349 +1138,237 @@ function OrderCard({
                             ) : loadingCompletionSignature ? (
                                 <p>Loading transaction...</p>
                             ) : (
-                                <p>
-                                    Transaction signature not found.
-                                </p>
+                                <p>Transaction signature not found.</p>
                             )}
                         </div>
                     )}
 
-                    {getSellerAddress(escrow) && (
-                        <p
-                            style={{
-                                marginTop: -8,
-                                fontSize: 12,
-                                color: "#666",
-                                overflowWrap: "anywhere",
-                            }}
-                        >
-                            {getSellerAddress(escrow)}
-                        </p>
-                    )}
+                    <div className="order-actions">
+                        {role === "seller" && sellerNeedsDeposit && (
+                            <button
+                                type="button"
+                                className="order-primary-button"
+                                onClick={onAccept}
+                                disabled={processing}
+                            >
+                                {processing
+                                    ? "Accepting..."
+                                    : `Accept Order and Deposit ${lamportsToSol(escrow.requiredDepositB)} SOL`}
+                            </button>
+                        )}
 
-                    {merchant?.shipsFrom && (
-                        <p>
-                            <strong>
-                                Ships from:
-                            </strong>{" "}
-                            {
-                                merchant.shipsFrom
-                            }
-                        </p>
-                    )}
+                        {canSellerRequestCancellation && (
+                            <div className="order-action-panel warning">
+                                <strong>Cannot fulfill this order?</strong>
 
-                    <div
-                        style={{
-                            marginTop: 20,
-                        }}
-                    >
-                        {role ===
-                            "seller" &&
-                            sellerNeedsDeposit && (
-                                <button
-                                    type="button"
-                                    onClick={
-                                        onAccept
-                                    }
-                                    disabled={
-                                        processing
-                                    }
-                                >
-                                    {processing
-                                        ? "Accepting..."
-                                        : `Accept Order and Deposit ${lamportsToSol(
-                                              escrow.requiredDepositB
-                                          )} SOL`}
-                                </button>
-                            )}
+                                {!showCancellationForm ? (
+                                    <>
+                                        <p>
+                                            Send a cancellation request directly to the buyer through the order chat.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCancellationForm(true)}
+                                            disabled={processing}
+                                        >
+                                            Request Cancellation
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="order-action-form">
+                                        <label>Cancellation reason</label>
 
-                            {canSellerRequestCancellation && (
-                                <div
-                                    style={{
-                                        marginTop: 14,
-                                        padding: 14,
-                                        border: "1px solid #fcd34d",
-                                        borderRadius: 10,
-                                        background: "#fffbeb",
-                                        maxWidth: 520,
-                                    }}
-                                >
-                                    <strong>Cannot fulfill this order?</strong>
+                                        <select
+                                            value={cancellationReason}
+                                            onChange={event => setCancellationReason(event.target.value)}
+                                            disabled={processing}
+                                        >
+                                            <option value="Out of stock">Out of stock</option>
+                                            <option value="Unable to fulfill the order">
+                                                Unable to fulfill the order
+                                            </option>
+                                            <option value="Incorrect product information">
+                                                Incorrect product information
+                                            </option>
+                                            <option value="Shipping is unavailable">
+                                                Shipping is unavailable
+                                            </option>
+                                            <option value="Other">Other</option>
+                                        </select>
 
-                                    {!showCancellationForm ? (
-                                        <>
-                                            <p>
-                                                Send a cancellation request directly
-                                                to the buyer through the order chat.
-                                            </p>
+                                        {cancellationReason === "Other" && (
+                                            <textarea
+                                                value={customCancellationReason}
+                                                onChange={event => setCustomCancellationReason(event.target.value)}
+                                                maxLength={160}
+                                                rows={3}
+                                                placeholder="Enter the reason..."
+                                                disabled={processing}
+                                            />
+                                        )}
 
+                                        <div className="order-action-buttons">
                                             <button
                                                 type="button"
-                                                onClick={() =>
-                                                    setShowCancellationForm(true)
-                                                }
+                                                onClick={sendSellerCancellationRequest}
                                                 disabled={processing}
                                             >
-                                                Request Cancellation
+                                                {processing ? "Sending..." : "Send Cancellation Request"}
                                             </button>
-                                        </>
-                                    ) : (
-                                        <div style={{ marginTop: 12 }}>
-                                            <label style={{ display: "block", marginBottom: 8 }}>
-                                                Cancellation reason
-                                            </label>
-
-                                            <select
-                                                value={cancellationReason}
-                                                onChange={(event) =>
-                                                    setCancellationReason(event.target.value)
-                                                }
-                                                disabled={processing}
-                                                style={{
-                                                    width: "100%",
-                                                    padding: 10,
-                                                    boxSizing: "border-box",
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowCancellationForm(false);
+                                                    setCustomCancellationReason("");
                                                 }}
+                                                disabled={processing}
                                             >
-                                                <option value="Out of stock">Out of stock</option>
-                                                <option value="Unable to fulfill the order">
-                                                    Unable to fulfill the order
-                                                </option>
-                                                <option value="Incorrect product information">
-                                                    Incorrect product information
-                                                </option>
-                                                <option value="Shipping is unavailable">
-                                                    Shipping is unavailable
-                                                </option>
-                                                <option value="Other">Other</option>
-                                            </select>
-
-                                            {cancellationReason === "Other" && (
-                                                <textarea
-                                                    value={customCancellationReason}
-                                                    onChange={(event) =>
-                                                        setCustomCancellationReason(event.target.value)
-                                                    }
-                                                    maxLength={160}
-                                                    rows={3}
-                                                    placeholder="Enter the reason..."
-                                                    disabled={processing}
-                                                    style={{
-                                                        width: "100%",
-                                                        padding: 10,
-                                                        marginTop: 10,
-                                                        boxSizing: "border-box",
-                                                        resize: "vertical",
-                                                    }}
-                                                />
-                                            )}
-
-                                            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={sendSellerCancellationRequest}
-                                                    disabled={processing}
-                                                >
-                                                    {processing
-                                                        ? "Sending..."
-                                                        : "Send Cancellation Request"}
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setShowCancellationForm(false);
-                                                        setCustomCancellationReason("");
-                                                    }}
-                                                    disabled={processing}
-                                                >
-                                                    Back
-                                                </button>
-                                            </div>
+                                                Back
+                                            </button>
                                         </div>
-                                    )}
-                                </div>
-                            )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                        {role ===
-                            "seller" &&
-                            escrow.status ===
-                                ESCROW_STATUS.DEPOSITS_COMPLETE && (
-                                <div>
-                                    {!showCompletionOptions ? (
-                                        <button type="button" onClick={() => setShowCompletionOptions(true)} disabled={processing}>
-                                            Mark Ready for Buyer Confirmation
-                                        </button>
-                                    ) : (
-                                        <div style={{ padding: 16, border: "1px solid #ddd", borderRadius: 12, background: "#f9fafb", maxWidth: 520 }}>
-                                            <strong>Optional website donation: {donationPercent}%</strong>
-                                            <input type="range" min="0" max="100" step="1" value={donationPercent}
-                                                onChange={(e) => setDonationPercent(Number(e.target.value))}
-                                                disabled={processing} style={{ width: "100%", marginTop: 12 }} />
-                                            <p>Donation amount: <strong>{lamportsToSol(Math.floor(Number(escrow.referenceAmount) * donationPercent / 100))} SOL</strong></p>
-                                            <small>Deducted only from seller proceeds. Buyer refund is unchanged.</small>
-                                            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-                                                <button type="button" onClick={() => onProposeCompletion(donationPercent)} disabled={processing}>
-                                                    {processing ? "Proposing..." : donationPercent > 0 ? `Confirm Ready + Donate ${donationPercent}%` : "Confirm Ready Without Donation"}
-                                                </button>
-                                                <button type="button" onClick={() => { setDonationPercent(0); setShowCompletionOptions(false); }} disabled={processing}>Cancel</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            
-
-                        {role ===
-                            "buyer" &&
-                            escrow.status ===
-                                ESCROW_STATUS.FINALIZATION_SUGGESTED && (
-                                <div>
-                                    <div
-                                        style={{
-                                            marginBottom:
-                                                14,
-                                            padding:
-                                                14,
-                                            border:
-                                                "1px solid #ddd",
-                                            borderRadius:
-                                                10,
-                                            background:
-                                                "#f9fafb",
-                                        }}
+                        {role === "seller" &&
+                            escrow.status === ESCROW_STATUS.DEPOSITS_COMPLETE && (
+                            <>
+                                {!showCompletionOptions ? (
+                                    <button
+                                        type="button"
+                                        className="order-primary-button"
+                                        onClick={() => setShowCompletionOptions(true)}
+                                        disabled={processing}
                                     >
-                                        <p>
-                                            <strong>
-                                                Deposit
-                                                returned
-                                                to you:
-                                            </strong>{" "}
-                                            {lamportsToSol(
-                                                escrow.proposedPayoutA
-                                            )}{" "}
-                                            SOL
-                                        </p>
+                                        Mark Ready for Buyer Confirmation
+                                    </button>
+                                ) : (
+                                    <div className="order-action-panel">
+                                        <strong>Optional website donation: {donationPercent}%</strong>
+
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            value={donationPercent}
+                                            onChange={event => setDonationPercent(Number(event.target.value))}
+                                            disabled={processing}
+                                        />
 
                                         <p>
+                                            Donation amount:{" "}
                                             <strong>
-                                                Released
-                                                to seller:
-                                            </strong>{" "}
-                                            {lamportsToSol(
-                                                escrow.proposedPayoutB
-                                            )}{" "}
-                                            SOL
+                                                {lamportsToSol(
+                                                    Math.floor(
+                                                        Number(escrow.referenceAmount) *
+                                                        donationPercent /
+                                                        100
+                                                    )
+                                                )} SOL
+                                            </strong>
                                         </p>
 
                                         <small>
-                                            Confirm
-                                            only after
-                                            receiving
-                                            and checking
-                                            the product.
+                                            Deducted only from seller proceeds. Buyer refund is unchanged.
                                         </small>
-                                    </div>
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            gap: 10,
-                                            flexWrap: "wrap",
-                                        }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={onRetrieveDeposit}
-                                            disabled={processing}
-                                        >
-                                            {processing
-                                                ? "Processing..."
-                                                : "Retrieve Deposit & Release Payment"}
-                                        </button>
 
-                                        <button
-                                            type="button"
-                                            onClick={onRejectFinalization}
-                                            disabled={processing}
-                                        >
-                                            {processing
-                                                ? "Processing..."
-                                                : "Reject Ready Status"}
-                                        </button>
-                                    </div>
+                                        <div className="order-action-buttons">
+                                            <button
+                                                type="button"
+                                                onClick={() => onProposeCompletion(donationPercent)}
+                                                disabled={processing}
+                                            >
+                                                {processing
+                                                    ? "Proposing..."
+                                                    : donationPercent > 0
+                                                    ? `Confirm Ready + Donate ${donationPercent}%`
+                                                    : "Confirm Ready Without Donation"}
+                                            </button>
 
-                                    <p
-                                        style={{
-                                            marginTop: 10,
-                                            color: "#666",
-                                            fontSize: 13,
-                                        }}
-                                    >
-                                        Reject the ready status first if you need
-                                        to request mutual cancellation.
-                                    </p>
-                                </div>
-                            )}
-
-
-
-                        {role ===
-                            "buyer" &&
-                            escrow.status ===
-                                ESCROW_STATUS.COMPLETED && (
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gap: 16,
-                                        maxWidth: 520,
-                                    }}
-                                >
-                                    {checkingReview ? (
-                                        <p>Checking review status...</p>
-                                    ) : reviewExists ? (
-                                        <div
-                                            style={{
-                                                padding: 14,
-                                                border: "1px solid #bbf7d0",
-                                                borderRadius: 10,
-                                                background: "#f0fdf4",
-                                            }}
-                                        >
-                                            Review already submitted.
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setDonationPercent(0);
+                                                    setShowCompletionOptions(false);
+                                                }}
+                                                disabled={processing}
+                                            >
+                                                Cancel
+                                            </button>
                                         </div>
-                                    ) : (
-                                        <div
-                                            style={{
-                                                padding: 16,
-                                                border: "1px solid #ddd",
-                                                borderRadius: 12,
-                                                background: "#f9fafb",
-                                            }}
-                                        >
-                                            <h4 style={{ marginTop: 0 }}>
-                                                Review this product
-                                            </h4>
+                                    </div>
+                                )}
+                            </>
+                        )}
 
-                                            <p style={{ color: "#666", marginTop: 4 }}>
-                                                Optional: You may leave a review before closing the order.
-                                            </p>
+                        {role === "buyer" &&
+                            escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED && (
+                            <div className="order-action-group">
+                                <div className="order-action-panel info">
+                                    <p>
+                                        <strong>Deposit returned to you:</strong>{" "}
+                                        {lamportsToSol(escrow.proposedPayoutA)} SOL
+                                    </p>
+                                    <p>
+                                        <strong>Released to seller:</strong>{" "}
+                                        {lamportsToSol(escrow.proposedPayoutB)} SOL
+                                    </p>
+                                    <small>
+                                        Confirm only after receiving and checking the product.
+                                    </small>
+                                </div>
 
-                                            <label style={{ display: "block", marginBottom: 8 }}>
-                                                Rating
-                                            </label>
+                                <div className="order-action-buttons">
+                                    <button
+                                        type="button"
+                                        className="order-primary-button"
+                                        onClick={onRetrieveDeposit}
+                                        disabled={processing}
+                                    >
+                                        {processing
+                                            ? "Processing..."
+                                            : "Retrieve Deposit & Release Payment"}
+                                    </button>
 
+                                    <button
+                                        type="button"
+                                        onClick={onRejectFinalization}
+                                        disabled={processing}
+                                    >
+                                        {processing ? "Processing..." : "Reject Ready Status"}
+                                    </button>
+                                </div>
+
+                                <p className="order-action-note">
+                                    Reject the ready status first if you need to request mutual cancellation.
+                                </p>
+                            </div>
+                        )}
+
+                        {role === "buyer" &&
+                            escrow.status === ESCROW_STATUS.COMPLETED && (
+                            <div className="order-action-group">
+                                {checkingReview ? (
+                                    <p className="order-action-note">Checking review status...</p>
+                                ) : reviewExists ? (
+                                    <div className="order-action-panel success">
+                                        Review already submitted.
+                                    </div>
+                                ) : (
+                                    <div className="order-action-panel">
+                                        <h4>Review this product</h4>
+                                        <p>
+                                            Optional: You may leave a review before closing the order.
+                                        </p>
+
+                                        <div className="order-action-form">
+                                            <label>Rating</label>
                                             <select
                                                 value={rating}
-                                                onChange={(event) =>
-                                                    setRating(Number(event.target.value))
-                                                }
+                                                onChange={event => setRating(Number(event.target.value))}
                                                 disabled={processing}
-                                                style={{
-                                                    width: "100%",
-                                                    padding: 10,
-                                                    marginBottom: 12,
-                                                }}
                                             >
                                                 <option value={5}>5 - Excellent</option>
                                                 <option value={4}>4 - Very Good</option>
@@ -1602,145 +1377,80 @@ function OrderCard({
                                                 <option value={1}>1 - Poor</option>
                                             </select>
 
-                                            <label style={{ display: "block", marginBottom: 8 }}>
-                                                Comment
-                                            </label>
-
+                                            <label>Comment</label>
                                             <textarea
                                                 value={reviewComment}
-                                                onChange={(event) =>
-                                                    setReviewComment(event.target.value)
-                                                }
+                                                onChange={event => setReviewComment(event.target.value)}
                                                 maxLength={280}
                                                 rows={4}
                                                 placeholder="Share your experience with this product..."
                                                 disabled={processing}
-                                                style={{
-                                                    width: "100%",
-                                                    padding: 10,
-                                                    resize: "vertical",
-                                                    boxSizing: "border-box",
-                                                }}
                                             />
 
-                                            <small>
-                                                {reviewComment.length}/280
-                                            </small>
+                                            <small>{reviewComment.length}/280</small>
 
                                             <button
                                                 type="button"
                                                 disabled={processing}
                                                 onClick={async () => {
-                                                    const success =
-                                                        await onSubmitReview(
-                                                            rating,
-                                                            reviewComment
-                                                        );
+                                                    const success = await onSubmitReview(
+                                                        rating,
+                                                        reviewComment
+                                                    );
 
                                                     if (success) {
                                                         setReviewExists(true);
                                                     }
                                                 }}
-                                                style={{
-                                                    display: "block",
-                                                    marginTop: 14,
-                                                }}
                                             >
-                                                {processing
-                                                    ? "Submitting Review..."
-                                                    : "Submit Review"}
+                                                {processing ? "Submitting Review..." : "Submit Review"}
                                             </button>
                                         </div>
-                                    )}
+                                    </div>
+                                )}
 
-                                    <button
-                                        type="button"
-                                        onClick={onCloseOrder}
-                                        disabled={processing}
-                                    >
-                                        {processing
-                                            ? "Processing..."
-                                            : "Close Order and Recover Rent"}
-                                    </button>
-                                </div>
-                            )}
+                                <button
+                                    type="button"
+                                    onClick={onCloseOrder}
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? "Processing..."
+                                        : "Close Order and Recover Rent"}
+                                </button>
+                            </div>
+                        )}
 
                         {canRequestMutualCancellation && (
-                            <div
-                                style={{
-                                    padding: 14,
-                                    border:
-                                        "1px solid #fde68a",
-                                    borderRadius: 10,
-                                    background:
-                                        "#fffbeb",
-                                    maxWidth: 520,
-                                }}
-                            >
-                                <strong>
-                                    Need to cancel after acceptance?
-                                </strong>
+                            <div className="order-action-panel warning">
+                                <strong>Need to cancel after acceptance?</strong>
 
                                 {!showMutualCancellationForm ? (
                                     <>
                                         <p>
-                                            Either buyer or seller may
-                                            request cancellation. The
-                                            other party must approve,
-                                            and each party receives its
+                                            Either buyer or seller may request cancellation. The
+                                            other party must approve, and each party receives its
                                             own deposited funds.
                                         </p>
 
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                setShowMutualCancellationForm(
-                                                    true
-                                                )
-                                            }
-                                            disabled={
-                                                processing
-                                            }
+                                            onClick={() => setShowMutualCancellationForm(true)}
+                                            disabled={processing}
                                         >
                                             Request Mutual Cancellation
                                         </button>
                                     </>
                                 ) : (
-                                    <div
-                                        style={{
-                                            marginTop: 12,
-                                        }}
-                                    >
-                                        <label
-                                            style={{
-                                                display:
-                                                    "block",
-                                                marginBottom:
-                                                    8,
-                                            }}
-                                        >
-                                            Cancellation reason
-                                        </label>
+                                    <div className="order-action-form">
+                                        <label>Cancellation reason</label>
 
                                         <select
-                                            value={
-                                                mutualCancellationReason
+                                            value={mutualCancellationReason}
+                                            onChange={event =>
+                                                setMutualCancellationReason(event.target.value)
                                             }
-                                            onChange={(event) =>
-                                                setMutualCancellationReason(
-                                                    event.target.value
-                                                )
-                                            }
-                                            disabled={
-                                                processing
-                                            }
-                                            style={{
-                                                width:
-                                                    "100%",
-                                                padding: 10,
-                                                boxSizing:
-                                                    "border-box",
-                                            }}
+                                            disabled={processing}
                                         >
                                             {role === "buyer" && (
                                                 <>
@@ -1770,64 +1480,29 @@ function OrderCard({
                                                 </>
                                             )}
 
-                                            <option value="Other">
-                                                Other
-                                            </option>
+                                            <option value="Other">Other</option>
                                         </select>
 
-                                        {mutualCancellationReason ===
-                                            "Other" && (
+                                        {mutualCancellationReason === "Other" && (
                                             <textarea
-                                                value={
-                                                    customMutualCancellationReason
-                                                }
-                                                onChange={(event) =>
+                                                value={customMutualCancellationReason}
+                                                onChange={event =>
                                                     setCustomMutualCancellationReason(
                                                         event.target.value
                                                     )
                                                 }
-                                                maxLength={
-                                                    120
-                                                }
+                                                maxLength={120}
                                                 rows={3}
                                                 placeholder="Enter the reason..."
-                                                disabled={
-                                                    processing
-                                                }
-                                                style={{
-                                                    width:
-                                                        "100%",
-                                                    padding:
-                                                        10,
-                                                    marginTop:
-                                                        10,
-                                                    boxSizing:
-                                                        "border-box",
-                                                    resize:
-                                                        "vertical",
-                                                }}
+                                                disabled={processing}
                                             />
                                         )}
 
-                                        <div
-                                            style={{
-                                                display:
-                                                    "flex",
-                                                gap: 10,
-                                                marginTop:
-                                                    14,
-                                                flexWrap:
-                                                    "wrap",
-                                            }}
-                                        >
+                                        <div className="order-action-buttons">
                                             <button
                                                 type="button"
-                                                onClick={
-                                                    submitMutualCancellationRequest
-                                                }
-                                                disabled={
-                                                    processing
-                                                }
+                                                onClick={submitMutualCancellationRequest}
+                                                disabled={processing}
                                             >
                                                 {processing
                                                     ? "Submitting..."
@@ -1837,16 +1512,10 @@ function OrderCard({
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setShowMutualCancellationForm(
-                                                        false
-                                                    );
-                                                    setCustomMutualCancellationReason(
-                                                        ""
-                                                    );
+                                                    setShowMutualCancellationForm(false);
+                                                    setCustomMutualCancellationReason("");
                                                 }}
-                                                disabled={
-                                                    processing
-                                                }
+                                                disabled={processing}
                                             >
                                                 Back
                                             </button>
@@ -1857,27 +1526,12 @@ function OrderCard({
                         )}
 
                         {mutualCancellationPending && (
-                            <div
-                                style={{
-                                    padding: 14,
-                                    border:
-                                        "1px solid #c4b5fd",
-                                    borderRadius: 10,
-                                    background:
-                                        "#f5f3ff",
-                                    maxWidth: 520,
-                                }}
-                            >
-                                <strong>
-                                    Mutual cancellation requested
-                                </strong>
+                            <div className="order-action-panel cancellation">
+                                <strong>Mutual cancellation requested</strong>
 
                                 <p>
                                     Requested by{" "}
-                                    {cancellationRequester ===
-                                    getBuyerAddress(
-                                        escrow
-                                    )
+                                    {cancellationRequester === getBuyerAddress(escrow)
                                         ? "buyer"
                                         : "seller"}
                                     .
@@ -1885,76 +1539,42 @@ function OrderCard({
 
                                 {pendingCancellationReason && (
                                     <p>
-                                        <strong>
-                                            Reason:
-                                        </strong>{" "}
-                                        {
-                                            pendingCancellationReason
-                                        }
+                                        <strong>Reason:</strong>{" "}
+                                        {pendingCancellationReason}
                                     </p>
                                 )}
 
                                 <p>
                                     Buyer refund:{" "}
                                     <strong>
-                                        {lamportsToSol(
-                                            escrow.proposedPayoutA
-                                        )}{" "}
-                                        SOL
+                                        {lamportsToSol(escrow.proposedPayoutA)} SOL
                                     </strong>
                                     <br />
                                     Seller refund:{" "}
                                     <strong>
-                                        {lamportsToSol(
-                                            escrow.proposedPayoutB
-                                        )}{" "}
-                                        SOL
+                                        {lamportsToSol(escrow.proposedPayoutB)} SOL
                                     </strong>
                                 </p>
 
                                 {currentUserRequestedCancellation ? (
-                                    <p
-                                        style={{
-                                            marginBottom:
-                                                0,
-                                        }}
-                                    >
-                                        Waiting for the other
-                                        party to approve or
-                                        decline.
+                                    <p className="order-action-note">
+                                        Waiting for the other party to approve or decline.
                                     </p>
                                 ) : canRespondToMutualCancellation ? (
-                                    <div
-                                        style={{
-                                            display:
-                                                "flex",
-                                            gap: 10,
-                                            flexWrap:
-                                                "wrap",
-                                        }}
-                                    >
+                                    <div className="order-action-buttons">
                                         <button
                                             type="button"
-                                            onClick={
-                                                onApproveCancellation
-                                            }
-                                            disabled={
-                                                processing
-                                            }
+                                            className="order-primary-button"
+                                            onClick={onApproveCancellation}
+                                            disabled={processing}
                                         >
-                                            {processing
-                                                ? "Processing..."
-                                                : "Approve Cancellation"}
+                                            {processing ? "Processing..." : "Approve Cancellation"}
                                         </button>
 
                                         <button
                                             type="button"
-                                            onClick={
-                                                onDeclineCancellation
-                                            }
-                                            disabled={
-                                                processing
-                                            }
+                                            onClick={onDeclineCancellation}
+                                            disabled={processing}
                                         >
                                             Decline
                                         </button>
@@ -1964,114 +1584,53 @@ function OrderCard({
                         )}
 
                         {canBuyerWithdraw && (
-                                <div
-                                    style={{
-                                        padding: 14,
-                                        border:
-                                            "1px solid #fecaca",
-                                        borderRadius: 10,
-                                        background:
-                                            "#fef2f2",
-                                        maxWidth: 520,
-                                    }}
-                                >
-                                    <p
-                                        style={{
-                                            marginTop: 0,
-                                        }}
-                                    >
-                                        The seller has not accepted
-                                        this order yet. You may
-                                        withdraw and receive a full
-                                        refund.
-                                    </p>
+                            <div className="order-action-panel danger">
+                                <p>
+                                    The seller has not accepted this order yet. You may withdraw
+                                    and receive a full refund.
+                                </p>
 
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            onWithdrawOrder
-                                        }
-                                        disabled={
-                                            processing
-                                        }
-                                    >
-                                        {processing
-                                            ? "Withdrawing..."
-                                            : `Withdraw Order & Refund ${lamportsToSol(
-                                                escrow.depositedA
-                                            )} SOL`}
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onWithdrawOrder}
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? "Withdrawing..."
+                                        : `Withdraw Order & Refund ${lamportsToSol(
+                                            escrow.depositedA
+                                        )} SOL`}
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            <div
-                style={{
-                    marginTop: 24,
-                    borderTop:
-                        "1px solid #eee",
-                    paddingTop: 20,
-                }}
-            >
+            <div className="order-timeline">
                 <h4>Order Timeline</h4>
 
-                <div
-                    style={{
-                        display: "grid",
-                        gap: 12,
-                    }}
-                >
-                    {timeline.map(
-                        (
-                            event,
-                            index
-                        ) => (
-                            <div
-                                key={`${event.label}-${index}`}
-                                style={{
-                                    display:
-                                        "flex",
-                                    gap: 12,
-                                    alignItems:
-                                        "flex-start",
-                                }}
-                            >
-                                <span>
-                                    {event.completed
-                                        ? "✅"
-                                        : "○"}
-                                </span>
+                <div className="order-timeline-list">
+                    {timeline.map((event, index) => (
+                        <div
+                            key={`${event.label}-${index}`}
+                            className={`order-timeline-item${event.completed ? " completed" : ""}`}
+                        >
+                            <span className="order-timeline-marker">
+                                {event.completed ? "✓" : ""}
+                            </span>
 
-                                <div>
-                                    <strong>
-                                        {
-                                            event.label
-                                        }
-                                    </strong>
+                            <div>
+                                <strong>{event.label}</strong>
 
-                                    {event.timestamp >
-                                        0 && (
-                                        <div
-                                            style={{
-                                                fontSize:
-                                                    13,
-                                                color:
-                                                    "#666",
-                                                marginTop:
-                                                    2,
-                                            }}
-                                        >
-                                            {formatTimestamp(
-                                                event.timestamp
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
+                                {event.timestamp > 0 && (
+                                    <span className="order-timeline-date">
+                                        {formatTimestamp(event.timestamp)}
+                                    </span>
+                                )}
                             </div>
-                        )
-                    )}
+                        </div>
+                    ))}
                 </div>
             </div>
 
