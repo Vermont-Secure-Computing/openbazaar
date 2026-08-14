@@ -20,11 +20,45 @@ function getMerchantAddress(merchant) {
     );
 }
 
-export default function MerchantList() {
+export default function MerchantList({
+    search = "",
+    page = 1,
+    itemsPerPage = 12,
+    onPageChange,
+}) {
     const [merchants, setMerchants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [failedLogos, setFailedLogos] = useState({});
+
+    const query = search.trim().toLowerCase();
+
+    const filteredMerchants = merchants.filter(merchant => {
+        if (!query) return true;
+
+        const storeName = merchant.storeName?.toLowerCase() || "";
+        const description = merchant.descriptionUri?.toLowerCase() || "";
+        const location = merchant.shipsFrom?.toLowerCase() || "";
+
+        return (
+            storeName.includes(query) ||
+            description.includes(query) ||
+            location.includes(query)
+        );
+    });
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(filteredMerchants.length / itemsPerPage)
+    );
+
+    const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+
+    const paginatedMerchants = filteredMerchants.slice(
+        startIndex,
+        startIndex + itemsPerPage
+    );
 
     const load = async () => {
         try {
@@ -55,7 +89,7 @@ export default function MerchantList() {
         <section className="merchant-list-section">
             <div className="merchant-list-header">
                 <div>
-                    <h2>Merchant List</h2>
+                    <h2>Merchants</h2>
                 </div>
 
                 <button
@@ -82,107 +116,126 @@ export default function MerchantList() {
                 </div>
             )}
 
-            {!loading && !error && merchants.length === 0 && (
+            {!loading && !error && filteredMerchants.length === 0 && (
                 <div className="merchant-empty">
-                    <strong>No merchants yet</strong>
-                    <p>
-                        Stores will appear here after merchants register.
-                    </p>
-                </div>
+                <strong>
+                    {search ? "No merchants found" : "No merchants yet"}
+                </strong>
+
+                <p>
+                    {search ? "Try a different search." : "Stores will appear here after merchants register."}
+                </p>
+            </div>
             )}
 
 
-            {!loading && !error && merchants.length > 0 && (
-                <div className="merchant-grid">
-                    {merchants.map((merchant) => {
-                        const merchantAddress = getMerchantAddress(merchant);
-                        const logoUri =  merchant.logoUri || "";
+            {!loading && !error && filteredMerchants.length > 0 && (
+                <>
+                    <div className="merchant-grid">
+                        {paginatedMerchants.map((merchant) => {
+                            const merchantAddress = getMerchantAddress(merchant);
+                            const logoUri =  merchant.logoUri || "";
 
-                        const logoFailed = failedLogos[merchantAddress];
-                        
-                        const merchantInitial =
-                            ( merchant.storeName || "S" )
-                            .slice(0, 1)
-                            .toUpperCase();
+                            const logoFailed = failedLogos[merchantAddress];
+                            
+                            const merchantInitial =
+                                ( merchant.storeName || "S" )
+                                .slice(0, 1)
+                                .toUpperCase();
 
-                        return (
-                            <article
-                                key={
-                                    merchant.publicKey?.toString?.() ??
-                                    merchantAddress
-                                }
-                                className="merchant-card"
-                            >
-                                <div className="merchant-card-header">
-                                    <div className="merchant-avatar">
-                                        {logoUri && !logoFailed ? (
-                                            <img
-                                                src={logoUri}
-                                                alt={`${merchant.storeName || "Merchant"} logo`}
-                                                className="merchant-avatar-image"
-                                                onError={() => {
-                                                    setFailedLogos((current) => ({
-                                                        ...current,
-                                                        [merchantAddress]: true,
-                                                    }));
-                                                }}
-                                            />
-                                        ) : (
-                                            <span className="merchant-avatar-fallback">
-                                                {merchantInitial}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <div className="merchant-card-title">
-                                        <div className="merchant-name-row">
-                                            <h3>
-                                                {merchant.storeName ||
-                                                    "Unnamed Store"}
-                                            </h3>
-
-                                            {merchant.verified && (
-                                                <span className="merchant-verified">
-                                                    Verified
+                            return (
+                                <article
+                                    key={
+                                        merchant.publicKey?.toString?.() ??
+                                        merchantAddress
+                                    }
+                                    className="merchant-card"
+                                >
+                                    <div className="merchant-card-header">
+                                        <div className="merchant-avatar">
+                                            {logoUri && !logoFailed ? (
+                                                <img
+                                                    src={logoUri}
+                                                    alt={`${merchant.storeName || "Merchant"} logo`}
+                                                    className="merchant-avatar-image"
+                                                    onError={() => {
+                                                        setFailedLogos((current) => ({
+                                                            ...current,
+                                                            [merchantAddress]: true,
+                                                        }));
+                                                    }}
+                                                />
+                                            ) : (
+                                                <span className="merchant-avatar-fallback">
+                                                    {merchantInitial}
                                                 </span>
                                             )}
                                         </div>
 
-                                        <span className="merchant-location">
-                                            Ships from{" "}
-                                            {merchant.shipsFrom ||
-                                                "Not specified"}
+                                        <div className="merchant-card-title">
+                                            <div className="merchant-name-row">
+                                                <h3>{merchant.storeName || "Unnamed Store"}</h3>
+
+                                                {merchant.verified && (
+                                                    <span className="merchant-verified">
+                                                        Verified
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <span className="merchant-location">
+                                                Ships from{" "}
+                                                {merchant.shipsFrom || "Not specified"}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <p className="merchant-description">
+                                        {truncate(merchant.descriptionUri || "No store description provided.", 140)}
+                                    </p>
+
+                                    <div className="merchant-footer">
+                                        <span className="merchant-sold">
+                                            {Number(merchant.totalSold ?? 0)}{" "}
+                                            {Number(merchant.totalSold ?? 0) === 1 ? "item sold" : "items sold"}
                                         </span>
                                     </div>
-                                </div>
 
-                                <p className="merchant-description">
-                                    {truncate(
-                                        merchant.descriptionUri ||
-                                            "No store description provided.",
-                                        140
-                                    )}
-                                </p>
+                                    <Link
+                                        to={`/merchant/${merchantAddress}`}
+                                        className="merchant-visit-link"
+                                    >
+                                        Visit Store
+                                    </Link>
+                                </article>
+                            );
+                        })}
+                    </div>
 
-                                <div className="merchant-footer">
-                                    <span className="merchant-sold">
-                                        {Number(merchant.totalSold ?? 0)}{" "}
-                                        {Number(merchant.totalSold ?? 0) === 1
-                                            ? "item sold"
-                                            : "items sold"}
-                                    </span>
-                                </div>
+                    {totalPages > 1 && (
+                        <div className="marketplace-pagination">
+                            <button
+                                type="button"
+                                disabled={currentPage === 1}
+                                onClick={() => onPageChange(currentPage - 1)}
+                            >
+                                Previous
+                            </button>
 
-                                <Link
-                                    to={`/merchant/${merchantAddress}`}
-                                    className="merchant-visit-link"
-                                >
-                                    Visit Store
-                                </Link>
-                            </article>
-                        );
-                    })}
-                </div>
+                            <span>
+                                Page {currentPage} of {totalPages}
+                            </span>
+
+                            <button
+                                type="button"
+                                disabled={currentPage === totalPages}
+                                onClick={() => onPageChange(currentPage + 1)}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </section>
     );
