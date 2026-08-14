@@ -1,113 +1,140 @@
-import { useEffect, useState } from "react";
-import { program } from "../lib/anchor";
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Link } from "react-router-dom";
 
-export default function ProductList() {
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+export default function ProductList({
+    products,
+    search,
+    page,
+    itemsPerPage,
+    onPageChange,
+    loading,
+}) {
+    const query = search.trim().toLowerCase();
 
-    const loadProducts = async () => {
-        try {
-            setLoading(true);
+    const filteredProducts = products.filter(product => {
+        if (!query) return true;
 
-            const rawAccounts =
-                await program.provider.connection.getProgramAccounts(
-                    program.programId
-                );
+        const title = product.title?.toLowerCase() || "";
+        const description = product.description?.toLowerCase() || "";
+        const category = product.category?.toLowerCase() || "";
 
-            const decodedProducts = [];
-
-            for (const item of rawAccounts) {
-                try {
-        const product = program.coder.accounts.decode(
-            "product",
-            item.account.data
+        return (
+            title.includes(query) ||
+            description.includes(query) ||
+            category.includes(query)
         );
+    });
 
-        console.log("Decoded product:", product);
+    const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
 
-        decodedProducts.push({
-            publicKey: item.pubkey.toBase58(),
-            merchant: product.merchant.toBase58(),
-            productId: product.productId.toString(),
-            title: product.title,
-            description: product.descriptionUri,
-            imageUri: product.imageUri,
-            category: product.category,
-            price: product.price.toString(),
-            stock: product.stock,
-            sold: product.sold,
-            active: product.active,
-            deleted: product.deleted,
-            updatedAt: product.updatedAt.toString(),
-        });
-    } catch {
-                    // ignore MerchantProfile and old incompatible accounts
-                }
-            }
+    const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * itemsPerPage;
 
-            setProducts(decodedProducts);
-        } catch (err) {
-            console.error("Product list error:", err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const paginatedProducts = filteredProducts.slice(
+        startIndex,
+        startIndex + itemsPerPage
+    );
 
-    useEffect(() => {
-        loadProducts();
-    }, []);
+    if (loading) {
+        return (
+            <div className="marketplace-message">
+                Loading products...
+            </div>
+        );
+    }
 
-    const visibleProducts = products.filter((p) => !p.deleted);
+    if (filteredProducts.length === 0) {
+        return (
+            <div className="marketplace-message">
+                No products found.
+            </div>
+        );
+    }
 
     return (
-        <div style={{ padding: 24 }}>
-            <h1>Product List</h1>
+        <section className="marketplace-products">
+            <div className="marketplace-section-header">
+                <h2>Products</h2>
 
-            <button onClick={loadProducts}>Refresh Products</button>
-
-            {loading && <p>Loading products...</p>}
-
-            {!loading && visibleProducts.length === 0 && (
-                <p>No products yet.</p>
-            )}
-
-            <div style={{ display: "grid", gap: 16 }}>
-                {visibleProducts.map((product) => (
-                    <div
-                        key={product.publicKey}
-                        style={{
-                            border: "1px solid #ddd",
-                            padding: 16,
-                            borderRadius: 12,
-                            maxWidth: 420,
-                        }}
-                    >
-                        {product.imageUri && (
-                            <img
-                                src={product.imageUri}
-                                alt={product.title}
-                                style={{
-                                    width: "100%",
-                                    maxHeight: 220,
-                                    objectFit: "cover",
-                                    borderRadius: 8,
-                                }}
-                            />
-                        )}
-
-                        <h2>{product.title}</h2>
-                        <p>{product.description}</p>
-                        <p>Category: {product.category}</p>
-                        <p>
-                            {(Number(product.price) / LAMPORTS_PER_SOL).toFixed(3)} SOL
-                        </p>
-                        <p>Available: {product.stock}</p>
-                        <p>Sold: {product.sold}</p>
-                        <small>Merchant: {product.merchant}</small>
-                    </div>
-                ))}
+                <span className="marketplace-result-count">
+                    {filteredProducts.length}{" "}
+                    {filteredProducts.length === 1 ? "product" : "products"}
+                </span>
             </div>
-        </div>
+
+            <div className="marketplace-product-grid">
+                {paginatedProducts.map(product => {
+                    const productAddress =
+                        product.publicKey?.toBase58?.() ??
+                        product.publicKey?.toString?.() ??
+                        String(product.publicKey ?? "");
+
+                    const image = Array.isArray(product.imageUris) && product.imageUris.length > 0 ? product.imageUris[0] : "";
+
+                    return (
+                        <Link
+                            key={productAddress}
+                            to={`/product/${productAddress}`}
+                            className="marketplace-product-card"
+                        >
+                            <div className="marketplace-product-image-wrap">
+                                {image ? (
+                                    <img
+                                        src={image}
+                                        alt={product.title || "Product"}
+                                        className="marketplace-product-image"
+                                    />
+                                ) : (
+                                    <div className="marketplace-product-no-image">
+                                        No Image
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="marketplace-product-body">
+                                <h3>{product.title || "Untitled Product"}</h3>
+
+                                <div className="marketplace-product-meta">
+                                    <span>
+                                        {Number(product.averageRating || 0).toFixed(1)} ★
+                                    </span>
+
+                                    <span>
+                                        {Number(product.stock ?? 0)} available
+                                    </span>
+                                </div>
+
+                                <strong className="marketplace-product-price">
+                                    {Number(product.price) / 1_000_000_000} SOL
+                                </strong>
+                            </div>
+                        </Link>
+                    );
+                })}
+            </div>
+
+            {totalPages > 1 && (
+                <div className="marketplace-pagination">
+                    <button
+                        type="button"
+                        disabled={currentPage === 1}
+                        onClick={() => onPageChange(currentPage - 1)}
+                    >
+                        Previous
+                    </button>
+
+                    <span>
+                        Page {currentPage} of {totalPages}
+                    </span>
+
+                    <button
+                        type="button"
+                        disabled={currentPage === totalPages}
+                        onClick={() => onPageChange(currentPage + 1)}
+                    >
+                        Next
+                    </button>
+                </div>
+            )}
+        </section>
     );
 }
