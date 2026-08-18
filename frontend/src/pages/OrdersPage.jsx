@@ -259,12 +259,18 @@ export default function OrdersPage() {
             )}
 
             <section className="orders-section">
-                <h2>My Purchases</h2>
+                <h2>
+                    My Purchases
+                    <span className="orders-section-count">
+                        {buyerOrders.length}
+                    </span>
+                </h2>
 
                 <OrderList
                     orders={buyerOrders}
                     role="buyer"
                     emptyMessage="No purchase orders yet."
+                    emptyMessageSub="Orders will appear here after you buy a product."
                     onSelect={escrow =>
                         navigate(
                             `/orders/buyer/${addressToString(
@@ -276,12 +282,18 @@ export default function OrdersPage() {
             </section>
 
             <section className="orders-section">
-                <h2>Seller Orders</h2>
+                <h2>
+                    Seller Orders
+                    <span className="orders-section-count">
+                        {sellerOrders.length}
+                    </span>
+                </h2>
 
                 <OrderList
                     orders={sellerOrders}
                     role="seller"
                     emptyMessage="No seller orders yet."
+                    emptyMessageSub="New customer orders will appear here."
                     onSelect={escrow =>
                         navigate(
                             `/orders/seller/${addressToString(
@@ -299,147 +311,294 @@ function OrderList({
     orders,
     role,
     emptyMessage,
+    emptyMessageSub,
     onSelect,
 }) {
+    const [filter, setFilter] = useState("all");
+    const [sort, setSort] = useState("highest-price");
+
+
     if (orders.length === 0) {
         return (
             <div className="orders-empty">
                 <p>{emptyMessage}</p>
+                <p>{emptyMessageSub}</p>
             </div>
         );
     }
 
+    const requiresAction = escrow => {
+        return (
+            (
+                role === "seller" &&
+                escrow.status === ESCROW_STATUS.CREATED &&
+                Number(escrow.depositedA) > 0 &&
+                Number(escrow.depositedB) === 0
+            ) ||
+            (
+                role === "buyer" &&
+                escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED
+            )
+        );
+    };
+
+    const actionCount = orders.filter(
+        requiresAction
+    ).length;
+
+    const filteredOrders = orders.filter(escrow => {
+        if (filter === "needs-action") {
+            return requiresAction(escrow);
+        }
+
+        if (filter === "active") {
+            return escrow.status !== ESCROW_STATUS.COMPLETED;
+        }
+
+        if (filter === "completed") {
+            return escrow.status === ESCROW_STATUS.COMPLETED;
+        }
+
+        return true;
+    });
+
+    const getOrderValue = escrow => {
+        const value = escrow.referenceAmount;
+
+        if (value == null) {
+            return 0n;
+        }
+
+        try {
+            return BigInt(value.toString());
+        } catch {
+            return 0n;
+        }
+    };
+
+    const getActionPriority = escrow => {
+        if (requiresAction(escrow)) return 3;
+
+        if (escrow.status === ESCROW_STATUS.COMPLETED) return 1;
+
+        return 2;
+    };
+
+    const sortedOrders = [...filteredOrders].sort((a, b) => {
+        if (sort === "action") {
+            return ( getActionPriority(b) - getActionPriority(a));
+        }
+
+        if (sort === "highest-price") {
+            const aPrice = getOrderValue(a);
+            const bPrice = getOrderValue(b);
+
+            if (aPrice === bPrice) return 0;
+
+            return aPrice > bPrice ? -1 : 1;
+        }
+
+        if (sort === "lowest-price") {
+            const aPrice = getOrderValue(a);
+            const bPrice = getOrderValue(b);
+
+            if (aPrice === bPrice) return 0;
+
+            return aPrice < bPrice ? -1 : 1;
+        }
+
+        return 0;
+    });
+
     return (
-        <div className="orders-list">
-            {orders.map(escrow => {
-                const product = escrow.product;
-                const merchant =
-                    escrow.sellerMerchant;
-                const escrowKey =
-                    addressToString(
-                        escrow.publicKey
-                    );
+        <>
+        <div className="orders-controls">
+            <div className="orders-control">
+                <label htmlFor={`order-filter-${role}`}>Filter</label>
 
-                return (
-                    <button
-                        key={escrowKey}
-                        type="button"
-                        className="order-list-card"
-                        onClick={() =>
-                            onSelect(escrow)
-                        }
-                    >
-                        <div className="order-list-image-wrap">
-                            {product?.imageUri ? (
-                                <img
-                                    src={
-                                        product.imageUri
-                                    }
-                                    alt={
-                                        product.title ||
-                                        "Product"
-                                    }
-                                    className="order-list-image"
-                                />
-                            ) : (
-                                <div className="order-list-no-image">
-                                    No Image
-                                </div>
-                            )}
-                        </div>
+                <select
+                    id={`order-filter-${role}`}
+                    value={filter}
+                    onChange={event =>
+                        setFilter(event.target.value)
+                    }
+                >
+                    <option value="all">All Orders</option>
+                    <option value="needs-action">Needs Action {actionCount > 0 ? ` (${actionCount})` : ""}</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
 
-                        <div className="order-list-content">
-                            <strong className="order-list-title">
-                                {product?.title ||
-                                    "Product unavailable"}
-                            </strong>
+            <div className="orders-control">
+                <label htmlFor={`order-sort-${role}`}>Sort</label>
 
-                            <div className="order-list-party">
-                                {role === "buyer"
-                                    ? merchant?.storeName ||
-                                      `Seller ${shortenAddress(
-                                          getSellerAddress(
-                                              escrow
-                                          )
-                                      )}`
-                                    : `Buyer ${shortenAddress(
-                                          getBuyerAddress(
-                                              escrow
-                                          )
-                                      )}`}
-                            </div>
-
-                            <div className="order-list-meta">
-                                <span>
-                                    Qty:{" "}
-                                    {escrow.order
-                                        ?.quantity || 1}
-                                </span>
-
-                                <span>
-                                    {lamportsToSol(
-                                        escrow.referenceAmount
-                                    )}{" "}
-                                    SOL
-                                </span>
-
-                                <span>
-                                    Order{" "}
-                                    {shortenAddress(
-                                        escrow.publicKey
-                                    )}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="order-list-action">
-                            <StatusBadge
-                                status={escrow.status}
-                            />
-
-                            <span className="order-list-view">
-                                View Details →
-                            </span>
-                        </div>
-                    </button>
-                );
-            })}
+                <select
+                    id={`order-sort-${role}`}
+                    value={sort}
+                    onChange={event =>
+                        setSort(event.target.value)
+                    }
+                >
+                    <option value="highest-price">Highest Price</option>
+                    <option value="lowest-price">Lowest Price</option>
+                    <option value="action">Action Needed</option>
+                </select>
+            </div>
         </div>
+
+        {sortedOrders.length === 0 ? (
+            <div className="orders-filter-empty">
+                <strong>No matching orders</strong>
+                <p>Try selecting a different filter.</p>
+
+                <button
+                    type="button"
+                    onClick={() => {
+                        setFilter("all");
+                        setSort("highest-price");
+                    }}
+                >
+                    Clear Filters
+                </button>
+            </div>
+        ) : (
+            <div className="orders-list">
+                {sortedOrders.map(escrow => {
+                    const product = escrow.product;
+                    const merchant = escrow.sellerMerchant;
+                    const escrowKey = addressToString(escrow.publicKey);
+
+                    const actionRequired = requiresAction(escrow);
+
+                    const productImage = Array.isArray(product?.imageUris) &&
+                        product.imageUris.length > 0 ? product.imageUris[0] : product?.imageUri || "";
+                    
+
+                    return (
+                        <button
+                            key={escrowKey}
+                            type="button"
+                            className={`order-list-card${actionRequired ? " requires-action" : ""}`}
+                            onClick={() =>
+                                onSelect(escrow)
+                            }
+                        >
+                            <div className="order-list-image-wrap">
+                                {productImage ? (
+                                    <img
+                                        src={productImage}
+                                        alt={product.title || "Product"}
+                                        className="order-list-image"
+                                    />
+                                ) : (
+                                    <div className="order-list-no-image">
+                                        No Image
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="order-list-content">
+                                <strong className="order-list-title">
+                                    {product?.title ||
+                                        "Product unavailable"}
+                                </strong>
+
+                                <div className="order-list-party">
+                                    {role === "buyer"
+                                        ? merchant?.storeName ||
+                                        `Seller ${shortenAddress(
+                                            getSellerAddress(
+                                                escrow
+                                            )
+                                        )}`
+                                        : `Buyer ${shortenAddress(
+                                            getBuyerAddress(
+                                                escrow
+                                            )
+                                        )}`}
+                                </div>
+                                {actionRequired && (
+                                    <div className="order-list-attention">
+                                        {role === "seller"
+                                            ? "Accept order and provide your deposit"
+                                            : "Review and confirm the seller's completion"}
+                                    </div>
+                                )}
+
+                                <div className="order-list-meta">
+                                    <span>
+                                        {escrow.order?.quantity || 1}{" "}
+                                        {(escrow.order?.quantity || 1) === 1 ? "item" : "items"}
+                                    </span>
+
+                                    <span>
+                                        {lamportsToSol(
+                                            escrow.referenceAmount
+                                        )}{" "}
+                                        SOL
+                                    </span>
+
+                                    <span>
+                                        Order{" "}
+                                        {shortenAddress(
+                                            escrow.publicKey
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="order-list-action">
+                                <StatusBadge
+                                    status={escrow.status}
+                                    role={role}
+                                    escrow={escrow}
+                                />
+
+                                <span className="order-list-view" aria-hidden="true">
+                                    →
+                                </span>
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+        )}
+        
+        </>
     );
 }
 
-function StatusBadge({ status }) {
-    const label =
-        getEscrowStatusLabel(status);
-
+function StatusBadge({ status, role, escrow }) {
+    let label = getEscrowStatusLabel(status);
     let statusClass = "default";
 
     if (
-        status ===
-        ESCROW_STATUS.CREATED
+        role === "seller" &&
+        status === ESCROW_STATUS.CREATED &&
+        Number(escrow.depositedA) > 0 &&
+        Number(escrow.depositedB) === 0
     ) {
+        label = "New Order";
+        statusClass = "action-required";
+    } else if (
+        role === "buyer" &&
+        status === ESCROW_STATUS.FINALIZATION_SUGGESTED
+    ) {
+        label = "Action Required";
+        statusClass = "action-required";
+    } else if (status === ESCROW_STATUS.CREATED) {
         statusClass = "created";
-    } else if (
-        status ===
-        ESCROW_STATUS.DEPOSITS_COMPLETE
-    ) {
+    } else if (status === ESCROW_STATUS.DEPOSITS_COMPLETE) {
         statusClass = "deposits-complete";
-    } else if (
-        status ===
-        ESCROW_STATUS.FINALIZATION_SUGGESTED
-    ) {
+    } else if (status === ESCROW_STATUS.FINALIZATION_SUGGESTED) {
         statusClass = "finalization";
-    } else if (
-        status ===
-        ESCROW_STATUS.COMPLETED
-    ) {
+    } else if (status === ESCROW_STATUS.COMPLETED) {
         statusClass = "completed";
     }
 
     return (
-        <span
-            className={`order-status-badge ${statusClass}`}
-        >
+        <span className={`order-status-badge ${statusClass}`}>
             {label}
         </span>
     );
