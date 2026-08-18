@@ -1,18 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-    Link,
-    useNavigate,
-    useParams,
-} from "react-router-dom";
-import {
-    useConnection,
-    useWallet,
-} from "@solana/wallet-adapter-react";
-import {
-    LAMPORTS_PER_SOL,
-    PublicKey,
-} from "@solana/web3.js";
-
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import {
     ESCROW_STATUS,
     getBuyerEscrows,
@@ -32,6 +21,7 @@ import {
     getMutualCancellationReason,
     MUTUAL_CANCELLATION_PREFIX,
 } from "../lib/escrow";
+import { useNetwork } from "../context/NetworkContext";
 
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
@@ -199,12 +189,10 @@ export default function OrderDetailsPage() {
     const [escrow, setEscrow] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [processing, setProcessing] =
-        useState(false);
-    const [completionSignature, setCompletionSignature] =
-        useState("");
-    const [loadingCompletionSignature, setLoadingCompletionSignature] =
-        useState(false);
+    const [processing, setProcessing] = useState(false);
+    const [completionSignature, setCompletionSignature] = useState("");
+    const [loadingCompletionSignature, setLoadingCompletionSignature] = useState(false);
+    const { isMainnet } = useNetwork();
 
     const loadOrder = async () => {
         if (!wallet.publicKey) {
@@ -701,12 +689,7 @@ export default function OrderDetailsPage() {
                 <h1 style={{ marginBottom: 4 }}>
                     Order Details
                 </h1>
-                <p
-                    style={{
-                        marginTop: 0,
-                        color: "#666",
-                    }}
-                >
+                <p>
                     Review the product, payment,
                     timeline, chat, and available
                     actions.
@@ -718,6 +701,7 @@ export default function OrderDetailsPage() {
                 escrow={escrow}
                 role={role}
                 wallet={wallet}
+                isMainnet={isMainnet}
                 completionSignature={
                     completionSignature
                 }
@@ -759,6 +743,7 @@ function OrderCard({
     escrow,
     role,
     wallet,
+    isMainnet,
     completionSignature,
     loadingCompletionSignature,
     processing,
@@ -1013,10 +998,132 @@ function OrderCard({
 
     const buyerRefundLamports = calculateBuyerRefund(escrow);
 
-    console.log("order details page product: ", product)
+    /**
+     * Escrow status / next action
+     */
+    const getActionStatus = () => {
+        if (isCancellationCompleted) {
+            return {
+                type: "success",
+                eyebrow: "Order finished",
+                title: "Order cancelled",
+                message: "The cancellation was completed and both parties were refunded.",
+            };
+        }
+
+        if (mutualCancellationPending) {
+            if (currentUserRequestedCancellation) {
+                return {
+                    type: "warning",
+                    eyebrow: "Waiting for the other party",
+                    title: "Cancellation request pending",
+                    message: "Your cancellation request is awaiting a response.",
+                };
+            }
+
+            if (canRespondToMutualCancellation) {
+                return {
+                    type: "attention",
+                    eyebrow: "Action required",
+                    title: "Cancellation approval required",
+                    message: "Review the cancellation request below.",
+                };
+            }
+        }
+
+        if (escrow.status === ESCROW_STATUS.CREATED) {
+            if (role === "seller") {
+                return {
+                    type: "attention",
+                    eyebrow: "Action required",
+                    title: "Accept this order",
+                    message: "Accept the order before fulfilling it.",
+                };
+            }
+
+            return {
+                type: "waiting",
+                eyebrow: "Waiting for seller",
+                title: "Order submitted",
+                message: "Your funds are secured in escrow while the seller reviews the order.",
+            };
+        }
+
+        if (escrow.status === ESCROW_STATUS.DEPOSITS_COMPLETE) {
+            if (role === "seller") {
+                return {
+                    type: "attention",
+                    eyebrow: "Action required",
+                    title: "Fulfill the order",
+                    message: "Both deposits are secured. Fulfill the order and mark it ready when complete.",
+                };
+            }
+
+            return {
+                type: "waiting",
+                eyebrow: "Waiting for seller",
+                title: "Seller accepted the order",
+                message: "Both deposits are secured while the seller fulfills the order.",
+            };
+        }
+
+        if (escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED) {
+            if (role === "buyer") {
+                return {
+                    type: "attention",
+                    eyebrow: "Action required",
+                    title: "Confirm your order",
+                    message: "The seller marked the order ready for your confirmation.",
+                };
+            }
+
+            return {
+                type: "waiting",
+                eyebrow: "Waiting for buyer",
+                title: "Order marked ready",
+                message: "The buyer must confirm receipt before escrow is released.",
+            };
+        }
+
+        if (escrow.status === ESCROW_STATUS.COMPLETED) {
+            return {
+                type: "success",
+                eyebrow: "Order finished",
+                title: "Order completed",
+                message:
+                    role === "buyer"
+                        ? "Your deposit was returned and payment was released to the seller."
+                        : "The buyer confirmed receipt and payment was released.",
+            };
+        }
+
+        return {
+            type: "waiting",
+            eyebrow: "Order status",
+            title: getEscrowStatusLabel(escrow.status),
+            message: "",
+        };
+    };
+
+    const actionStatus = getActionStatus();
+
+    const hasActiveEscrowAction = sellerNeedsDeposit ||
+        canSellerRequestCancellation ||
+        (
+            role === "seller" &&
+            escrow.status === ESCROW_STATUS.DEPOSITS_COMPLETE
+        ) ||
+        (
+            role === "buyer" &&
+            escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED
+        ) ||
+        canRequestMutualCancellation ||
+        mutualCancellationPending ||
+        canBuyerWithdraw;
 
     return (
         <article className="order-detail-card">
+
             <div className="order-detail-main">
                 <div className="order-detail-media">
                     {Array.isArray(product?.imageUris) && product.imageUris.length > 0 ? (
@@ -1064,6 +1171,33 @@ function OrderCard({
                         <StatusBadge status={escrow.status} />
                     </div>
 
+                    <div className={`order-next-action ${actionStatus.type}`}>
+                        <div className="order-next-action-icon">
+                            {actionStatus.type === "success"
+                                ? "✓"
+                                : actionStatus.type === "attention"
+                                ? "!"
+                                : actionStatus.type === "warning"
+                                ? "!"
+                                : "…"}
+                        </div>
+
+                        <div className="order-next-action-content">
+                            <span className="order-next-action-eyebrow">
+                                {actionStatus.eyebrow}
+                            </span>
+
+                            <h4>{actionStatus.title}</h4>
+
+                            {actionStatus.message && (
+                                <p>{actionStatus.message}</p>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <div className="order-section-heading">
+                        <h4>Escrow Details</h4>
+                    </div>
                     <div className="order-detail-stats">
                         <div className="order-detail-stat">
                             <span>Quantity:</span>
@@ -1086,7 +1220,10 @@ function OrderCard({
                             <strong>{lamportsToSol(escrow.requiredDepositB)} SOL</strong>
                         </div>
                     </div>
-
+                    
+                    <div className="order-section-heading">
+                        <h4>Order Parties</h4>
+                    </div>
                     <div className="order-detail-parties">
                         <div className="order-detail-party">
                             <span>Buyer:</span>
@@ -1128,7 +1265,7 @@ function OrderCard({
                                         <strong>Transaction ID:</strong> {completionSignature}
                                     </p>
                                     <a
-                                        href={`https://explorer.solana.com/tx/${completionSignature}?cluster=devnet`}
+                                        href={isMainnet ? `https://explorer.solana.com/tx/${completionSignature}` : `https://explorer.solana.com/tx/${completionSignature}?cluster=devnet`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                     >
@@ -1143,212 +1280,400 @@ function OrderCard({
                         </div>
                     )}
 
-                    <div className="order-actions">
-                        {role === "seller" && sellerNeedsDeposit && (
-                            <button
-                                type="button"
-                                className="order-primary-button"
-                                onClick={onAccept}
-                                disabled={processing}
-                            >
-                                {processing
-                                    ? "Accepting..."
-                                    : `Accept Order and Deposit ${lamportsToSol(escrow.requiredDepositB)} SOL`}
-                            </button>
-                        )}
-
-                        {canSellerRequestCancellation && (
-                            <div className="order-action-panel warning">
-                                <strong>Cannot fulfill this order?</strong>
-
-                                {!showCancellationForm ? (
-                                    <>
-                                        <p>
-                                            Send a cancellation request directly to the buyer through the order chat.
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowCancellationForm(true)}
-                                            disabled={processing}
-                                        >
-                                            Request Cancellation
-                                        </button>
-                                    </>
-                                ) : (
-                                    <div className="order-action-form">
-                                        <label>Cancellation reason</label>
-
-                                        <select
-                                            value={cancellationReason}
-                                            onChange={event => setCancellationReason(event.target.value)}
-                                            disabled={processing}
-                                        >
-                                            <option value="Out of stock">Out of stock</option>
-                                            <option value="Unable to fulfill the order">
-                                                Unable to fulfill the order
-                                            </option>
-                                            <option value="Incorrect product information">
-                                                Incorrect product information
-                                            </option>
-                                            <option value="Shipping is unavailable">
-                                                Shipping is unavailable
-                                            </option>
-                                            <option value="Other">Other</option>
-                                        </select>
-
-                                        {cancellationReason === "Other" && (
-                                            <textarea
-                                                value={customCancellationReason}
-                                                onChange={event => setCustomCancellationReason(event.target.value)}
-                                                maxLength={160}
-                                                rows={3}
-                                                placeholder="Enter the reason..."
-                                                disabled={processing}
-                                            />
-                                        )}
-
-                                        <div className="order-action-buttons">
-                                            <button
-                                                type="button"
-                                                onClick={sendSellerCancellationRequest}
-                                                disabled={processing}
-                                            >
-                                                {processing ? "Sending..." : "Send Cancellation Request"}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setShowCancellationForm(false);
-                                                    setCustomCancellationReason("");
-                                                }}
-                                                disabled={processing}
-                                            >
-                                                Back
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
+                    <div className="order-escrow-actions">
+                        {hasActiveEscrowAction && (
+                            <div className="order-section-heading">
+                                <h4>Escrow Action</h4>
                             </div>
                         )}
+                        <div className="order-actions">
+                            {role === "seller" && sellerNeedsDeposit && (
+                                <button
+                                    type="button"
+                                    className="order-primary-button"
+                                    onClick={onAccept}
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? "Accepting..."
+                                        : `Accept Order and Deposit ${lamportsToSol(escrow.requiredDepositB)} SOL`}
+                                </button>
+                            )}
 
-                        {role === "seller" &&
-                            escrow.status === ESCROW_STATUS.DEPOSITS_COMPLETE && (
-                            <>
-                                {!showCompletionOptions ? (
-                                    <button
-                                        type="button"
-                                        className="order-primary-button"
-                                        onClick={() => setShowCompletionOptions(true)}
-                                        disabled={processing}
-                                    >
-                                        Mark Ready for Buyer Confirmation
-                                    </button>
-                                ) : (
-                                    <div className="order-action-panel">
-                                        <strong>Optional website donation: {donationPercent}%</strong>
+                            {canSellerRequestCancellation && (
+                                <div className="order-action-panel warning">
+                                    <strong>Cannot fulfill this order?</strong>
 
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="100"
-                                            step="1"
-                                            value={donationPercent}
-                                            onChange={event => setDonationPercent(Number(event.target.value))}
+                                    {!showCancellationForm ? (
+                                        <>
+                                            <p>
+                                                Send a cancellation request directly to the buyer through the order chat.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCancellationForm(true)}
+                                                disabled={processing}
+                                            >
+                                                Request Cancellation
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="order-action-form">
+                                            <label>Cancellation reason</label>
+
+                                            <select
+                                                value={cancellationReason}
+                                                onChange={event => setCancellationReason(event.target.value)}
+                                                disabled={processing}
+                                            >
+                                                <option value="Out of stock">Out of stock</option>
+                                                <option value="Unable to fulfill the order">
+                                                    Unable to fulfill the order
+                                                </option>
+                                                <option value="Incorrect product information">
+                                                    Incorrect product information
+                                                </option>
+                                                <option value="Shipping is unavailable">
+                                                    Shipping is unavailable
+                                                </option>
+                                                <option value="Other">Other</option>
+                                            </select>
+
+                                            {cancellationReason === "Other" && (
+                                                <textarea
+                                                    value={customCancellationReason}
+                                                    onChange={event => setCustomCancellationReason(event.target.value)}
+                                                    maxLength={160}
+                                                    rows={3}
+                                                    placeholder="Enter the reason..."
+                                                    disabled={processing}
+                                                />
+                                            )}
+
+                                            <div className="order-action-buttons">
+                                                <button
+                                                    type="button"
+                                                    onClick={sendSellerCancellationRequest}
+                                                    disabled={processing}
+                                                >
+                                                    {processing ? "Sending..." : "Send Cancellation Request"}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setShowCancellationForm(false);
+                                                        setCustomCancellationReason("");
+                                                    }}
+                                                    disabled={processing}
+                                                >
+                                                    Back
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {role === "seller" &&
+                                escrow.status === ESCROW_STATUS.DEPOSITS_COMPLETE && (
+                                <>
+                                    {!showCompletionOptions ? (
+                                        <button
+                                            type="button"
+                                            className="order-primary-button"
+                                            onClick={() => setShowCompletionOptions(true)}
                                             disabled={processing}
-                                        />
+                                        >
+                                            Mark Ready for Buyer Confirmation
+                                        </button>
+                                    ) : (
+                                        <div className="order-action-panel">
+                                            <strong>Optional website donation: {donationPercent}%</strong>
 
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                step="1"
+                                                value={donationPercent}
+                                                onChange={event => setDonationPercent(Number(event.target.value))}
+                                                disabled={processing}
+                                            />
+
+                                            <p>
+                                                Donation amount:{" "}
+                                                <strong>
+                                                    {lamportsToSol(
+                                                        Math.floor(
+                                                            Number(escrow.referenceAmount) *
+                                                            donationPercent /
+                                                            100
+                                                        )
+                                                    )} SOL
+                                                </strong>
+                                            </p>
+
+                                            <small>
+                                                Deducted only from seller proceeds. Buyer refund is unchanged.
+                                            </small>
+
+                                            <div className="order-action-buttons">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onProposeCompletion(donationPercent)}
+                                                    disabled={processing}
+                                                >
+                                                    {processing
+                                                        ? "Proposing..."
+                                                        : donationPercent > 0
+                                                        ? `Confirm Ready + Donate ${donationPercent}%`
+                                                        : "Confirm Ready Without Donation"}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDonationPercent(0);
+                                                        setShowCompletionOptions(false);
+                                                    }}
+                                                    disabled={processing}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {role === "buyer" &&
+                                escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED && (
+                                <div className="order-action-group">
+                                    <div className="order-action-panel info">
                                         <p>
-                                            Donation amount:{" "}
-                                            <strong>
-                                                {lamportsToSol(
-                                                    Math.floor(
-                                                        Number(escrow.referenceAmount) *
-                                                        donationPercent /
-                                                        100
-                                                    )
-                                                )} SOL
-                                            </strong>
+                                            <strong>Deposit returned to you:</strong>{" "}
+                                            {lamportsToSol(escrow.proposedPayoutA)} SOL
                                         </p>
-
+                                        <p>
+                                            <strong>Released to seller:</strong>{" "}
+                                            {lamportsToSol(escrow.proposedPayoutB)} SOL
+                                        </p>
                                         <small>
-                                            Deducted only from seller proceeds. Buyer refund is unchanged.
+                                            Confirm only after receiving and checking the product.
                                         </small>
+                                    </div>
 
+                                    <div className="order-action-buttons">
+                                        <button
+                                            type="button"
+                                            className="order-primary-button"
+                                            onClick={onRetrieveDeposit}
+                                            disabled={processing}
+                                        >
+                                            {processing
+                                                ? "Processing..."
+                                                : "Retrieve Deposit & Release Payment"}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={onRejectFinalization}
+                                            disabled={processing}
+                                        >
+                                            {processing ? "Processing..." : "Reject Ready Status"}
+                                        </button>
+                                    </div>
+
+                                    <p className="order-action-note">
+                                        Reject the ready status first if you need to request mutual cancellation.
+                                    </p>
+                                </div>
+                            )}
+
+                            {canRequestMutualCancellation && (
+                                <div className="order-action-panel warning">
+                                    <strong>Need to cancel after acceptance?</strong>
+
+                                    {!showMutualCancellationForm ? (
+                                        <>
+                                            <p>
+                                                Either buyer or seller may request cancellation. The
+                                                other party must approve, and each party receives its
+                                                own deposited funds.
+                                            </p>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowMutualCancellationForm(true)}
+                                                disabled={processing}
+                                            >
+                                                Request Mutual Cancellation
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="order-action-form">
+                                            <label>Cancellation reason</label>
+
+                                            <select
+                                                value={mutualCancellationReason}
+                                                onChange={event =>
+                                                    setMutualCancellationReason(event.target.value)
+                                                }
+                                                disabled={processing}
+                                            >
+                                                {role === "buyer" && (
+                                                    <>
+                                                        <option value="Changed my mind">
+                                                            Changed my mind
+                                                        </option>
+                                                        <option value="Ordered by mistake">
+                                                            Ordered by mistake
+                                                        </option>
+                                                        <option value="Unable to complete the transaction">
+                                                            Unable to complete the transaction
+                                                        </option>
+                                                    </>
+                                                )}
+
+                                                {role === "seller" && (
+                                                    <>
+                                                        <option value="Unable to fulfill the order">
+                                                            Unable to fulfill the order
+                                                        </option>
+                                                        <option value="Out of stock">
+                                                            Out of stock
+                                                        </option>
+                                                        <option value="Shipping is unavailable">
+                                                            Shipping is unavailable
+                                                        </option>
+                                                    </>
+                                                )}
+
+                                                <option value="Other">Other</option>
+                                            </select>
+
+                                            {mutualCancellationReason === "Other" && (
+                                                <textarea
+                                                    value={customMutualCancellationReason}
+                                                    onChange={event =>
+                                                        setCustomMutualCancellationReason(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    maxLength={120}
+                                                    rows={3}
+                                                    placeholder="Enter the reason..."
+                                                    disabled={processing}
+                                                />
+                                            )}
+
+                                            <div className="order-action-buttons">
+                                                <button
+                                                    type="button"
+                                                    onClick={submitMutualCancellationRequest}
+                                                    disabled={processing}
+                                                >
+                                                    {processing
+                                                        ? "Submitting..."
+                                                        : "Submit Cancellation Request"}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setShowMutualCancellationForm(false);
+                                                        setCustomMutualCancellationReason("");
+                                                    }}
+                                                    disabled={processing}
+                                                >
+                                                    Back
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {mutualCancellationPending && (
+                                <div className="order-action-panel cancellation">
+                                    <strong>Mutual cancellation requested</strong>
+
+                                    <p>
+                                        Requested by{" "}
+                                        {cancellationRequester === getBuyerAddress(escrow)
+                                            ? "buyer"
+                                            : "seller"}
+                                        .
+                                    </p>
+
+                                    {pendingCancellationReason && (
+                                        <p>
+                                            <strong>Reason:</strong>{" "}
+                                            {pendingCancellationReason}
+                                        </p>
+                                    )}
+
+                                    <p>
+                                        Buyer refund:{" "}
+                                        <strong>
+                                            {lamportsToSol(escrow.proposedPayoutA)} SOL
+                                        </strong>
+                                        <br />
+                                        Seller refund:{" "}
+                                        <strong>
+                                            {lamportsToSol(escrow.proposedPayoutB)} SOL
+                                        </strong>
+                                    </p>
+
+                                    {currentUserRequestedCancellation ? (
+                                        <p className="order-action-note">
+                                            Waiting for the other party to approve or decline.
+                                        </p>
+                                    ) : canRespondToMutualCancellation ? (
                                         <div className="order-action-buttons">
                                             <button
                                                 type="button"
-                                                onClick={() => onProposeCompletion(donationPercent)}
+                                                className="order-primary-button"
+                                                onClick={onApproveCancellation}
                                                 disabled={processing}
                                             >
-                                                {processing
-                                                    ? "Proposing..."
-                                                    : donationPercent > 0
-                                                    ? `Confirm Ready + Donate ${donationPercent}%`
-                                                    : "Confirm Ready Without Donation"}
+                                                {processing ? "Processing..." : "Approve Cancellation"}
                                             </button>
 
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setDonationPercent(0);
-                                                    setShowCompletionOptions(false);
-                                                }}
+                                                onClick={onDeclineCancellation}
                                                 disabled={processing}
                                             >
-                                                Cancel
+                                                Decline
                                             </button>
                                         </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
-
-                        {role === "buyer" &&
-                            escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED && (
-                            <div className="order-action-group">
-                                <div className="order-action-panel info">
-                                    <p>
-                                        <strong>Deposit returned to you:</strong>{" "}
-                                        {lamportsToSol(escrow.proposedPayoutA)} SOL
-                                    </p>
-                                    <p>
-                                        <strong>Released to seller:</strong>{" "}
-                                        {lamportsToSol(escrow.proposedPayoutB)} SOL
-                                    </p>
-                                    <small>
-                                        Confirm only after receiving and checking the product.
-                                    </small>
+                                    ) : null}
                                 </div>
+                            )}
 
-                                <div className="order-action-buttons">
+                            {canBuyerWithdraw && (
+                                <div className="order-action-panel danger">
+                                    <p>
+                                        The seller has not accepted this order yet. You may withdraw
+                                        and receive a full refund.
+                                    </p>
+
                                     <button
                                         type="button"
-                                        className="order-primary-button"
-                                        onClick={onRetrieveDeposit}
+                                        onClick={onWithdrawOrder}
                                         disabled={processing}
                                     >
                                         {processing
-                                            ? "Processing..."
-                                            : "Retrieve Deposit & Release Payment"}
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={onRejectFinalization}
-                                        disabled={processing}
-                                    >
-                                        {processing ? "Processing..." : "Reject Ready Status"}
+                                            ? "Withdrawing..."
+                                            : `Withdraw Order & Refund ${lamportsToSol(
+                                                escrow.depositedA
+                                            )} SOL`}
                                     </button>
                                 </div>
-
-                                <p className="order-action-note">
-                                    Reject the ready status first if you need to request mutual cancellation.
-                                </p>
-                            </div>
-                        )}
-
-                        {role === "buyer" &&
-                            escrow.status === ESCROW_STATUS.COMPLETED && (
+                            )}
+                        </div>
+                        {role === "buyer" && escrow.status === ESCROW_STATUS.COMPLETED && (
                             <div className="order-action-group">
                                 {checkingReview ? (
                                     <p className="order-action-note">Checking review status...</p>
@@ -1411,195 +1736,13 @@ function OrderCard({
 
                                 <button
                                     type="button"
+                                    className="order-close-button"
                                     onClick={onCloseOrder}
                                     disabled={processing}
                                 >
                                     {processing
                                         ? "Processing..."
                                         : "Close Order and Recover Rent"}
-                                </button>
-                            </div>
-                        )}
-
-                        {canRequestMutualCancellation && (
-                            <div className="order-action-panel warning">
-                                <strong>Need to cancel after acceptance?</strong>
-
-                                {!showMutualCancellationForm ? (
-                                    <>
-                                        <p>
-                                            Either buyer or seller may request cancellation. The
-                                            other party must approve, and each party receives its
-                                            own deposited funds.
-                                        </p>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowMutualCancellationForm(true)}
-                                            disabled={processing}
-                                        >
-                                            Request Mutual Cancellation
-                                        </button>
-                                    </>
-                                ) : (
-                                    <div className="order-action-form">
-                                        <label>Cancellation reason</label>
-
-                                        <select
-                                            value={mutualCancellationReason}
-                                            onChange={event =>
-                                                setMutualCancellationReason(event.target.value)
-                                            }
-                                            disabled={processing}
-                                        >
-                                            {role === "buyer" && (
-                                                <>
-                                                    <option value="Changed my mind">
-                                                        Changed my mind
-                                                    </option>
-                                                    <option value="Ordered by mistake">
-                                                        Ordered by mistake
-                                                    </option>
-                                                    <option value="Unable to complete the transaction">
-                                                        Unable to complete the transaction
-                                                    </option>
-                                                </>
-                                            )}
-
-                                            {role === "seller" && (
-                                                <>
-                                                    <option value="Unable to fulfill the order">
-                                                        Unable to fulfill the order
-                                                    </option>
-                                                    <option value="Out of stock">
-                                                        Out of stock
-                                                    </option>
-                                                    <option value="Shipping is unavailable">
-                                                        Shipping is unavailable
-                                                    </option>
-                                                </>
-                                            )}
-
-                                            <option value="Other">Other</option>
-                                        </select>
-
-                                        {mutualCancellationReason === "Other" && (
-                                            <textarea
-                                                value={customMutualCancellationReason}
-                                                onChange={event =>
-                                                    setCustomMutualCancellationReason(
-                                                        event.target.value
-                                                    )
-                                                }
-                                                maxLength={120}
-                                                rows={3}
-                                                placeholder="Enter the reason..."
-                                                disabled={processing}
-                                            />
-                                        )}
-
-                                        <div className="order-action-buttons">
-                                            <button
-                                                type="button"
-                                                onClick={submitMutualCancellationRequest}
-                                                disabled={processing}
-                                            >
-                                                {processing
-                                                    ? "Submitting..."
-                                                    : "Submit Cancellation Request"}
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setShowMutualCancellationForm(false);
-                                                    setCustomMutualCancellationReason("");
-                                                }}
-                                                disabled={processing}
-                                            >
-                                                Back
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {mutualCancellationPending && (
-                            <div className="order-action-panel cancellation">
-                                <strong>Mutual cancellation requested</strong>
-
-                                <p>
-                                    Requested by{" "}
-                                    {cancellationRequester === getBuyerAddress(escrow)
-                                        ? "buyer"
-                                        : "seller"}
-                                    .
-                                </p>
-
-                                {pendingCancellationReason && (
-                                    <p>
-                                        <strong>Reason:</strong>{" "}
-                                        {pendingCancellationReason}
-                                    </p>
-                                )}
-
-                                <p>
-                                    Buyer refund:{" "}
-                                    <strong>
-                                        {lamportsToSol(escrow.proposedPayoutA)} SOL
-                                    </strong>
-                                    <br />
-                                    Seller refund:{" "}
-                                    <strong>
-                                        {lamportsToSol(escrow.proposedPayoutB)} SOL
-                                    </strong>
-                                </p>
-
-                                {currentUserRequestedCancellation ? (
-                                    <p className="order-action-note">
-                                        Waiting for the other party to approve or decline.
-                                    </p>
-                                ) : canRespondToMutualCancellation ? (
-                                    <div className="order-action-buttons">
-                                        <button
-                                            type="button"
-                                            className="order-primary-button"
-                                            onClick={onApproveCancellation}
-                                            disabled={processing}
-                                        >
-                                            {processing ? "Processing..." : "Approve Cancellation"}
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={onDeclineCancellation}
-                                            disabled={processing}
-                                        >
-                                            Decline
-                                        </button>
-                                    </div>
-                                ) : null}
-                            </div>
-                        )}
-
-                        {canBuyerWithdraw && (
-                            <div className="order-action-panel danger">
-                                <p>
-                                    The seller has not accepted this order yet. You may withdraw
-                                    and receive a full refund.
-                                </p>
-
-                                <button
-                                    type="button"
-                                    onClick={onWithdrawOrder}
-                                    disabled={processing}
-                                >
-                                    {processing
-                                        ? "Withdrawing..."
-                                        : `Withdraw Order & Refund ${lamportsToSol(
-                                            escrow.depositedA
-                                        )} SOL`}
                                 </button>
                             </div>
                         )}

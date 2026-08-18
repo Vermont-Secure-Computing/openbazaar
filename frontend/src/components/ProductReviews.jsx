@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { getProductReviews } from "../lib/review";
+import "./ProductReview.css";
 
 const shortAddress = (value) => {
   const text = value?.toBase58?.() || String(value || "");
