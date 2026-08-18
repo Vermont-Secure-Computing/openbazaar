@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { hasOrderReview, submitProductReview } from "../lib/review";
 import StarRatingInput from "./StarRatingInput";
+import "./ReviewForm.css";
 
 export default function ReviewForm({ escrow, product, merchantAuthority, orderCompleted, onSubmitted, onStatusChange }) {
   const { connection } = useConnection();

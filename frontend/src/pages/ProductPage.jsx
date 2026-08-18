@@ -8,7 +8,6 @@ import { getMerchants } from "../lib/merchant";
 import { createBuyOrder } from "../lib/buyOrder";
 import { getMerchantReputation } from "../lib/reputation";
 import ProductReviews from "../components/ProductReviews";
-import SellerReputation from "../components/SellerReputation";
 import "../components/review.css";
 import "./ProductPage.css";
 
@@ -358,6 +357,44 @@ export default function ProductPage() {
                                 ) : (
                                     <div className="product-no-image">No product image</div>
                                 )}
+
+                                {productImages.length > 1 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className="product-gallery-arrow previous"
+                                            aria-label="Previous image"
+                                            onClick={() =>
+                                                setSelectedImageIndex(current =>
+                                                    current === 0
+                                                        ? productImages.length - 1
+                                                        : current - 1
+                                                )
+                                            }
+                                        >
+                                            ‹
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="product-gallery-arrow next"
+                                            aria-label="Next image"
+                                            onClick={() =>
+                                                setSelectedImageIndex(current =>
+                                                    current === productImages.length - 1
+                                                        ? 0
+                                                        : current + 1
+                                                )
+                                            }
+                                        >
+                                            ›
+                                        </button>
+
+                                        <span className="product-image-counter">
+                                            {selectedImageIndex + 1} / {productImages.length}
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -494,16 +531,18 @@ export default function ProductPage() {
                         </div>
 
                         <div className="product-breakdown">
+                            <div className="product-breakdown-header">
+                                <strong>Order Summary</strong>
+                            </div>
                             <div className="product-breakdown-row">
-                                <span className="product-muted">Product total</span>
+                                <span className="product-muted">Product{safeQuantity > 1 ? ` * ${safeQuantity}` : ""}</span>
                                 <strong>
                                     {(productPriceLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL
                                 </strong>
                             </div>
-
                             <div className="product-breakdown-row">
                                 <span className="product-muted">
-                                    Refundable deposit ({(depositBps / 100).toFixed(1)}%)
+                                    Refundable buyer deposit ({(depositBps / 100).toFixed(1)}%)
                                 </span>
                                 <strong>
                                     {(securityDepositLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL
@@ -511,11 +550,16 @@ export default function ProductPage() {
                             </div>
 
                             <div className="product-total">
-                                <strong>Total locked</strong>
+                                <strong>You will need</strong>
                                 <strong>
                                     {(buyerTotalLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL
                                 </strong>
                             </div>
+
+                            <p className="product-deposit-note">
+                                The buyer deposit is held in escrow and returned when the order
+                                completes normally.
+                            </p>
                         </div>
 
                         <button
@@ -530,6 +574,35 @@ export default function ProductPage() {
                                 ? "Creating Order..."
                                 : `Buy ${safeQuantity} ${safeQuantity === 1 ? "Item" : "Items"}`}
                         </button>
+
+                        <div className="product-after-buy">
+                            <strong>What happens after you buy?</strong>
+
+                            <ol>
+                                <li>
+                                    Your payment and refundable deposit are locked in escrow.
+                                </li>
+
+                                <li>
+                                    The seller accepts the order and provides their required deposit.
+                                </li>
+
+                                <li>
+                                    The seller prepares and sends your order.
+                                </li>
+
+                                <li>
+                                    After receiving it, you confirm receipt to complete the order.
+                                </li>
+                            </ol>
+
+                            <Link
+                                to="/instructions"
+                                className="product-learn-more"
+                            >
+                                Learn how escrow works →
+                            </Link>
+                        </div>
                     </aside>
                 </div>
 
@@ -550,42 +623,58 @@ export default function ProductPage() {
                             <>
                                 <div className="seller-header">
                                     <div className="seller-avatar">
-                                        {(merchant.storeName || "S").slice(0, 1).toUpperCase()}
+                                        {(merchant.storeName || "S")
+                                            .slice(0, 1)
+                                            .toUpperCase()}
                                     </div>
 
-                                    <div>
-                                        <strong className="seller-name">{merchant.storeName}</strong>
+                                    <div className="seller-info">
+                                        <div className="seller-name-row">
+                                            <strong className="seller-name">
+                                                {merchant.storeName}
+                                            </strong>
 
-                                        <div className="product-rating seller-rating">
-                                            <strong>{averageRating.toFixed(1)}</strong>
-                                            <span>{totalReviews} reviews</span>
+                                            <span className="seller-rating-inline">
+                                                ★ {averageRating.toFixed(1)}
+                                            </span>
+                                        </div>
+
+                                        <div className="seller-review-count">
+                                            {totalReviews} review
+                                            {totalReviews === 1 ? "" : "s"}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="seller-stats">
-                                    <div className="seller-stat">
-                                        <strong>{totalReviews}</strong>
-                                        <div className="seller-stat-label">Reviews</div>
-                                    </div>
-
+                                <div className="seller-stats seller-stats-compact">
                                     <div className="seller-stat">
                                         <strong>{soldCount}</strong>
-                                        <div className="seller-stat-label">Sold</div>
+                                        <div className="seller-stat-label">
+                                            Sold
+                                        </div>
                                     </div>
 
                                     <div className="seller-stat">
-                                        <strong>{merchant.shipsFrom || "—"}</strong>
-                                        <div className="seller-stat-label">Ships from</div>
+                                        <strong>
+                                            {merchant.shipsFrom || "—"}
+                                        </strong>
+                                        <div className="seller-stat-label">
+                                            Ships from
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="seller-reputation">
-                                    <SellerReputation merchantAuthority={merchant.authority} />
-                                </div>
+                                <Link
+                                    to={`/merchant/${merchant.authority}`}
+                                    className="seller-visit-link"
+                                >
+                                    Visit Store
+                                </Link>
                             </>
                         ) : (
-                            <p className="product-muted">Seller information is unavailable.</p>
+                            <p className="product-muted">
+                                Seller information is unavailable.
+                            </p>
                         )}
                     </section>
                 </div>

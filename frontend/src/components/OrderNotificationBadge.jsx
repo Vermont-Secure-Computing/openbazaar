@@ -63,11 +63,8 @@ export default function OrderNotificationBadge() {
     return (
         <span
             style={{
-                position: "absolute",
-                top: -8,
-                right: -10,
-                minWidth: 20,
-                height: 20,
+                minWidth: 18,
+                height: 18,
                 padding: "0 5px",
                 borderRadius: 999,
                 background: "#dc2626",
@@ -75,10 +72,10 @@ export default function OrderNotificationBadge() {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 12,
-                fontWeight: 700,
+                fontSize: 10,
+                fontWeight: 800,
                 lineHeight: 1,
-                border: "2px solid white",
+                flex: "0 0 auto",
             }}
         >
             {newOrderCount > 99 ? "99+" : newOrderCount}
