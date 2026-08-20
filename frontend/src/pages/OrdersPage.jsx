@@ -11,6 +11,8 @@ import {
     getBuyerEscrows,
     getSellerEscrows,
     getEscrowStatusLabel,
+    isMutualCancellationProposal,
+    MUTUAL_CANCELLATION_PREFIX,
 } from "../lib/escrow";
 
 import { getProduct } from "../lib/product";
@@ -278,6 +280,7 @@ export default function OrdersPage() {
                             )}`
                         )
                     }
+                    currentWalletAddress={wallet.publicKey?.toBase58?.() ?? ""}
                 />
             </section>
 
@@ -301,6 +304,7 @@ export default function OrdersPage() {
                             )}`
                         )
                     }
+                    currentWalletAddress={wallet.publicKey?.toBase58?.() ?? ""}
                 />
             </section>
         </main>
@@ -313,6 +317,7 @@ function OrderList({
     emptyMessage,
     emptyMessageSub,
     onSelect,
+    currentWalletAddress
 }) {
     const [filter, setFilter] = useState("all");
     const [sort, setSort] = useState("highest-price");
@@ -328,6 +333,14 @@ function OrderList({
     }
 
     const requiresAction = escrow => {
+        const mutualCancellationPending = isMutualCancellationProposal(escrow);
+
+        if (mutualCancellationPending) {
+            const requester = addressToString(escrow.finalizationProposer);
+
+            return (requester && requester !== currentWalletAddress);
+        }
+
         return (
             (
                 role === "seller" &&
@@ -342,9 +355,10 @@ function OrderList({
         );
     };
 
-    const actionCount = orders.filter(
-        requiresAction
-    ).length;
+    const actionCount = orders.filter(requiresAction).length;
+
+    const isCancellationCompleted = escrow => 
+        escrow.status === ESCROW_STATUS.COMPLETED && String(escrow.finalizationNote ?? "").startsWith(MUTUAL_CANCELLATION_PREFIX);
 
     const filteredOrders = orders.filter(escrow => {
         if (filter === "needs-action") {
@@ -471,6 +485,10 @@ function OrderList({
 
                     const actionRequired = requiresAction(escrow);
 
+                    const mutualCancellationPending = isMutualCancellationProposal(escrow);
+                    const cancellationRequester = mutualCancellationPending ? addressToString(escrow.finalizationProposer) : "";
+                    const cancellationNeedsResponse = mutualCancellationPending && cancellationRequester !== currentWalletAddress;
+
                     const productImage = Array.isArray(product?.imageUris) &&
                         product.imageUris.length > 0 ? product.imageUris[0] : product?.imageUri || "";
                     
@@ -520,9 +538,12 @@ function OrderList({
                                 </div>
                                 {actionRequired && (
                                     <div className="order-list-attention">
-                                        {role === "seller"
+                                        {cancellationNeedsResponse 
+                                            ? "Review and respond to the cancellation request"
+                                            : role === "seller"
                                             ? "Accept order and provide your deposit"
-                                            : "Review and confirm the seller's completion"}
+                                            : "Review and confirm the seller's completion"
+                                        }
                                     </div>
                                 )}
 
@@ -553,6 +574,7 @@ function OrderList({
                                     status={escrow.status}
                                     role={role}
                                     escrow={escrow}
+                                    currentWalletAddress={currentWalletAddress}
                                 />
 
                                 <span className="order-list-view" aria-hidden="true">
@@ -569,11 +591,27 @@ function OrderList({
     );
 }
 
-function StatusBadge({ status, role, escrow }) {
+function StatusBadge({ status, role, escrow, currentWalletAddress }) {
+    const cancellationCompleted = status === ESCROW_STATUS.COMPLETED && String(escrow.finalizationNote ?? "").startsWith(MUTUAL_CANCELLATION_PREFIX);
+    const mutualCancellationPending = isMutualCancellationProposal(escrow);
+    const cancellationRequester = mutualCancellationPending ? addressToString(escrow.finalizationProposer) : "";
+    const cancellationNeedsResponse = mutualCancellationPending && cancellationRequester !== currentWalletAddress;
+
     let label = getEscrowStatusLabel(status);
     let statusClass = "default";
 
-    if (
+    if (cancellationCompleted) {
+        label = "Cancelled";
+        statusClass = "cancelled";
+    } else if (mutualCancellationPending) {
+        if (cancellationNeedsResponse) {
+            label = "Cancellation Approval";
+            statusClass = "action-required";
+        } else {
+            label = "Cancellation Pending";
+            statusClass = "cancellation-pending";
+        }
+    } else if (
         role === "seller" &&
         status === ESCROW_STATUS.CREATED &&
         Number(escrow.depositedA) > 0 &&

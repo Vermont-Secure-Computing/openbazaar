@@ -26,6 +26,7 @@ import { useNetwork } from "../context/NetworkContext";
 import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
 import OrderChat from "../components/OrderChat";
+import TransactionPreview from "../components/TransactionPreview";
 import { sendOrderMessage } from "../lib/chat";
 import {
     initializeMerchantReputation,
@@ -33,6 +34,7 @@ import {
     hasOrderReview,
 } from "../lib/review";
 import "./OrderDetailsPage.css";
+import "../components/TransactionPreview.css";
 
 function lamportsToSol(value) {
     try {
@@ -379,45 +381,17 @@ export default function OrderDetailsPage() {
         );
 
     const retrieveDeposit = async () => {
-        const buyerRefund = lamportsToSol(
-            escrow.proposedPayoutA
-        );
-        const sellerPayout = lamportsToSol(
-            escrow.proposedPayoutB
-        );
-
-        const confirmed = window.confirm(
-            `Confirm that you received the product?\n\n` +
-            `${buyerRefund} SOL will be returned to you.\n` +
-            `${sellerPayout} SOL will be released to the seller.\n\n` +
-            `This action requires one wallet signature.`
-        );
-
-        if (!confirmed) return;
-
-        await runAction(
+        return runAction(
             () => releaseBuyerAndRecordSale({
                 connection,
                 wallet,
                 escrow,
             }),
             "Your deposit was returned and the seller was paid."
-        );
+        )
     };
 
-    const requestCancellation = async (
-        reason
-    ) => {
-        const confirmed =
-            window.confirm(
-                `Request mutual cancellation?\n\n` +
-                `Reason: ${reason}\n\n` +
-                `The other party must approve before funds are returned.`
-            );
-
-        if (!confirmed) {
-            return false;
-        }
+    const requestCancellation = async reason => {
 
         return runAction(
             () =>
@@ -432,27 +406,6 @@ export default function OrderDetailsPage() {
     };
 
     const approveCancellation = async () => {
-        const buyerPayout =
-            lamportsToSol(
-                escrow.proposedPayoutA
-            );
-
-        const sellerPayout =
-            lamportsToSol(
-                escrow.proposedPayoutB
-            );
-
-        const confirmed =
-            window.confirm(
-                `Approve mutual cancellation?\n\n` +
-                `Buyer refund: ${buyerPayout} SOL\n` +
-                `Seller refund: ${sellerPayout} SOL\n\n` +
-                `Each party will receive its own deposited funds.`
-            );
-
-        if (!confirmed) {
-            return false;
-        }
 
         const success =
             await runAction(
@@ -475,15 +428,6 @@ export default function OrderDetailsPage() {
     };
 
     const declineCancellation = async () => {
-        const confirmed =
-            window.confirm(
-                "Decline this mutual cancellation request? The order will return to the accepted state."
-            );
-
-        if (!confirmed) {
-            return false;
-        }
-
         return runAction(
             () =>
                 declineMutualCancellation({
@@ -496,16 +440,6 @@ export default function OrderDetailsPage() {
     };
 
     const rejectFinalization = async () => {
-        const confirmed = window.confirm(
-            "Reject the seller's ready status?\n\n" +
-            "The order will return to the accepted state. " +
-            "You may then request mutual cancellation."
-        );
-    
-        if (!confirmed) {
-            return false;
-        }
-    
         return runAction(
             () =>
                 rejectPendingFinalization({
@@ -563,11 +497,6 @@ export default function OrderDetailsPage() {
     };
 
     const closeOrder = async () => {
-        const confirmed = window.confirm(
-            "Close this completed order and recover the escrow account rent? The order will disappear from the current escrow list."
-        );
-        if (!confirmed) return;
-
         const success = await runAction(
             () => closeCompletedEscrow({
                 connection,
@@ -591,31 +520,9 @@ export default function OrderDetailsPage() {
                     0
             );
 
-        if (
-            escrow.status !==
-                ESCROW_STATUS.CREATED ||
-            sellerDeposit > 0
-        ) {
-            alert(
-                "This order can no longer be withdrawn because the seller has already accepted or deposited."
-            );
+        if (escrow.status !== ESCROW_STATUS.CREATED || sellerDeposit > 0) {
+            alert("This order can no longer be withdrawn because the seller has already accepted or deposited.");
             await loadOrder();
-            return;
-        }
-
-        const refundAmount =
-            lamportsToSol(
-                escrow.depositedA
-            );
-    
-        const confirmed =
-            window.confirm(
-                `Withdraw this order?\n\n` +
-                `${refundAmount} SOL will be returned to your wallet.\n\n` +
-                `This is only available before the seller deposits.`
-            );
-    
-        if (!confirmed) {
             return;
         }
     
@@ -778,8 +685,16 @@ function OrderCard({
                 : "Unable to fulfill the order"
         );
     const [customMutualCancellationReason, setCustomMutualCancellationReason] = useState("");
-
-
+    const [acceptPreviewOpen, setAcceptPreviewOpen] = useState(false);
+    const [readyPreviewOpen, setReadyPreviewOpen] = useState(false);
+    const [releasePreviewOpen, setReleasePreviewOpen] = useState(false);
+    const [withdrawPreviewOpen, setWithdrawPreviewOpen] = useState(false);
+    const [approveCancellationPreviewOpen, setApproveCancellationPreviewOpen] = useState(false);
+    const [requestCancellationPreviewOpen, setRequestCancellationPreviewOpen] = useState(false);
+    const [pendingMutualCancellationReason, setPendingMutualCancellationReason] = useState("");
+    const [declineCancellationPreviewOpen, setDeclineCancellationPreviewOpen] = useState(false);
+    const [rejectFinalizationPreviewOpen, setRejectFinalizationPreviewOpen] = useState(false);
+    const [closeOrderPreviewOpen, setCloseOrderPreviewOpen] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -951,36 +866,21 @@ function OrderCard({
             escrow
         );
 
-    const submitMutualCancellationRequest =
-        async () => {
-            const selectedReason =
-                mutualCancellationReason ===
-                    "Other"
-                    ? customMutualCancellationReason
-                        .trim()
-                    : mutualCancellationReason;
+    const submitMutualCancellationRequest = () => {
+        const selectedReason =
+            mutualCancellationReason === "Other"
+                ? customMutualCancellationReason.trim()
+                : mutualCancellationReason;
 
-            if (!selectedReason) {
-                alert(
-                    "Enter a cancellation reason."
-                );
-                return;
-            }
+        if (!selectedReason) {
+            alert("Enter a cancellation reason.");
+            return;
+        }
 
-            const success =
-                await onRequestCancellation(
-                    selectedReason
-                );
+        setPendingMutualCancellationReason(selectedReason);
 
-            if (success) {
-                setShowMutualCancellationForm(
-                    false
-                );
-                setCustomMutualCancellationReason(
-                    ""
-                );
-            }
-        };
+        setRequestCancellationPreviewOpen(true);
+    };
 
     const isCancellationCompleted =
         escrow.status ===
@@ -1121,6 +1021,10 @@ function OrderCard({
         mutualCancellationPending ||
         canBuyerWithdraw;
 
+    const donationLamports = Math.floor(Number(escrow.referenceAmount) * donationPercent / 100);
+    const sellerDepositLamports = Number(escrow.requiredDepositB?.toString?.() ?? escrow.requiredDepositB ?? 0);
+    const sellerFinalPayoutLamports = Math.max(Number(escrow.referenceAmount) + sellerDepositLamports - donationLamports, 0);
+
     return (
         <article className="order-detail-card">
 
@@ -1168,7 +1072,14 @@ function OrderCard({
                                 </button>
                             </div>
                         </div>
-                        <StatusBadge status={escrow.status} />
+                        <StatusBadge 
+                            status={escrow.status} 
+                            role={role}
+                            escrow={escrow}
+                            currentWalletAddress={currentWalletAddress}
+                            mutualCancellationPending={mutualCancellationPending} 
+                            isCancellationCompleted={isCancellationCompleted}
+                        />
                     </div>
 
                     <div className={`order-next-action ${actionStatus.type}`}>
@@ -1291,7 +1202,7 @@ function OrderCard({
                                 <button
                                     type="button"
                                     className="order-primary-button"
-                                    onClick={onAccept}
+                                    onClick={() => setAcceptPreviewOpen(true)}
                                     disabled={processing}
                                 >
                                     {processing
@@ -1420,7 +1331,7 @@ function OrderCard({
                                             <div className="order-action-buttons">
                                                 <button
                                                     type="button"
-                                                    onClick={() => onProposeCompletion(donationPercent)}
+                                                    onClick={() => setReadyPreviewOpen(true)}
                                                     disabled={processing}
                                                 >
                                                     {processing
@@ -1447,7 +1358,7 @@ function OrderCard({
                             )}
 
                             {role === "buyer" &&
-                                escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED && (
+                                escrow.status === ESCROW_STATUS.FINALIZATION_SUGGESTED && !mutualCancellationPending && (
                                 <div className="order-action-group">
                                     <div className="order-action-panel info">
                                         <p>
@@ -1467,7 +1378,7 @@ function OrderCard({
                                         <button
                                             type="button"
                                             className="order-primary-button"
-                                            onClick={onRetrieveDeposit}
+                                            onClick={() => setReleasePreviewOpen(true)}
                                             disabled={processing}
                                         >
                                             {processing
@@ -1477,7 +1388,7 @@ function OrderCard({
 
                                         <button
                                             type="button"
-                                            onClick={onRejectFinalization}
+                                            onClick={() => setRejectFinalizationPreviewOpen(true)}
                                             disabled={processing}
                                         >
                                             {processing ? "Processing..." : "Reject Ready Status"}
@@ -1634,7 +1545,7 @@ function OrderCard({
                                             <button
                                                 type="button"
                                                 className="order-primary-button"
-                                                onClick={onApproveCancellation}
+                                                onClick={() => setApproveCancellationPreviewOpen(true)}
                                                 disabled={processing}
                                             >
                                                 {processing ? "Processing..." : "Approve Cancellation"}
@@ -1642,7 +1553,7 @@ function OrderCard({
 
                                             <button
                                                 type="button"
-                                                onClick={onDeclineCancellation}
+                                                onClick={() => setDeclineCancellationPreviewOpen(true)}
                                                 disabled={processing}
                                             >
                                                 Decline
@@ -1661,7 +1572,7 @@ function OrderCard({
 
                                     <button
                                         type="button"
-                                        onClick={onWithdrawOrder}
+                                        onClick={() => setWithdrawPreviewOpen(true)}
                                         disabled={processing}
                                     >
                                         {processing
@@ -1737,7 +1648,7 @@ function OrderCard({
                                 <button
                                     type="button"
                                     className="order-close-button"
-                                    onClick={onCloseOrder}
+                                    onClick={() => setCloseOrderPreviewOpen(true)}
                                     disabled={processing}
                                 >
                                     {processing
@@ -1780,62 +1691,474 @@ function OrderCard({
             <div id="order-chat-section">
                 <OrderChat escrow={escrow} />
             </div>
+
+            {/* 
+                Transaction preview modal for Seller's Accept Order action
+            */}
+            <TransactionPreview
+                open={acceptPreviewOpen}
+                title="Accept Order"
+                description="You are about to accept this order and provide your seller security deposit."
+                rows={[
+                    {
+                        label: "Product price",
+                        value: `${lamportsToSol(
+                            escrow.referenceAmount
+                        )} SOL`,
+                    },
+                    {
+                        label: "Seller security deposit",
+                        value: `${lamportsToSol(
+                            escrow.requiredDepositB
+                        )} SOL`,
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction accepts the buyer's order and locks your refundable seller security deposit in escrow. The deposit remains secured until the order is completed or cancelled according to the escrow rules."
+                processing={processing}
+                confirmLabel="Continue to Wallet"
+                onConfirm={async () => {
+                    setAcceptPreviewOpen(false);
+                    await onAccept();
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setAcceptPreviewOpen(false);
+                    }
+                }}
+            />
+
+            {/* 
+                Transaction preview modal for "Mark Ready for Buyer Confirmation"
+            */}
+            <TransactionPreview
+                open={readyPreviewOpen}
+                title="Mark Order Ready"
+                description="You are about to mark this order ready for buyer confirmation."
+                rows={[
+                    {
+                        label: "Product payment",
+                        value: `${lamportsToSol(
+                            escrow.referenceAmount
+                        )} SOL`,
+                    },
+                    {
+                        label: "Refundable seller deposit",
+                        value: `${lamportsToSol(
+                            sellerDepositLamports
+                        )} SOL`,
+                    },
+                    ...(donationPercent > 0
+                        ? [
+                            {
+                                label: `Website donation (${donationPercent}%)`,
+                                value: `-${lamportsToSol(
+                                    donationLamports
+                                )} SOL`,
+                            },
+                        ]
+                        : []),
+                    {
+                        label: "Seller receives if completed",
+                        value: `${lamportsToSol(
+                            sellerFinalPayoutLamports
+                        )} SOL`,
+                        emphasis: true,
+                    },
+                ]}
+                explanation={
+                    donationPercent > 0
+                        ? "This transaction marks the order as fulfilled and ready for buyer confirmation. The selected donation will be deducted from the seller proceeds only if the buyer later confirms the order."
+                        : "This transaction marks the order as fulfilled and ready for buyer confirmation. No funds are released yet; the buyer must still confirm receipt."
+                }
+                processing={processing}
+                confirmLabel="Continue to Wallet"
+                onConfirm={async () => {
+                    setReadyPreviewOpen(false);
+
+                    const success =
+                        await onProposeCompletion(
+                            donationPercent
+                        );
+
+                    if (success) {
+                        setShowCompletionOptions(false);
+                    }
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setReadyPreviewOpen(false);
+                    }
+                }}
+            />
+
+            {/* 
+                Transaction preview modal for Confirm order and Release payment
+            */}
+            <TransactionPreview
+                open={releasePreviewOpen}
+                title="Confirm Order & Release Payment"
+                description="Confirm that you have received and checked the product before completing this order."
+                rows={[
+                    {
+                        label: "Returned to you",
+                        value: `${lamportsToSol(
+                            escrow.proposedPayoutA
+                        )} SOL`,
+                    },
+                    {
+                        label: "Released to seller",
+                        value: `${lamportsToSol(
+                            escrow.proposedPayoutB
+                        )} SOL`,
+                    },
+                    {
+                        label: "Order status after signing",
+                        value: "Completed",
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction completes the order. Your refundable buyer deposit will be returned to your wallet, and the seller payment will be released from escrow. This action should only be performed after you have received and checked the product."
+                processing={processing}
+                confirmLabel="Confirm & Continue to Wallet"
+                onConfirm={async () => {
+                    setReleasePreviewOpen(false);
+
+                    await onRetrieveDeposit();
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setReleasePreviewOpen(false);
+                    }
+                }}
+            />
+
+
+            {/*  
+                Transaction preview for Withdraw Order and Refund
+            */}
+            <TransactionPreview
+                open={withdrawPreviewOpen}
+                title="Withdraw Order"
+                description="You are about to withdraw this order before the seller has accepted it."
+                rows={[
+                    {
+                        label: "Refund to your wallet",
+                        value: `${lamportsToSol(
+                            escrow.depositedA
+                        )} SOL`,
+                        emphasis: true,
+                    },
+                    {
+                        label: "Seller deposit",
+                        value: `${lamportsToSol(
+                            escrow.depositedB
+                        )} SOL`,
+                    },
+                ]}
+                explanation="This transaction withdraws your pending order and returns the SOL you deposited into escrow. This option is only available before the seller provides their deposit."
+                processing={processing}
+                confirmLabel="Withdraw & Continue to Wallet"
+                onConfirm={async () => {
+                    setWithdrawPreviewOpen(false);
+                    await onWithdrawOrder();
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setWithdrawPreviewOpen(false);
+                    }
+                }}
+            />
+
+
+            {/* 
+                Transaction preview modal for Request Mutual Cancellation
+            */}
+            <TransactionPreview
+                open={requestCancellationPreviewOpen}
+                title="Request Mutual Cancellation"
+                description="You are about to request mutual cancellation of this order."
+                rows={[
+                    {
+                        label: "Reason",
+                        value: pendingMutualCancellationReason,
+                    },
+                    {
+                        label: "Buyer funds in escrow",
+                        value: `${lamportsToSol(
+                            escrow.depositedA
+                        )} SOL`,
+                    },
+                    {
+                        label: "Seller funds in escrow",
+                        value: `${lamportsToSol(
+                            escrow.depositedB
+                        )} SOL`,
+                    },
+                    {
+                        label: "Next step",
+                        value: "Waiting for approval",
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction creates a mutual cancellation request. No funds are returned yet. The other party must approve the request before the buyer and seller receive their escrowed funds back."
+                processing={processing}
+                confirmLabel="Request & Continue to Wallet"
+                onConfirm={async () => {
+                    setRequestCancellationPreviewOpen(false);
+
+                    const success =
+                        await onRequestCancellation(
+                            pendingMutualCancellationReason
+                        );
+
+                    if (success) {
+                        setShowMutualCancellationForm(false);
+                        setCustomMutualCancellationReason("");
+                        setPendingMutualCancellationReason("");
+                    }
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setRequestCancellationPreviewOpen(false);
+                        setPendingMutualCancellationReason("");
+                    }
+                }}
+            />
+
+            {/* 
+                Transaction preview modal for Approve Mutual Cancellation
+            */}
+            <TransactionPreview
+                open={approveCancellationPreviewOpen}
+                title="Approve Mutual Cancellation"
+                description="You are about to approve the cancellation request and return the escrowed funds."
+                rows={[
+                    {
+                        label: "Refund to buyer",
+                        value: `${lamportsToSol(
+                            escrow.proposedPayoutA
+                        )} SOL`,
+                    },
+                    {
+                        label: "Refund to seller",
+                        value: `${lamportsToSol(
+                            escrow.proposedPayoutB
+                        )} SOL`,
+                    },
+                    {
+                        label: "Result",
+                        value: "Order cancelled",
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction approves the mutual cancellation request. The buyer and seller will each receive the refund amounts shown above from escrow."
+                processing={processing}
+                confirmLabel="Approve & Continue to Wallet"
+                onConfirm={async () => {
+                    setApproveCancellationPreviewOpen(false);
+
+                    await onApproveCancellation();
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setApproveCancellationPreviewOpen(false);
+                    }
+                }}
+            />
+
+            {/* 
+                Transaction preview modal for Decline Mutual Cancellation
+            */}
+            <TransactionPreview
+                open={declineCancellationPreviewOpen}
+                title="Decline Mutual Cancellation"
+                description="You are about to decline this mutual cancellation request."
+                rows={[
+                    {
+                        label: "Cancellation requested by",
+                        value:
+                            cancellationRequester ===
+                            getBuyerAddress(escrow)
+                                ? "Buyer"
+                                : "Seller",
+                    },
+                    {
+                        label: "Reason",
+                        value:
+                            pendingCancellationReason ||
+                            "No reason provided",
+                    },
+                    {
+                        label: "Result",
+                        value: "Order remains active",
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction declines the mutual cancellation request. No funds are released or refunded. The order will return to its accepted state and both parties' funds will remain secured in escrow."
+                processing={processing}
+                confirmLabel="Decline & Continue to Wallet"
+                onConfirm={async () => {
+                    setDeclineCancellationPreviewOpen(false);
+
+                    await onDeclineCancellation();
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setDeclineCancellationPreviewOpen(false);
+                    }
+                }}
+            />
+
+
+            {/* 
+                Transaction preview modal for Reject Ready Status
+            */}
+            <TransactionPreview
+                open={rejectFinalizationPreviewOpen}
+                title="Reject Ready Status"
+                description="You are about to reject the seller's request to complete this order."
+                rows={[
+                    {
+                        label: "Buyer funds in escrow",
+                        value: `${lamportsToSol(
+                            escrow.depositedA
+                        )} SOL`,
+                    },
+                    {
+                        label: "Seller funds in escrow",
+                        value: `${lamportsToSol(
+                            escrow.depositedB
+                        )} SOL`,
+                    },
+                    {
+                        label: "Result",
+                        value: "Order remains active",
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction rejects the seller's ready status. No funds will be released or refunded. The order will return to its accepted state and both parties' funds will remain secured in escrow."
+                processing={processing}
+                confirmLabel="Reject & Continue to Wallet"
+                onConfirm={async () => {
+                    setRejectFinalizationPreviewOpen(false);
+
+                    await onRejectFinalization();
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setRejectFinalizationPreviewOpen(false);
+                    }
+                }}
+            />
+
+
+            {/* 
+                Transaction preview modal for Close Order and Recover Rent
+            */}
+            <TransactionPreview
+                open={closeOrderPreviewOpen}
+                title="Close Order & Recover Rent"
+                description="You are about to permanently close this completed escrow account."
+                rows={[
+                    {
+                        label: "Order",
+                        value: "Completed",
+                    },
+                    {
+                        label: "Escrow account",
+                        value: "Will be closed",
+                    },
+                    {
+                        label: "Account rent",
+                        value: "Returned to your wallet",
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction closes the completed escrow account and returns its remaining Solana account rent to your wallet. The order will no longer appear in the current escrow list after the account is closed."
+                processing={processing}
+                confirmLabel="Close & Continue to Wallet"
+                onConfirm={async () => {
+                    setCloseOrderPreviewOpen(false);
+
+                    await onCloseOrder();
+                }}
+                onCancel={() => {
+                    if (!processing) {
+                        setCloseOrderPreviewOpen(false);
+                    }
+                }}
+            />
         </article>
     );
 }
 
-function StatusBadge({ status }) {
-    const label =
-        getEscrowStatusLabel(status);
+function StatusBadge({ 
+    status, 
+    role,
+    escrow,
+    currentWalletAddress,
+    mutualCancellationPending = false,
+    isCancellationCompleted = false,
+}) {
+    const cancellationRequester = mutualCancellationPending ? addressToString(escrow.finalizationProposer) : "";
+    const cancellationNeedsResponse = 
+        mutualCancellationPending && 
+        Boolean(cancellationRequester) &&
+        Boolean(currentWalletAddress) &&
+        cancellationRequester !== currentWalletAddress;
 
-    let background = "#e5e7eb";
-    let color = "#111827";
+    let label = getEscrowStatusLabel(status);
+    let statusClass = "default";
 
-    if (
-        status ===
-        ESCROW_STATUS.CREATED
+    if (isCancellationCompleted) {
+        label = "Cancelled";
+        statusClass = "cancelled";
+    } else if (mutualCancellationPending) {
+        if (cancellationNeedsResponse) {
+            label = "Cancellation Approval";
+            statusClass = "action-required";
+        } else {
+            label = "Cancellation Pending";
+            statusClass = "cancellation-pending";
+        }
+    } else if (
+        role === "seller" &&
+        status === ESCROW_STATUS.CREATED &&
+        Number(escrow.depositedA) > 0 &&
+        Number(escrow.depositedB) === 0
     ) {
-        background = "#fef3c7";
-        color = "#92400e";
-    }
-
-    if (
+        label = "New Order";
+        statusClass = "action-required";
+    } else if (
+        role === "buyer" &&
         status ===
-        ESCROW_STATUS.DEPOSITS_COMPLETE
+            ESCROW_STATUS.FINALIZATION_SUGGESTED
     ) {
-        background = "#dbeafe";
-        color = "#1e40af";
-    }
-
-    if (
+        label = "Action Required";
+        statusClass = "action-required";
+    } else if (
+        status === ESCROW_STATUS.CREATED
+    ) {
+        statusClass = "created";
+    } else if (
+        status === ESCROW_STATUS.DEPOSITS_COMPLETE
+    ) {
+        statusClass = "deposits-complete";
+    } else if (
         status ===
-        ESCROW_STATUS.FINALIZATION_SUGGESTED
+            ESCROW_STATUS.FINALIZATION_SUGGESTED
     ) {
-        background = "#ede9fe";
-        color = "#5b21b6";
-    }
-
-    if (
-        status ===
-        ESCROW_STATUS.COMPLETED
+        statusClass = "finalization";
+    } else if (
+        status === ESCROW_STATUS.COMPLETED
     ) {
-        background = "#dcfce7";
-        color = "#166534";
+        statusClass = "completed";
     }
 
     return (
         <span
-            style={{
-                display:
-                    "inline-block",
-                padding:
-                    "6px 10px",
-                borderRadius: 999,
-                background,
-                color,
-                fontWeight: 700,
-                fontSize: 13,
-            }}
+            className={`order-status-badge ${statusClass}`}
         >
             {label}
         </span>

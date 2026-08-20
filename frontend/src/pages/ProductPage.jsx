@@ -7,8 +7,10 @@ import { getProduct } from "../lib/product";
 import { getMerchants } from "../lib/merchant";
 import { createBuyOrder } from "../lib/buyOrder";
 import { getMerchantReputation } from "../lib/reputation";
+import TransactionPreview from "../components/TransactionPreview";
 import ProductReviews from "../components/ProductReviews";
 import "../components/review.css";
+import "../components/TransactionPreview.css"
 import "./ProductPage.css";
 
 
@@ -24,6 +26,7 @@ export default function ProductPage() {
     const [reputation, setReputation] = useState(null);
     const [quantity, setQuantity] = useState(1);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+    const [transactionPreviewOpen, setTransactionPreviewOpen] = useState(false);
 
     const navigate = useNavigate();
 
@@ -232,8 +235,7 @@ export default function ProductPage() {
             return;
         }
     
-        const buyerAddress =
-            wallet.publicKey.toBase58();
+        const buyerAddress = wallet.publicKey.toBase58();
     
         const sellerAddress =
             merchant.authority?.toBase58?.() ??
@@ -253,7 +255,12 @@ export default function ProductPage() {
             );
             return;
         }
-    
+
+        setTransactionPreviewOpen(true);
+    };
+
+    const confirmBuy = async () => {
+        setTransactionPreviewOpen(false);
         try {
             setBuying(true);
     
@@ -273,19 +280,13 @@ export default function ProductPage() {
                     quantity,
                 });
     
-            console.log(
-                "Order created:",
-                orderResult
-            );
+            console.log("Order created:", orderResult);
     
-            const escrowAddress =
-                orderResult?.escrowPda;
+            const escrowAddress = orderResult?.escrowPda;
     
-            const orderRecordAddress =
-                orderResult?.orderRecord;
+            const orderRecordAddress = orderResult?.orderRecord;
     
-            const signature =
-                orderResult?.signature;
+            const signature = orderResult?.signature;
     
             if (!escrowAddress) {
                 throw new Error(
@@ -683,6 +684,53 @@ export default function ProductPage() {
                     <ProductReviews product={item.publicKey || product} />
                 </section>
             </div>
+
+            <TransactionPreview
+                open={transactionPreviewOpen}
+                title="Confirm Purchase"
+                description={`You are about to create an escrow order for ${safeQuantity} ${
+                    safeQuantity === 1 ? "item" : "items"
+                }.`}
+                rows={[
+                    {
+                        label:
+                            safeQuantity > 1
+                                ? `Product × ${safeQuantity}`
+                                : "Product",
+                        value:
+                            `${(
+                                productPriceLamports /
+                                LAMPORTS_PER_SOL
+                            ).toFixed(4)} SOL`,
+                    },
+                    {
+                        label: "Refundable buyer deposit",
+                        value:
+                            `${(
+                                securityDepositLamports /
+                                LAMPORTS_PER_SOL
+                            ).toFixed(4)} SOL`,
+                    },
+                    {
+                        label: "Total required",
+                        value:
+                            `${(
+                                buyerTotalLamports /
+                                LAMPORTS_PER_SOL
+                            ).toFixed(4)} SOL`,
+                        emphasis: true,
+                    },
+                ]}
+                explanation="This transaction creates the order and locks the product payment plus your refundable buyer deposit in escrow."
+                processing={buying}
+                confirmLabel="Continue to Wallet"
+                onConfirm={confirmBuy}
+                onCancel={() => {
+                    if (!buying) {
+                        setTransactionPreviewOpen(false);
+                    }
+                }}
+            />
         </main>
     );
 }
