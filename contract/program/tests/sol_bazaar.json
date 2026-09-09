@@ -1,0 +1,1594 @@
+{
+  "address": "Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo",
+  "metadata": {
+    "name": "sol_bazaar",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "create_merchant",
+      "discriminator": [
+        249,
+        172,
+        245,
+        100,
+        32,
+        117,
+        97,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "merchant_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "store_name",
+          "type": "string"
+        },
+        {
+          "name": "description_uri",
+          "type": "string"
+        },
+        {
+          "name": "logo_uri",
+          "type": "string"
+        },
+        {
+          "name": "banner_uri",
+          "type": "string"
+        },
+        {
+          "name": "ships_from",
+          "type": "string"
+        },
+        {
+          "name": "seller_deposit_bps",
+          "type": "u16"
+        },
+        {
+          "name": "preferred_contact",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "create_order_record",
+      "discriminator": [
+        51,
+        217,
+        58,
+        62,
+        196,
+        16,
+        208,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "External escrow verified inside create_order_record using",
+            "owner, discriminator, deserialization, parties, and amount."
+          ]
+        },
+        {
+          "name": "product",
+          "writable": true
+        },
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "product.merchant",
+                "account": "Product"
+              }
+            ]
+          }
+        },
+        {
+          "name": "order_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "quantity",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "create_product",
+      "discriminator": [
+        183,
+        155,
+        202,
+        119,
+        43,
+        114,
+        174,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  100,
+                  117,
+                  99,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "arg",
+                "path": "product_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "product_id",
+          "type": "u64"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "description_uri",
+          "type": "string"
+        },
+        {
+          "name": "image_uris",
+          "type": {
+            "vec": "string"
+          }
+        },
+        {
+          "name": "category",
+          "type": "string"
+        },
+        {
+          "name": "price",
+          "type": "u64"
+        },
+        {
+          "name": "stock",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "delete_product",
+      "discriminator": [
+        173,
+        212,
+        141,
+        230,
+        33,
+        82,
+        166,
+        25
+      ],
+      "accounts": [
+        {
+          "name": "product",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  100,
+                  117,
+                  99,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "product.product_id",
+                "account": "Product"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_reputation",
+      "discriminator": [
+        150,
+        240,
+        109,
+        53,
+        147,
+        42,
+        152,
+        162
+      ],
+      "accounts": [
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "record_completed_sale",
+      "discriminator": [
+        87,
+        17,
+        62,
+        82,
+        176,
+        250,
+        159,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow"
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product",
+          "writable": true
+        },
+        {
+          "name": "merchant_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record.seller",
+                "account": "OrderRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "completed_sale",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  112,
+                  108,
+                  101,
+                  116,
+                  101,
+                  100,
+                  45,
+                  115,
+                  97,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "restore_cancelled_order_stock",
+      "discriminator": [
+        38,
+        54,
+        214,
+        195,
+        108,
+        252,
+        154,
+        221
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow"
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product",
+          "writable": true
+        },
+        {
+          "name": "stock_restoration",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  111,
+                  99,
+                  107,
+                  45,
+                  114,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "send_message",
+      "discriminator": [
+        57,
+        40,
+        34,
+        178,
+        189,
+        10,
+        65,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "sender",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "External escrow account verified inside `send_message` through:",
+            "owner check, discriminator check, deserialization, and party validation."
+          ]
+        },
+        {
+          "name": "chat_message",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  115,
+                  115,
+                  97,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              },
+              {
+                "kind": "arg",
+                "path": "message_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "message_id",
+          "type": "u64"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "submit_review",
+      "discriminator": [
+        106,
+        30,
+        50,
+        83,
+        89,
+        46,
+        213,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "reviewer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "External escrow verified inside submit_review."
+          ]
+        },
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product"
+        },
+        {
+          "name": "reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant_profile.authority",
+                "account": "MerchantProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "review",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  118,
+                  105,
+                  101,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "rating",
+          "type": "u8"
+        },
+        {
+          "name": "comment",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "update_merchant",
+      "discriminator": [
+        192,
+        114,
+        143,
+        220,
+        199,
+        50,
+        234,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "merchant_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "store_name",
+          "type": "string"
+        },
+        {
+          "name": "description_uri",
+          "type": "string"
+        },
+        {
+          "name": "logo_uri",
+          "type": "string"
+        },
+        {
+          "name": "banner_uri",
+          "type": "string"
+        },
+        {
+          "name": "ships_from",
+          "type": "string"
+        },
+        {
+          "name": "seller_deposit_bps",
+          "type": "u16"
+        },
+        {
+          "name": "preferred_contact",
+          "type": "string"
+        },
+        {
+          "name": "active",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "update_product",
+      "discriminator": [
+        139,
+        180,
+        241,
+        126,
+        123,
+        240,
+        13,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "product",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  100,
+                  117,
+                  99,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "product.product_id",
+                "account": "Product"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "description_uri",
+          "type": "string"
+        },
+        {
+          "name": "image_uris",
+          "type": {
+            "vec": "string"
+          }
+        },
+        {
+          "name": "category",
+          "type": "string"
+        },
+        {
+          "name": "price",
+          "type": "u64"
+        },
+        {
+          "name": "stock",
+          "type": "u32"
+        },
+        {
+          "name": "active",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ChatMessage",
+      "discriminator": [
+        248,
+        136,
+        252,
+        235,
+        151,
+        180,
+        75,
+        242
+      ]
+    },
+    {
+      "name": "CompletedSale",
+      "discriminator": [
+        21,
+        214,
+        39,
+        8,
+        29,
+        8,
+        25,
+        77
+      ]
+    },
+    {
+      "name": "MerchantProfile",
+      "discriminator": [
+        214,
+        174,
+        80,
+        227,
+        36,
+        117,
+        206,
+        75
+      ]
+    },
+    {
+      "name": "MerchantReputation",
+      "discriminator": [
+        160,
+        4,
+        167,
+        12,
+        210,
+        84,
+        54,
+        94
+      ]
+    },
+    {
+      "name": "MerchantReview",
+      "discriminator": [
+        191,
+        79,
+        126,
+        107,
+        152,
+        27,
+        12,
+        116
+      ]
+    },
+    {
+      "name": "OrderRecord",
+      "discriminator": [
+        143,
+        44,
+        79,
+        139,
+        27,
+        191,
+        114,
+        204
+      ]
+    },
+    {
+      "name": "Product",
+      "discriminator": [
+        102,
+        76,
+        55,
+        251,
+        38,
+        73,
+        224,
+        229
+      ]
+    },
+    {
+      "name": "StockRestoration",
+      "discriminator": [
+        114,
+        91,
+        212,
+        207,
+        100,
+        179,
+        209,
+        5
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6001,
+      "name": "TextTooLong",
+      "msg": "Text too long"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidPrice",
+      "msg": "Invalid price"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidQuantity",
+      "msg": "Invalid quantity"
+    },
+    {
+      "code": 6004,
+      "name": "InsufficientStock",
+      "msg": "Insufficient stock"
+    },
+    {
+      "code": 6005,
+      "name": "MerchantInactive",
+      "msg": "Merchant is inactive"
+    },
+    {
+      "code": 6006,
+      "name": "ProductInactive",
+      "msg": "Product is inactive"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidDepositPercent",
+      "msg": "Invalid deposit percent"
+    },
+    {
+      "code": 6008,
+      "name": "MessageTooLong",
+      "msg": "Message is too long"
+    },
+    {
+      "code": 6009,
+      "name": "EmptyMessage",
+      "msg": "Message cannot be empty"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidEscrowOwner",
+      "msg": "Invalid escrow program owner"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidEscrowAccount",
+      "msg": "Invalid escrow account"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidEscrowDiscriminator",
+      "msg": "Invalid escrow account discriminator"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidEscrowParties",
+      "msg": "Invalid escrow parties"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidRating",
+      "msg": "Rating must be between 1 and 5"
+    },
+    {
+      "code": 6015,
+      "name": "ReviewTooLong",
+      "msg": "Review comment is too long"
+    },
+    {
+      "code": 6016,
+      "name": "OrderNotCompleted",
+      "msg": "Order must be completed before review"
+    },
+    {
+      "code": 6017,
+      "name": "OnlyBuyerCanReview",
+      "msg": "Only the buyer can review this order"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidReviewMerchant",
+      "msg": "Merchant does not match the escrow seller"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidReviewProduct",
+      "msg": "Product does not match the completed order"
+    },
+    {
+      "code": 6020,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6021,
+      "name": "NotSolBazaarEscrow",
+      "msg": "This escrow is not a SolBazaar order"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidOrderRecord",
+      "msg": "Invalid SolBazaar order record"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidOrderBuyer",
+      "msg": "Order buyer does not match escrow buyer"
+    },
+    {
+      "code": 6024,
+      "name": "InvalidOrderSeller",
+      "msg": "Order seller does not match escrow seller"
+    },
+    {
+      "code": 6025,
+      "name": "InvalidOrderAmount",
+      "msg": "Order amount does not match product total"
+    },
+    {
+      "code": 6026,
+      "name": "BuyerDepositIncomplete",
+      "msg": "Buyer deposit is incomplete"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidSellerDeposit",
+      "msg": "Escrow seller deposit does not match merchant settings"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidBuyerDeposit",
+      "msg": "Buyer deposit does not match the required escrow amount"
+    },
+    {
+      "code": 6029,
+      "name": "InvalidOrderStatus",
+      "msg": "Escrow is not in a valid state for order creation"
+    },
+    {
+      "code": 6030,
+      "name": "OrderNotCancelled",
+      "msg": "Order must be cancelled or refunded"
+    },
+    {
+      "code": 6031,
+      "name": "TooManyImages",
+      "msg": "A product can have a maximum of three images"
+    },
+    {
+      "code": 6032,
+      "name": "InvalidImageUri",
+      "msg": "Image URL cannot be empty"
+    }
+  ],
+  "types": [
+    {
+      "name": "ChatMessage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "sender",
+            "type": "pubkey"
+          },
+          {
+            "name": "message",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "message_id",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompletedSale",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order_record",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "completed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MerchantProfile",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "store_name",
+            "type": "string"
+          },
+          {
+            "name": "description_uri",
+            "type": "string"
+          },
+          {
+            "name": "logo_uri",
+            "type": "string"
+          },
+          {
+            "name": "banner_uri",
+            "type": "string"
+          },
+          {
+            "name": "ships_from",
+            "type": "string"
+          },
+          {
+            "name": "preferred_contact",
+            "type": "string"
+          },
+          {
+            "name": "seller_deposit_bps",
+            "type": "u16"
+          },
+          {
+            "name": "total_sold",
+            "type": "u32"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "verified",
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MerchantReputation",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_reviews",
+            "type": "u64"
+          },
+          {
+            "name": "total_rating",
+            "type": "u64"
+          },
+          {
+            "name": "five_star",
+            "type": "u64"
+          },
+          {
+            "name": "four_star",
+            "type": "u64"
+          },
+          {
+            "name": "three_star",
+            "type": "u64"
+          },
+          {
+            "name": "two_star",
+            "type": "u64"
+          },
+          {
+            "name": "one_star",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MerchantReview",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "order_record",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "reviewer",
+            "type": "pubkey"
+          },
+          {
+            "name": "rating",
+            "type": "u8"
+          },
+          {
+            "name": "comment",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Product",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "product_id",
+            "type": "u64"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "description_uri",
+            "type": "string"
+          },
+          {
+            "name": "image_uris",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "category",
+            "type": "string"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "stock",
+            "type": "u32"
+          },
+          {
+            "name": "sold",
+            "type": "u32"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "deleted",
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StockRestoration",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order_record",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "restored_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
