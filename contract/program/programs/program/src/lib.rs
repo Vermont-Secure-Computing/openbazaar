@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo");
+declare_id!("BbMWGQMAp4otzQLps5dkwHrCzaykdTCdBMqwomhBBwZV");
 
 pub const ESCROW_PROGRAM_ID: Pubkey =
-    pubkey!("E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ");
+    pubkey!("J6oeUYbGXSdKyH4d1YhtHoCuEA79d9FQurmsim82KN5A");
 
 pub const ESCROW_ACCOUNT_DISCRIMINATOR: [u8; 8] = [
     31, 213, 123, 187, 186, 22, 218, 155,
@@ -205,6 +205,13 @@ pub mod sol_bazaar {
             decode_external_escrow(
                 data.as_ref()
             )?;
+
+        require!(
+            external_escrow
+                .note
+                .contains("\"marketplace\":\"solbazaar\""),
+            MarketplaceError::NotSolBazaarEscrow
+        );
 
         // Saka i-validate ang decoded parties.
         require!(
@@ -673,12 +680,10 @@ pub mod sol_bazaar {
         );
     
         /*
-         * Palitan ang status values ayon sa actual
-         * cancelled/refunded statuses ng escrow program mo.
+         * cancelled/refunded statuses of escrow program.
          */
         require!(
-            external_escrow.status == 4
-                || external_escrow.status == 5,
+            external_escrow.status == 4,
             MarketplaceError::OrderNotCancelled
         );
     
@@ -799,7 +804,8 @@ pub struct UpdateProduct<'info> {
             &product.product_id.to_le_bytes()
         ],
         bump = product.bump,
-        constraint = product.merchant == authority.key() @ MarketplaceError::Unauthorized
+        constraint = product.merchant == authority.key() @ MarketplaceError::Unauthorized,
+        constraint = !product.deleted @ MarketplaceError::ProductDeleted
     )]
     pub product: Account<'info, Product>,
 
@@ -876,7 +882,8 @@ pub struct DeleteProduct<'info> {
             &product.product_id.to_le_bytes()
         ],
         bump = product.bump,
-        constraint = product.merchant == authority.key() @ MarketplaceError::Unauthorized
+        constraint = product.merchant == authority.key() @ MarketplaceError::Unauthorized,
+        constraint = !product.deleted @ MarketplaceError::ProductDeleted
     )]
     pub product: Account<'info, Product>,
 
@@ -1564,7 +1571,7 @@ pub enum MarketplaceError {
     #[msg("Review comment is too long")]
     ReviewTooLong,
 
-    #[msg("Order must be completed before review")]
+    #[msg("Order must be completed")]
     OrderNotCompleted,
 
     #[msg("Only the buyer can review this order")]
@@ -1614,6 +1621,9 @@ pub enum MarketplaceError {
 
     #[msg("Image URL cannot be empty")]
     InvalidImageUri,
+
+    #[msg("Deleted product cannot be modified")]
+    ProductDeleted,
 }
 
 solana_security_txt::security_txt! {

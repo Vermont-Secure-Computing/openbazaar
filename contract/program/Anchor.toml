@@ -5,7 +5,7 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-[programs.devnet]
+[programs.localnet]
 program = "Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo"
 
 [programs.mainnet]
@@ -15,7 +15,7 @@ solzaar = "BbMWGQMAp4otzQLps5dkwHrCzaykdTCdBMqwomhBBwZV"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "mainnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
