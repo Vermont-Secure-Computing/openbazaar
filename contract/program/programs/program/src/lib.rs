@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 
-declare_id!("BbMWGQMAp4otzQLps5dkwHrCzaykdTCdBMqwomhBBwZV");
+declare_id!("Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo");
 
 pub const ESCROW_PROGRAM_ID: Pubkey =
-    pubkey!("J6oeUYbGXSdKyH4d1YhtHoCuEA79d9FQurmsim82KN5A");
+    pubkey!("3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE");
 
 pub const ESCROW_ACCOUNT_DISCRIMINATOR: [u8; 8] = [
     31, 213, 123, 187, 186, 22, 218, 155,

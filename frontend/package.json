@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "dev-localnet": "vite --mode localnet",
+    "build-localnet": "vite build --mode localnet",
     "dev-devnet": "vite --mode devnet",
     "build-devnet": "vite build --mode devnet",
     "dev-mainnet": "vite --mode mainnet",
@@ -24,6 +26,7 @@
     "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",

@@ -339,6 +339,10 @@ export default function EditProduct({
 
     return (
         <div
+            data-product-address={
+                product.publicKey?.toString?.() ??
+                String(product.publicKey)
+            }
             style={{
                 border: "1px solid #ddd",
                 padding: 16,

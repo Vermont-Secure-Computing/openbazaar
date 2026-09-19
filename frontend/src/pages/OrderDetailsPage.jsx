@@ -13,6 +13,8 @@ import {
     sellerSuggestCompletion,
     releaseBuyerAndRecordSale,
     withdrawBuyerOrder,
+    restoreCancelledOrderStock,
+    getCancelledOrderStockRestorationStatus,
     requestMutualCancellation,
     approveMutualCancellation,
     declineMutualCancellation,
@@ -516,17 +518,33 @@ export default function OrderDetailsPage() {
             Number(
                 escrow.depositedB
                     ?.toString?.() ??
-                    escrow.depositedB ??
-                    0
+                escrow.depositedB ??
+                0
             );
-
-        if (escrow.status !== ESCROW_STATUS.CREATED || sellerDeposit > 0) {
-            alert("This order can no longer be withdrawn because the seller has already accepted or deposited.");
+    
+        if (
+            Number(escrow.status) !==
+                ESCROW_STATUS.CREATED ||
+            sellerDeposit > 0
+        ) {
+            alert(
+                "This order can no longer be withdrawn because the seller has already accepted or deposited."
+            );
+    
             await loadOrder();
             return;
         }
     
-        const success =
+        /*
+         * Step 1:
+         * Cancel/refund through the external
+         * escrow program.
+         *
+         * On the updated escrow contract this
+         * leaves the escrow on-chain with
+         * status CANCELLED (4).
+         */
+        const withdrawSuccess =
             await runAction(
                 () =>
                     withdrawBuyerOrder({
@@ -537,11 +555,40 @@ export default function OrderDetailsPage() {
                 "Order withdrawn and your deposit was refunded."
             );
     
-        if (success) {
-            navigate("/orders", {
-                replace: true,
-            });
+        if (!withdrawSuccess) {
+            return;
         }
+    
+        /*
+         * Step 2:
+         * Restore the quantity reserved by
+         * createOrderRecord().
+         *
+         * This is a separate transaction so
+         * failure here must not be reported as
+         * failure of the refund above.
+         */
+        try {
+            await restoreCancelledOrderStock({
+                connection,
+                wallet,
+                escrowAddress:
+                    escrow.publicKey,
+            });
+        } catch (error) {
+            console.error(
+                "Stock restoration failed:",
+                error
+            );
+    
+            alert(
+                "Your order was cancelled and your deposit was refunded, but product stock restoration is still pending. It can be retried safely."
+            );
+        }
+    
+        navigate("/orders", {
+            replace: true,
+        });
     };
 
     if (!wallet.publicKey) {
@@ -695,6 +742,88 @@ function OrderCard({
     const [declineCancellationPreviewOpen, setDeclineCancellationPreviewOpen] = useState(false);
     const [rejectFinalizationPreviewOpen, setRejectFinalizationPreviewOpen] = useState(false);
     const [closeOrderPreviewOpen, setCloseOrderPreviewOpen] = useState(false);
+    const [
+        stockRestorationStatus,
+        setStockRestorationStatus,
+    ] = useState(null);
+    
+    const [
+        checkingStockRestoration,
+        setCheckingStockRestoration,
+    ] = useState(false);
+    
+    const [
+        restoringStock,
+        setRestoringStock,
+    ] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+    
+        const checkStockRestoration =
+            async () => {
+                if (
+                    Number(escrow.status) !==
+                    ESCROW_STATUS.CANCELLED
+                ) {
+                    if (!cancelled) {
+                        setStockRestorationStatus(
+                            null
+                        );
+                    }
+    
+                    return;
+                }
+    
+                try {
+                    setCheckingStockRestoration(
+                        true
+                    );
+    
+                    const result =
+                        await getCancelledOrderStockRestorationStatus({
+                            connection,
+                            wallet,
+                            escrowAddress:
+                                escrow.publicKey,
+                        });
+    
+                    if (!cancelled) {
+                        setStockRestorationStatus(
+                            result
+                        );
+                    }
+                } catch (error) {
+                    console.error(
+                        "Stock restoration status check failed:",
+                        error
+                    );
+    
+                    if (!cancelled) {
+                        setStockRestorationStatus(
+                            null
+                        );
+                    }
+                } finally {
+                    if (!cancelled) {
+                        setCheckingStockRestoration(
+                            false
+                        );
+                    }
+                }
+            };
+    
+        checkStockRestoration();
+    
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        connection,
+        wallet.publicKey,
+        escrow.publicKey,
+        escrow.status,
+    ]);
 
     useEffect(() => {
         let cancelled = false;
@@ -882,13 +1011,63 @@ function OrderCard({
         setRequestCancellationPreviewOpen(true);
     };
 
+    const retryStockRestoration =
+    async () => {
+        try {
+            setRestoringStock(true);
+
+            const result =
+                await restoreCancelledOrderStock({
+                    connection,
+                    wallet,
+                    escrowAddress:
+                        escrow.publicKey,
+                });
+
+            setStockRestorationStatus({
+                orderRecordExists: true,
+                restored: true,
+                orderRecord:
+                    result.orderRecord,
+                stockRestoration:
+                    result.stockRestoration,
+            });
+
+            if (result.alreadyRestored) {
+                alert(
+                    "Product stock was already restored."
+                );
+            } else {
+                alert(
+                    `Product stock restored successfully.\n\nTransaction: ${result.signature}`
+                );
+            }
+        } catch (error) {
+            console.error(
+                "Stock restoration retry failed:",
+                error
+            );
+
+            alert(
+                error?.message ||
+                    "Failed to restore product stock."
+            );
+        } finally {
+            setRestoringStock(false);
+        }
+    };
+
     const isCancellationCompleted =
-        escrow.status ===
-            ESCROW_STATUS.COMPLETED &&
-        String(
-            escrow.finalizationNote ?? ""
-        ).startsWith(
-            MUTUAL_CANCELLATION_PREFIX
+        Number(escrow.status) ===
+            ESCROW_STATUS.CANCELLED ||
+        (
+            Number(escrow.status) ===
+                ESCROW_STATUS.COMPLETED &&
+            String(
+                escrow.finalizationNote ?? ""
+            ).startsWith(
+                MUTUAL_CANCELLATION_PREFIX
+            )
         );
     
     const sellerDisplayName =
@@ -907,7 +1086,11 @@ function OrderCard({
                 type: "success",
                 eyebrow: "Order finished",
                 title: "Order cancelled",
-                message: "The cancellation was completed and both parties were refunded.",
+                message:
+                    Number(escrow.status) ===
+                    ESCROW_STATUS.CANCELLED
+                        ? "This order was cancelled and the escrow refund was processed."
+                        : "The mutual cancellation was completed and both parties were refunded.",
             };
         }
 
@@ -1105,6 +1288,61 @@ function OrderCard({
                             )}
                         </div>
                     </div>
+
+                    {Number(escrow.status) ===
+                        ESCROW_STATUS.CANCELLED && (
+                        <div className="order-action-panel">
+                            <strong>
+                                Product Stock
+                            </strong>
+
+                            {checkingStockRestoration ? (
+                                <p>
+                                    Checking stock restoration...
+                                </p>
+                            ) : stockRestorationStatus
+                                ?.restored ? (
+                                <p>
+                                    ✓ Reserved product stock
+                                    has been restored.
+                                </p>
+                            ) : stockRestorationStatus
+                                ?.orderRecordExists ? (
+                                <>
+                                    <p>
+                                        Stock restoration is
+                                        still pending.
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            retryStockRestoration
+                                        }
+                                        disabled={
+                                            restoringStock ||
+                                            processing
+                                        }
+                                    >
+                                        {restoringStock
+                                            ? "Restoring..."
+                                            : "Restore Product Stock"}
+                                    </button>
+                                </>
+                            ) : stockRestorationStatus ? (
+                                <p>
+                                    No Solzaar order record
+                                    was found for this
+                                    cancelled escrow.
+                                </p>
+                            ) : (
+                                <p>
+                                    Unable to check stock restoration
+                                    status. Refresh this page to retry.
+                                </p>
+                            )}
+                        </div>
+                    )}
                     
                     <div className="order-section-heading">
                         <h4>Escrow Details</h4>
@@ -2093,67 +2331,108 @@ function OrderCard({
     );
 }
 
-function StatusBadge({ 
-    status, 
+function StatusBadge({
+    status,
     role,
     escrow,
     currentWalletAddress,
     mutualCancellationPending = false,
     isCancellationCompleted = false,
 }) {
-    const cancellationRequester = mutualCancellationPending ? addressToString(escrow.finalizationProposer) : "";
-    const cancellationNeedsResponse = 
-        mutualCancellationPending && 
+    const numericStatus = Number(status);
+
+    const nativeCancellation =
+        numericStatus ===
+        ESCROW_STATUS.CANCELLED;
+
+    const cancellationCompleted =
+        isCancellationCompleted ||
+        nativeCancellation;
+
+    const cancellationRequester =
+        mutualCancellationPending
+            ? addressToString(
+                  escrow.finalizationProposer
+              )
+            : "";
+
+    const cancellationNeedsResponse =
+        mutualCancellationPending &&
         Boolean(cancellationRequester) &&
         Boolean(currentWalletAddress) &&
-        cancellationRequester !== currentWalletAddress;
+        cancellationRequester !==
+            currentWalletAddress;
 
-    let label = getEscrowStatusLabel(status);
+    let label =
+        getEscrowStatusLabel(
+            numericStatus
+        );
+
     let statusClass = "default";
 
-    if (isCancellationCompleted) {
+    if (cancellationCompleted) {
         label = "Cancelled";
         statusClass = "cancelled";
-    } else if (mutualCancellationPending) {
+    } else if (
+        mutualCancellationPending
+    ) {
         if (cancellationNeedsResponse) {
-            label = "Cancellation Approval";
-            statusClass = "action-required";
+            label =
+                "Cancellation Approval";
+            statusClass =
+                "action-required";
         } else {
-            label = "Cancellation Pending";
-            statusClass = "cancellation-pending";
+            label =
+                "Cancellation Pending";
+            statusClass =
+                "cancellation-pending";
         }
     } else if (
         role === "seller" &&
-        status === ESCROW_STATUS.CREATED &&
+        numericStatus ===
+            ESCROW_STATUS.CREATED &&
         Number(escrow.depositedA) > 0 &&
         Number(escrow.depositedB) === 0
     ) {
         label = "New Order";
-        statusClass = "action-required";
+        statusClass =
+            "action-required";
     } else if (
         role === "buyer" &&
-        status ===
-            ESCROW_STATUS.FINALIZATION_SUGGESTED
+        numericStatus ===
+            ESCROW_STATUS
+                .FINALIZATION_SUGGESTED
     ) {
         label = "Action Required";
-        statusClass = "action-required";
+        statusClass =
+            "action-required";
     } else if (
-        status === ESCROW_STATUS.CREATED
+        numericStatus ===
+        ESCROW_STATUS.CREATED
     ) {
         statusClass = "created";
     } else if (
-        status === ESCROW_STATUS.DEPOSITS_COMPLETE
+        numericStatus ===
+        ESCROW_STATUS.DEPOSITS_COMPLETE
     ) {
-        statusClass = "deposits-complete";
+        statusClass =
+            "deposits-complete";
     } else if (
-        status ===
-            ESCROW_STATUS.FINALIZATION_SUGGESTED
+        numericStatus ===
+        ESCROW_STATUS
+            .FINALIZATION_SUGGESTED
     ) {
         statusClass = "finalization";
     } else if (
-        status === ESCROW_STATUS.COMPLETED
+        numericStatus ===
+        ESCROW_STATUS.COMPLETED
     ) {
         statusClass = "completed";
+    } else if (
+        numericStatus ===
+        ESCROW_STATUS.CANCELLED
+    ) {
+        statusClass = "cancelled";
     }
 
     return (
