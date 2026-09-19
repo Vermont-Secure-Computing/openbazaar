@@ -591,52 +591,132 @@ function OrderList({
     );
 }
 
-function StatusBadge({ status, role, escrow, currentWalletAddress }) {
-    const cancellationCompleted = status === ESCROW_STATUS.COMPLETED && String(escrow.finalizationNote ?? "").startsWith(MUTUAL_CANCELLATION_PREFIX);
-    const mutualCancellationPending = isMutualCancellationProposal(escrow);
-    const cancellationRequester = mutualCancellationPending ? addressToString(escrow.finalizationProposer) : "";
-    const cancellationNeedsResponse = mutualCancellationPending && cancellationRequester !== currentWalletAddress;
+function StatusBadge({
+    status,
+    role,
+    escrow,
+    currentWalletAddress,
+}) {
+    const numericStatus = Number(status);
 
-    let label = getEscrowStatusLabel(status);
+    /*
+     * Native cancellation:
+     * new escrow lifecycle uses status 4.
+     *
+     * Legacy cancellation:
+     * older mutual-cancellation flow ended
+     * as COMPLETED with the cancellation note.
+     */
+    const nativeCancellation =
+        numericStatus ===
+        ESCROW_STATUS.CANCELLED;
+
+    const legacyMutualCancellation =
+        numericStatus ===
+            ESCROW_STATUS.COMPLETED &&
+        String(
+            escrow.finalizationNote ?? ""
+        ).startsWith(
+            MUTUAL_CANCELLATION_PREFIX
+        );
+
+    const cancellationCompleted =
+        nativeCancellation ||
+        legacyMutualCancellation;
+
+    const mutualCancellationPending =
+        isMutualCancellationProposal(
+            escrow
+        );
+
+    const cancellationRequester =
+        mutualCancellationPending
+            ? addressToString(
+                  escrow.finalizationProposer
+              )
+            : "";
+
+    const cancellationNeedsResponse =
+        mutualCancellationPending &&
+        cancellationRequester !==
+            currentWalletAddress;
+
+    let label =
+        getEscrowStatusLabel(
+            numericStatus
+        );
+
     let statusClass = "default";
 
     if (cancellationCompleted) {
         label = "Cancelled";
         statusClass = "cancelled";
-    } else if (mutualCancellationPending) {
+    } else if (
+        mutualCancellationPending
+    ) {
         if (cancellationNeedsResponse) {
-            label = "Cancellation Approval";
-            statusClass = "action-required";
+            label =
+                "Cancellation Approval";
+            statusClass =
+                "action-required";
         } else {
-            label = "Cancellation Pending";
-            statusClass = "cancellation-pending";
+            label =
+                "Cancellation Pending";
+            statusClass =
+                "cancellation-pending";
         }
     } else if (
         role === "seller" &&
-        status === ESCROW_STATUS.CREATED &&
+        numericStatus ===
+            ESCROW_STATUS.CREATED &&
         Number(escrow.depositedA) > 0 &&
         Number(escrow.depositedB) === 0
     ) {
         label = "New Order";
-        statusClass = "action-required";
+        statusClass =
+            "action-required";
     } else if (
         role === "buyer" &&
-        status === ESCROW_STATUS.FINALIZATION_SUGGESTED
+        numericStatus ===
+            ESCROW_STATUS
+                .FINALIZATION_SUGGESTED
     ) {
         label = "Action Required";
-        statusClass = "action-required";
-    } else if (status === ESCROW_STATUS.CREATED) {
+        statusClass =
+            "action-required";
+    } else if (
+        numericStatus ===
+        ESCROW_STATUS.CREATED
+    ) {
         statusClass = "created";
-    } else if (status === ESCROW_STATUS.DEPOSITS_COMPLETE) {
-        statusClass = "deposits-complete";
-    } else if (status === ESCROW_STATUS.FINALIZATION_SUGGESTED) {
+    } else if (
+        numericStatus ===
+        ESCROW_STATUS.DEPOSITS_COMPLETE
+    ) {
+        statusClass =
+            "deposits-complete";
+    } else if (
+        numericStatus ===
+        ESCROW_STATUS
+            .FINALIZATION_SUGGESTED
+    ) {
         statusClass = "finalization";
-    } else if (status === ESCROW_STATUS.COMPLETED) {
+    } else if (
+        numericStatus ===
+        ESCROW_STATUS.COMPLETED
+    ) {
         statusClass = "completed";
+    } else if (
+        numericStatus ===
+        ESCROW_STATUS.CANCELLED
+    ) {
+        statusClass = "cancelled";
     }
 
     return (
-        <span className={`order-status-badge ${statusClass}`}>
+        <span
+            className={`order-status-badge ${statusClass}`}
+        >
             {label}
         </span>
     );

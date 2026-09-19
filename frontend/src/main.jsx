@@ -7,6 +7,7 @@ import { BrowserRouter } from "react-router-dom";
 import { WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
+import { UnsafeBurnerWalletAdapter } from "@solana/wallet-adapter-unsafe-burner";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./index.css";
@@ -16,7 +17,16 @@ import App from "./App";
 import { ThemeProvider } from "./context/themeContext";
 import { NetworkProvider } from "./context/NetworkContext";
 
-const wallets = [new PhantomWalletAdapter()];
+const isLocalnet =
+    import.meta.env.MODE === "localnet";
+
+const wallets = [
+    new PhantomWalletAdapter(),
+
+    ...(isLocalnet
+        ? [new UnsafeBurnerWalletAdapter()]
+        : []),
+];
 
 ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>

@@ -1,0 +1,43 @@
+{
+  "cookies": [
+    {
+      "name": "BAIDUID_BFESS",
+      "value": "77AD4DDE132D043D5E97178BFEF324D7:FG=1",
+      "domain": ".baidu.com",
+      "path": "/",
+      "expires": 1821083223.141792,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "NID",
+      "value": "CvgBCAESqgEBp2sxrkP8PmxYwr2Vk4hdvcq1vgggcoqX2H8AwWxfdtvbQw20D3CMkva2w5ovNzbivUo7K432Hu4sNwl0HRPWIf3Ya8i_L359vmjj7fiVlqyRXOSBEEznXYeSmMiy0XMGxzcmrg-7OxazYw2bohQ1bobfgp1zmK0pGY0ElxJISsTjeEXW6nS6wixR23i0P7QTXT6rMfDwq7hodfeQRHZ4mkefr8091ATVoSgBMkUBDiveEUBR4s9DdrH2hjMwPMuQ2DEptERh0w7RNbz9pgzFtSuQAPiEVd46E_J8DtNVXAQu-OhzrhtxKEEOO1DU71yBNgc",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1805358423.204003,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://127.0.0.1:5173",
+      "localStorage": [
+        {
+          "name": "solzaar_disclaimer_accepted",
+          "value": "true"
+        },
+        {
+          "name": "walletName",
+          "value": "\"Burner Wallet\""
+        },
+        {
+          "name": "solzaarTheme",
+          "value": "light"
+        }
+      ]
+    }
+  ]
+}

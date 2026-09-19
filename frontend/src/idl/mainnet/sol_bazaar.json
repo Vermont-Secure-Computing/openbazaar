@@ -1164,7 +1164,7 @@
     {
       "code": 6016,
       "name": "OrderNotCompleted",
-      "msg": "Order must be completed before review"
+      "msg": "Order must be completed"
     },
     {
       "code": 6017,
@@ -1245,6 +1245,11 @@
       "code": 6032,
       "name": "InvalidImageUri",
       "msg": "Image URL cannot be empty"
+    },
+    {
+      "code": 6033,
+      "name": "ProductDeleted",
+      "msg": "Deleted product cannot be modified"
     }
   ],
   "types": [

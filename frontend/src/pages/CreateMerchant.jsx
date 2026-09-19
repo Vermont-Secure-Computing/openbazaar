@@ -257,7 +257,36 @@ export default function CreateMerchant({ onCreated }) {
                 "Create merchant error:",
                 error
             );
-
+        
+            console.error(
+                "Create merchant message:",
+                error?.message
+            );
+        
+            console.error(
+                "Create merchant logs:",
+                error?.logs
+            );
+        
+            // SendTransactionError can fetch the simulation/transaction logs.
+            if (typeof error?.getLogs === "function") {
+                try {
+                    const logs = await error.getLogs(
+                        connection
+                    );
+        
+                    console.error(
+                        "Create merchant transaction logs:",
+                        logs
+                    );
+                } catch (logError) {
+                    console.error(
+                        "Unable to fetch transaction logs:",
+                        logError
+                    );
+                }
+            }
+        
             alert(
                 error?.message ||
                     "Failed to create merchant."

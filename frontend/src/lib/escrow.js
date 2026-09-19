@@ -314,6 +314,7 @@ export const ESCROW_STATUS = {
     DEPOSITS_COMPLETE: 1,
     FINALIZATION_SUGGESTED: 2,
     COMPLETED: 3,
+    CANCELLED: 4,
 };
 
 export function getEscrowStatusLabel(
@@ -333,6 +334,9 @@ export function getEscrowStatusLabel(
 
         case ESCROW_STATUS.COMPLETED:
             return "Completed";
+
+        case ESCROW_STATUS.CANCELLED:
+            return "Cancelled";
 
         default:
             return "Unknown";
@@ -1757,6 +1761,225 @@ export async function declineMutualCancellation({
                 ),
         })
         .rpc();
+}
+
+export async function getCancelledOrderStockRestorationStatus({
+    connection,
+    wallet,
+    escrowAddress,
+}) {
+    if (!wallet.publicKey) {
+        return {
+            orderRecordExists: false,
+            restored: false,
+            orderRecord: null,
+            stockRestoration: null,
+        };
+    }
+
+    const program =
+        getMarketplaceProgram(
+            connection,
+            wallet
+        );
+
+    const escrowPublicKey =
+        new PublicKey(
+            escrowAddress
+        );
+
+    const [orderRecordPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("order"),
+                escrowPublicKey.toBuffer(),
+            ],
+            program.programId
+        );
+
+    const orderRecordInfo =
+        await connection.getAccountInfo(
+            orderRecordPda
+        );
+
+    if (!orderRecordInfo) {
+        return {
+            orderRecordExists: false,
+            restored: false,
+            orderRecord:
+                orderRecordPda.toBase58(),
+            stockRestoration: null,
+        };
+    }
+
+    const [stockRestorationPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from(
+                    "stock-restoration"
+                ),
+                orderRecordPda.toBuffer(),
+            ],
+            program.programId
+        );
+
+    const restorationInfo =
+        await connection.getAccountInfo(
+            stockRestorationPda
+        );
+
+    return {
+        orderRecordExists: true,
+        restored:
+            Boolean(restorationInfo),
+        orderRecord:
+            orderRecordPda.toBase58(),
+        stockRestoration:
+            stockRestorationPda.toBase58(),
+    };
+}
+
+export async function restoreCancelledOrderStock({
+    connection,
+    wallet,
+    escrowAddress,
+}) {
+    if (!wallet.publicKey) {
+        throw new Error(
+            "Connect wallet first."
+        );
+    }
+
+    const program =
+        getMarketplaceProgram(
+            connection,
+            wallet
+        );
+
+    const escrowPublicKey =
+        new PublicKey(
+            escrowAddress
+        );
+
+    const [orderRecordPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("order"),
+                escrowPublicKey.toBuffer(),
+            ],
+            program.programId
+        );
+
+    let orderRecord;
+
+    try {
+        orderRecord =
+            await program.account.orderRecord.fetch(
+                orderRecordPda
+            );
+    } catch {
+        throw new Error(
+            "Solzaar order record not found."
+        );
+    }
+
+    const productPublicKey =
+        new PublicKey(
+            orderRecord.product
+        );
+
+    const [stockRestorationPda] =
+        PublicKey.findProgramAddressSync(
+            [
+                Buffer.from(
+                    "stock-restoration"
+                ),
+                orderRecordPda.toBuffer(),
+            ],
+            program.programId
+        );
+
+    /*
+     * Idempotency check.
+     *
+     * If this PDA already exists,
+     * the reserved stock was already
+     * restored for this order.
+     */
+    const existingRestoration =
+        await connection.getAccountInfo(
+            stockRestorationPda
+        );
+
+    if (existingRestoration) {
+        return {
+            alreadyRestored: true,
+            signature: null,
+            orderRecord:
+                orderRecordPda.toBase58(),
+            stockRestoration:
+                stockRestorationPda.toBase58(),
+        };
+    }
+
+    /*
+ * Local E2E test hook.
+ *
+ * Allows Playwright to simulate a stock-restoration
+ * failure AFTER the escrow cancellation/refund has
+ * already succeeded.
+ *
+ * One-shot: the flag is removed before throwing so
+ * the user can retry restoration normally.
+ */
+if (
+    import.meta.env.MODE === "localnet" &&
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(
+        "e2e:fail-next-stock-restoration"
+    ) === "true"
+) {
+    window.localStorage.removeItem(
+        "e2e:fail-next-stock-restoration"
+    );
+
+    throw new Error(
+        "E2E simulated stock restoration failure"
+    );
+}
+
+    const signature =
+        await program.methods
+            .restoreCancelledOrderStock()
+            .accounts({
+                payer:
+                    wallet.publicKey,
+
+                escrow:
+                    escrowPublicKey,
+
+                orderRecord:
+                    orderRecordPda,
+
+                product:
+                    productPublicKey,
+
+                stockRestoration:
+                    stockRestorationPda,
+
+                systemProgram:
+                    SystemProgram.programId,
+            })
+            .rpc();
+
+    return {
+        alreadyRestored: false,
+        signature,
+        orderRecord:
+            orderRecordPda.toBase58(),
+        stockRestoration:
+            stockRestorationPda.toBase58(),
+    };
 }
 
 export async function withdrawBuyerOrder({
