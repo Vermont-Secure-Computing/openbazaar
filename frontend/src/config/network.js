@@ -13,7 +13,7 @@ export const NETWORK_CONFIG = {
     defaultRpcUrl:
         import.meta.env.VITE_DEFAULT_RPC_URL ||
         (isMainnet
-            ? "https://api.mainnet-beta.solana.com"
+            ? "https://solzaar.com/rpc"
             : "https://api.devnet.solana.com"),
 
     explorerCluster:
