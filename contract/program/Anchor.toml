@@ -6,7 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-program = "Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo"
+solzaar = "Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo"
+
+[programs.devnet]
+solzaar = "Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo"
 
 [programs.mainnet]
 solzaar = "BbMWGQMAp4otzQLps5dkwHrCzaykdTCdBMqwomhBBwZV"

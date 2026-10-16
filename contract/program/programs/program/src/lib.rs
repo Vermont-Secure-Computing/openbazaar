@@ -7,7 +7,7 @@ use anchor_lang::solana_program::{
 
 declare_id!("Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo");
 
-pub const ESCROW_PROGRAM_ID: Pubkey = pubkey!("3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE");
+pub const ESCROW_PROGRAM_ID: Pubkey = pubkey!("E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ");
 
 pub const ESCROW_ACCOUNT_DISCRIMINATOR: [u8; 8] = [31, 213, 123, 187, 186, 22, 218, 155];
 
@@ -777,9 +777,8 @@ pub mod sol_bazaar {
     }
 
     pub fn withdraw_purchase_offer(ctx: Context<WithdrawPurchaseOffer>) -> Result<()> {
-        let offer = &mut ctx.accounts.purchase_offer;
+        let offer = &ctx.accounts.purchase_offer;
 
-        // Buyer can withdraw a pending or rejected offer.
         require!(
             offer.status == 0 || offer.status == 2,
             MarketplaceError::OfferNotWithdrawable
@@ -820,13 +819,75 @@ pub mod sol_bazaar {
             MarketplaceError::InvalidOrderSeller
         );
 
-        // Generic escrow withdrawal must already be completed.
         require!(
-            external_escrow.status == 4,
-            MarketplaceError::EscrowNotCancelled
+            external_escrow.status == 0,
+            MarketplaceError::InvalidOrderStatus
         );
 
-        offer.status = 3; // Withdrawn
+        require!(
+            external_escrow.deposited_a == offer.buyer_deposit && external_escrow.deposited_b == 0,
+            MarketplaceError::InvalidBuyerDeposit
+        );
+
+        require_keys_eq!(
+            external_escrow.vault,
+            ctx.accounts.vault.key(),
+            MarketplaceError::InvalidOfferEscrow
+        );
+
+        let (expected_vault, _) = Pubkey::find_program_address(
+            &[b"vault", ctx.accounts.escrow.key().as_ref()],
+            &ESCROW_PROGRAM_ID,
+        );
+
+        require_keys_eq!(
+            expected_vault,
+            ctx.accounts.vault.key(),
+            MarketplaceError::InvalidOfferEscrow
+        );
+
+        drop(data);
+
+        // Anchor discriminator for withdraw_before_complete.
+        let withdraw_ix = Instruction {
+            program_id: ESCROW_PROGRAM_ID,
+            accounts: vec![
+                AccountMeta::new(ctx.accounts.buyer.key(), true),
+                AccountMeta::new(ctx.accounts.escrow.key(), false),
+                AccountMeta::new(ctx.accounts.creator.key(), false),
+                AccountMeta::new(ctx.accounts.vault.key(), false),
+            ],
+            data: vec![40, 0, 254, 7, 88, 174, 147, 166],
+        };
+
+        // Execute the escrow refund through CPI.
+        invoke(
+            &withdraw_ix,
+            &[
+                ctx.accounts.buyer.to_account_info(),
+                ctx.accounts.escrow.to_account_info(),
+                ctx.accounts.creator.to_account_info(),
+                ctx.accounts.vault.to_account_info(),
+                ctx.accounts.escrow_program.to_account_info(),
+            ],
+        )?;
+
+        // Verify escrow closure after successful CPI refund.
+        let escrow_info = ctx.accounts.escrow.to_account_info();
+
+        require_keys_eq!(
+            *escrow_info.owner,
+            anchor_lang::solana_program::system_program::ID,
+            MarketplaceError::InvalidEscrowOwner
+        );
+
+        require!(
+            escrow_info.data_is_empty(),
+            MarketplaceError::InvalidEscrowAccount
+        );
+
+        // The SSScrow CPI completed successfully and the escrow is closed.
+        ctx.accounts.purchase_offer.status = 3;
 
         Ok(())
     }
@@ -1788,9 +1849,11 @@ pub struct RejectPurchaseOffer<'info> {
 
 #[derive(Accounts)]
 pub struct WithdrawPurchaseOffer<'info> {
+    #[account(mut)]
     pub buyer: Signer<'info>,
 
-    /// CHECK: Owner and escrow data are validated in the instruction.
+    /// CHECK: Validated in the instruction.
+    #[account(mut)]
     pub escrow: UncheckedAccount<'info>,
 
     #[account(
@@ -1806,6 +1869,24 @@ pub struct WithdrawPurchaseOffer<'info> {
             @ MarketplaceError::Unauthorized
     )]
     pub purchase_offer: Account<'info, PurchaseOffer>,
+
+    /// CHECK: Must be the escrow creator and buyer.
+    #[account(
+        mut,
+        address = buyer.key() @ MarketplaceError::Unauthorized
+    )]
+    pub creator: UncheckedAccount<'info>,
+
+    /// CHECK: PDA and escrow vault address validated in instruction.
+    #[account(mut)]
+    pub vault: UncheckedAccount<'info>,
+
+    /// CHECK: Fixed external escrow program ID.
+    #[account(
+        executable,
+        address = ESCROW_PROGRAM_ID @ MarketplaceError::InvalidEscrowOwner
+    )]
+    pub escrow_program: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]

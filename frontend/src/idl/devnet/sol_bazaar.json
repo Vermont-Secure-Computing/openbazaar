@@ -116,7 +116,7 @@
         },
         {
           "name": "escrow_program",
-          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+          "address": "E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ"
         },
         {
           "name": "system_program",
@@ -1266,10 +1266,12 @@
       "accounts": [
         {
           "name": "buyer",
+          "writable": true,
           "signer": true
         },
         {
-          "name": "escrow"
+          "name": "escrow",
+          "writable": true
         },
         {
           "name": "purchase_offer",
@@ -1301,6 +1303,18 @@
               }
             ]
           }
+        },
+        {
+          "name": "creator",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "escrow_program",
+          "address": "E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ"
         }
       ],
       "args": []

@@ -135,31 +135,38 @@ export async function withdrawPurchaseOfferAndRefund({
     escrowProgram.programId,
   );
 
-  const refundIx = await escrowProgram.methods
-    .withdrawBeforeComplete()
-    .accounts({
-      withdrawer: wallet.publicKey,
-      escrow: escrowPda,
-      creator: new PublicKey(escrow.creator),
-      vault,
-    })
-    .instruction();
-
-  const withdrawOfferIx = await marketplace.methods
+  const transaction = await marketplace.methods
     .withdrawPurchaseOffer()
     .accounts({
       buyer: wallet.publicKey,
       escrow: escrowPda,
       purchaseOffer,
+      creator: new PublicKey(escrow.creator),
+      vault,
+      escrowProgram: escrowProgram.programId,
     })
-    .instruction();
-
-  const transaction = new Transaction().add(refundIx, withdrawOfferIx);
+    .transaction();
 
   const latest = await connection.getLatestBlockhash("confirmed");
 
   transaction.feePayer = wallet.publicKey;
   transaction.recentBlockhash = latest.blockhash;
+
+  // Simulate the unsigned legacy transaction before wallet signing.
+  const simulation = await connection.simulateTransaction(
+    transaction,
+    undefined,
+    false,
+  );
+
+  console.log("Withdraw simulation error:", simulation.value.err);
+  console.log("Withdraw simulation logs:", simulation.value.logs);
+
+  if (simulation.value.err) {
+    throw new Error(
+      `Withdraw simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
+  }
 
   const signature = await wallet.sendTransaction(transaction, connection, {
     skipPreflight: false,
