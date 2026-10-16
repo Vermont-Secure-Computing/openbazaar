@@ -8,6 +8,124 @@
   },
   "instructions": [
     {
+      "name": "accept_purchase_offer",
+      "discriminator": [
+        99,
+        86,
+        118,
+        24,
+        228,
+        238,
+        226,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "seller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "purchase_offer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  114,
+                  99,
+                  104,
+                  97,
+                  115,
+                  101,
+                  95,
+                  111,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product",
+          "writable": true
+        },
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "seller"
+              }
+            ]
+          }
+        },
+        {
+          "name": "order_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "create_merchant",
       "discriminator": [
         249,
@@ -279,6 +397,108 @@
         {
           "name": "stock",
           "type": "u32"
+        },
+        {
+          "name": "seller_deposit_bps_override",
+          "type": {
+            "option": "u16"
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_purchase_offer",
+      "discriminator": [
+        29,
+        5,
+        26,
+        132,
+        233,
+        99,
+        195,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow"
+        },
+        {
+          "name": "product"
+        },
+        {
+          "name": "merchant_profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  114,
+                  99,
+                  104,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "product.merchant",
+                "account": "Product"
+              }
+            ]
+          }
+        },
+        {
+          "name": "purchase_offer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  114,
+                  99,
+                  104,
+                  97,
+                  115,
+                  101,
+                  95,
+                  111,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "unit_price",
+          "type": "u64"
+        },
+        {
+          "name": "quantity",
+          "type": "u32"
         }
       ]
     },
@@ -515,6 +735,58 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reject_purchase_offer",
+      "discriminator": [
+        6,
+        212,
+        35,
+        229,
+        82,
+        67,
+        214,
+        112
+      ],
+      "accounts": [
+        {
+          "name": "seller",
+          "signer": true
+        },
+        {
+          "name": "purchase_offer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  114,
+                  99,
+                  104,
+                  97,
+                  115,
+                  101,
+                  95,
+                  111,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "purchase_offer.escrow",
+                "account": "PurchaseOffer"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -970,8 +1242,68 @@
         {
           "name": "active",
           "type": "bool"
+        },
+        {
+          "name": "seller_deposit_bps_override",
+          "type": {
+            "option": "u16"
+          }
         }
       ]
+    },
+    {
+      "name": "withdraw_purchase_offer",
+      "discriminator": [
+        220,
+        133,
+        224,
+        115,
+        59,
+        11,
+        14,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "signer": true
+        },
+        {
+          "name": "escrow"
+        },
+        {
+          "name": "purchase_offer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  114,
+                  99,
+                  104,
+                  97,
+                  115,
+                  101,
+                  95,
+                  111,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -1064,6 +1396,19 @@
         73,
         224,
         229
+      ]
+    },
+    {
+      "name": "PurchaseOffer",
+      "discriminator": [
+        141,
+        204,
+        139,
+        89,
+        136,
+        224,
+        71,
+        184
       ]
     },
     {
@@ -1164,7 +1509,7 @@
     {
       "code": 6016,
       "name": "OrderNotCompleted",
-      "msg": "Order must be completed before review"
+      "msg": "Order must be completed"
     },
     {
       "code": 6017,
@@ -1245,6 +1590,36 @@
       "code": 6032,
       "name": "InvalidImageUri",
       "msg": "Image URL cannot be empty"
+    },
+    {
+      "code": 6033,
+      "name": "ProductDeleted",
+      "msg": "Deleted product cannot be modified"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidOfferEscrow",
+      "msg": "Invalid PurchaseOffer escrow"
+    },
+    {
+      "code": 6035,
+      "name": "InvalidOfferProduct",
+      "msg": "PurchaseOffer product mismatch"
+    },
+    {
+      "code": 6036,
+      "name": "OfferNotPending",
+      "msg": "PurchaseOffer is not pending"
+    },
+    {
+      "code": 6037,
+      "name": "OfferNotWithdrawable",
+      "msg": "PurchaseOffer cannot be withdrawn"
+    },
+    {
+      "code": 6038,
+      "name": "EscrowNotCancelled",
+      "msg": "Escrow must be cancelled before withdrawal is recorded"
     }
   ],
   "types": [
@@ -1532,6 +1907,12 @@
             "type": "u64"
           },
           {
+            "name": "seller_deposit_bps_override",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
             "name": "stock",
             "type": "u32"
           },
@@ -1553,6 +1934,62 @@
           },
           {
             "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PurchaseOffer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "unit_price",
+            "type": "u64"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "total_price",
+            "type": "u64"
+          },
+          {
+            "name": "security_deposit",
+            "type": "u64"
+          },
+          {
+            "name": "buyer_deposit",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "created_at",
             "type": "i64"
           },
           {

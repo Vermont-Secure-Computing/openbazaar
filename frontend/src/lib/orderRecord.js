@@ -2,7 +2,7 @@ import { AnchorProvider, Program } from "@coral-xyz/anchor";
 
 import { PublicKey, SystemProgram,} from "@solana/web3.js";
 
-import { solBazaarIdl as idl } from "../idl/sol_bazaar.json";
+import { solBazaarIdl as idl } from "../idl";
 
 function getProgram(connection, wallet) {
     const provider = new AnchorProvider(

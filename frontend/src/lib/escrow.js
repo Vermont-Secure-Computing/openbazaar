@@ -1,14 +1,6 @@
-import {
-    BN,
-    AnchorProvider,
-    Program,
-} from "@coral-xyz/anchor";
+import { BN, AnchorProvider, Program } from "@coral-xyz/anchor";
 
-import {
-    PublicKey,
-    SystemProgram,
-    Transaction
-} from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 
 import { escrowIdl, solBazaarIdl } from "../idl";
 
@@ -16,534 +8,386 @@ import { escrowIdl, solBazaarIdl } from "../idl";
  * Website donation wallet.
  */
 const DONATION_RECIPIENT = new PublicKey(
-    "61Gt8siRo84pmGziia5dHuJMkx9ne1d4Cb5aHsyQGP85"
+  "61Gt8siRo84pmGziia5dHuJMkx9ne1d4Cb5aHsyQGP85",
 );
 
-function getEscrowProgram(
-    connection,
-    wallet
-) {
-    const provider = new AnchorProvider(
-        connection,
-        wallet,
-        {
-            commitment: "confirmed",
-        }
-    );
+function getEscrowProgram(connection, wallet) {
+  const provider = new AnchorProvider(connection, wallet, {
+    commitment: "confirmed",
+  });
 
-    return new Program(
-        escrowIdl,
-        provider
-    );
+  return new Program(escrowIdl, provider);
 }
 
-function getMarketplaceProgram(
-    connection,
-    wallet
-) {
-    const provider = new AnchorProvider(
-        connection,
-        wallet,
-        {
-            commitment: "confirmed",
-        }
-    );
+function getMarketplaceProgram(connection, wallet) {
+  const provider = new AnchorProvider(connection, wallet, {
+    commitment: "confirmed",
+  });
 
-    return new Program(
-        solBazaarIdl,
-        provider
-    );
+  return new Program(solBazaarIdl, provider);
 }
 
 function toBN(value) {
-    return new BN(
-        value?.toString?.() ??
-            value ??
-            0
-    );
+  return new BN(value?.toString?.() ?? value ?? 0);
 }
 
 export async function createBuyerEscrow({
-    connection,
-    wallet,
-    product,
-    merchant,
-    quantity = 1,
+  connection,
+  wallet,
+  product,
+  merchant,
+  quantity = 1,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (!product || !merchant) {
-        throw new Error(
-            "Product or merchant not found."
-        );
-    }
+  if (!product || !merchant) {
+    throw new Error("Product or merchant not found.");
+  }
 
-    const quantityNumber =
-        Number(quantity);
+  const quantityNumber = Number(quantity);
 
-    if (
-        !Number.isInteger(quantityNumber) ||
-        quantityNumber <= 0
-    ) {
-        throw new Error(
-            "Invalid quantity."
-        );
-    }
+  if (!Number.isInteger(quantityNumber) || quantityNumber <= 0) {
+    throw new Error("Invalid quantity.");
+  }
 
-    const escrowProgram =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const escrowProgram = getEscrowProgram(connection, wallet);
+  const marketplaceProgram = getMarketplaceProgram(connection, wallet);
 
-    const buyer =
-        wallet.publicKey;
+  const buyer = wallet.publicKey;
 
-    const seller =
-        new PublicKey(
-            merchant.authority
-        );
+  const seller = new PublicKey(merchant.authority);
 
-    const unitPriceLamports =
-        toBN(product.price);
+  const unitPriceLamports = toBN(product.price);
 
-    const totalPriceLamports =
-        unitPriceLamports.mul(
-            new BN(quantityNumber)
-        );
+  if (unitPriceLamports.lte(new BN(0))) {
+    throw new Error("Product price must be greater than zero.");
+  }
 
-    const depositBps =
-        new BN(
-            String(
-                merchant.sellerDepositBps ??
-                    1000
-            )
-        );
+  const productPda = new PublicKey(product.publicKey);
 
-    if (
-        depositBps.isNeg() ||
-        depositBps.gt(
-            new BN(10_000)
-        )
-    ) {
-        throw new Error(
-            "Invalid merchant security deposit percentage."
-        );
-    }
+  const [merchantProfilePda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("merchant"), seller.toBuffer()],
+    marketplaceProgram.programId,
+  );
 
-    let securityDepositLamports =
-        totalPriceLamports
-            .mul(depositBps)
-            .div(
-                new BN(10_000)
-            );
+  const totalPriceLamports = unitPriceLamports.mul(new BN(quantityNumber));
 
-    if (
-        securityDepositLamports.isZero()
-    ) {
-        securityDepositLamports =
-            new BN(1);
-    }
+  const DEFAULT_SELLER_DEPOSIT_BPS = 2000;
 
-    /*
-     * Buyer deposits:
-     * product price + refundable deposit.
-     */
-    const buyerRequiredDeposit =
-        totalPriceLamports.add(
-            securityDepositLamports
-        );
+  const depositBps = new BN(
+    String(
+      product.sellerDepositBpsOverride ??
+        merchant.sellerDepositBps ??
+        DEFAULT_SELLER_DEPOSIT_BPS,
+    ),
+  );
 
-    /*
-     * Seller deposits only the
-     * refundable security deposit.
-     */
-    const sellerRequiredDeposit =
-        securityDepositLamports;
+  if (depositBps.isNeg() || depositBps.gt(new BN(10_000))) {
+    throw new Error("Invalid product security deposit percentage.");
+  }
 
-    const escrowId =
-        new BN(
-            Date.now().toString()
-        );
+  let securityDepositLamports = totalPriceLamports
+    .mul(depositBps)
+    .div(new BN(10_000));
 
-    const [escrowPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "escrow"
-                ),
+  if (securityDepositLamports.isZero()) {
+    securityDepositLamports = new BN(1);
+  }
 
-                buyer.toBuffer(),
+  /*
+   * Buyer deposits:
+   * product price + refundable deposit.
+   */
+  const buyerRequiredDeposit = totalPriceLamports.add(securityDepositLamports);
 
-                escrowId.toArrayLike(
-                    Buffer,
-                    "le",
-                    8
-                ),
-            ],
-            escrowProgram.programId
-        );
+  /*
+   * Seller deposits only the
+   * refundable security deposit.
+   */
+  const sellerRequiredDeposit = securityDepositLamports;
 
-    const [vaultPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "vault"
-                ),
+  const escrowId = new BN(Date.now().toString());
 
-                escrowPda.toBuffer(),
-            ],
-            escrowProgram.programId
-        );
+  const [escrowPda] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("escrow"),
 
-    const note =
-        JSON.stringify({
-            marketplace:
-                "solbazaar",
+      buyer.toBuffer(),
 
-            product:
-                product.publicKey,
+      escrowId.toArrayLike(Buffer, "le", 8),
+    ],
+    escrowProgram.programId,
+  );
 
-            seller:
-                merchant.authority,
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPda.toBuffer()],
+    escrowProgram.programId,
+  );
 
-            quantity:
-                quantityNumber,
-        });
+  // Marketplace Order Record PDA
+  const [orderRecordPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("order"), escrowPda.toBuffer()],
+    marketplaceProgram.programId,
+  );
 
-    if (
-        new TextEncoder()
-            .encode(note)
-            .length > 200
-    ) {
-        throw new Error(
-            "Escrow note is too long."
-        );
-    }
+  const note = JSON.stringify({
+    marketplace: "solbazaar",
+    checkout: "buy",
+    product: productPda.toBase58(),
+    seller: seller.toBase58(),
+    quantity: quantityNumber,
+  });
 
-    const createSignature =
-        await escrowProgram.methods
-            .createEscrow(
-                escrowId,
+  if (new TextEncoder().encode(note).length > 200) {
+    throw new Error("Escrow note is too long.");
+  }
 
-                1,
+  const createEscrowInstruction = await escrowProgram.methods
+    .createEscrow(
+      escrowId,
+      1,
+      buyer,
+      seller,
+      totalPriceLamports,
+      buyerRequiredDeposit,
+      sellerRequiredDeposit,
+      note,
+    )
+    .accounts({
+      creator: buyer,
+      escrow: escrowPda,
+      vault: vaultPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
 
-                buyer,
+  const depositInstruction = await escrowProgram.methods
+    .deposit(buyerRequiredDeposit)
+    .accounts({
+      depositor: buyer,
+      escrow: escrowPda,
+      vault: vaultPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
 
-                seller,
+  const createOrderRecordInstruction = await marketplaceProgram.methods
+    .createOrderRecord(quantityNumber)
+    .accounts({
+      buyer,
+      escrow: escrowPda,
+      product: productPda,
+      merchantProfile: merchantProfilePda,
+      orderRecord: orderRecordPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
 
-                totalPriceLamports,
+  // Atomic Buy Now checkout
+  const transaction = new Transaction().add(
+    createEscrowInstruction,
+    depositInstruction,
+    createOrderRecordInstruction,
+  );
 
-                buyerRequiredDeposit,
+  transaction.feePayer = buyer;
 
-                sellerRequiredDeposit,
+  const latestBlockhash = await connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = latestBlockhash.blockhash;
 
-                note
-            )
-            .accounts({
-                creator:
-                    buyer,
+  const signature = await wallet.sendTransaction(transaction, connection, {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
 
-                escrow:
-                    escrowPda,
+  const confirmation = await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latestBlockhash.blockhash,
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+    },
+    "confirmed",
+  );
 
-                vault:
-                    vaultPda,
+  if (confirmation.value.err) {
+    throw new Error(
+      `Escrow transaction failed: ${JSON.stringify(confirmation.value.err)}`,
+    );
+  }
 
-                systemProgram:
-                    SystemProgram.programId,
-            })
-            .rpc();
+  return {
+    escrowId: escrowId.toString(),
 
-    const depositSignature =
-        await escrowProgram.methods
-            .deposit(
-                buyerRequiredDeposit
-            )
-            .accounts({
-                depositor:
-                    buyer,
+    escrowPda: escrowPda.toBase58(),
 
-                escrow:
-                    escrowPda,
+    vaultPda: vaultPda.toBase58(),
 
-                vault:
-                    vaultPda,
+    orderRecord: orderRecordPda.toBase58(),
 
-                systemProgram:
-                    SystemProgram.programId,
-            })
-            .rpc();
+    unitPriceLamports: unitPriceLamports.toString(),
 
-    return {
-        escrowId:
-            escrowId.toString(),
+    totalPriceLamports: totalPriceLamports.toString(),
 
-        escrowPda:
-            escrowPda.toBase58(),
+    securityDepositLamports: securityDepositLamports.toString(),
 
-        vaultPda:
-            vaultPda.toBase58(),
+    buyerRequiredDeposit: buyerRequiredDeposit.toString(),
 
-        unitPriceLamports:
-            unitPriceLamports.toString(),
+    sellerRequiredDeposit: sellerRequiredDeposit.toString(),
 
-        totalPriceLamports:
-            totalPriceLamports.toString(),
-
-        securityDepositLamports:
-            securityDepositLamports.toString(),
-
-        buyerRequiredDeposit:
-            buyerRequiredDeposit.toString(),
-
-        sellerRequiredDeposit:
-            sellerRequiredDeposit.toString(),
-
-        createSignature,
-        depositSignature,
-    };
+    signature,
+    createSignature: signature,
+    depositSignature: signature,
+  };
 }
 
 export const ESCROW_STATUS = {
-    CREATED: 0,
-    DEPOSITS_COMPLETE: 1,
-    FINALIZATION_SUGGESTED: 2,
-    COMPLETED: 3,
-    CANCELLED: 4,
+  CREATED: 0,
+  DEPOSITS_COMPLETE: 1,
+  FINALIZATION_SUGGESTED: 2,
+  COMPLETED: 3,
+  CANCELLED: 4,
 };
 
-export function getEscrowStatusLabel(
-    status
-) {
-    switch (status) {
-        case ESCROW_STATUS.CREATED:
-            return "Waiting for deposits";
+export function getEscrowStatusLabel(status, purchaseOffer = null) {
+  switch (status) {
+    case ESCROW_STATUS.CREATED:
+      if (purchaseOffer) {
+        return "Pending seller acceptance";
+      }
 
-        case ESCROW_STATUS
-            .DEPOSITS_COMPLETE:
-            return "Order accepted";
+      return "Waiting for deposits";
 
-        case ESCROW_STATUS
-            .FINALIZATION_SUGGESTED:
-            return "Finalization pending";
+    case ESCROW_STATUS.DEPOSITS_COMPLETE:
+      return "Order accepted";
 
-        case ESCROW_STATUS.COMPLETED:
-            return "Completed";
+    case ESCROW_STATUS.FINALIZATION_SUGGESTED:
+      return "Finalization pending";
 
-        case ESCROW_STATUS.CANCELLED:
-            return "Cancelled";
+    case ESCROW_STATUS.COMPLETED:
+      return "Completed";
 
-        default:
-            return "Unknown";
-    }
+    case ESCROW_STATUS.CANCELLED:
+      return "Cancelled";
+
+    default:
+      return "Unknown";
+  }
 }
 
-export async function getEscrows({
-    connection,
-    wallet,
-}) {
-    const escrowProgram =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+export async function getEscrows({ connection, wallet }) {
+  const escrowProgram = getEscrowProgram(connection, wallet);
 
-    const rawAccounts =
-        await connection
-            .getProgramAccounts(
-                escrowProgram.programId
-            );
+  const rawAccounts = await connection.getProgramAccounts(
+    escrowProgram.programId,
+  );
 
-    const escrows = [];
+  const escrows = [];
 
-    for (
-        const item of rawAccounts
-    ) {
-        try {
-            const escrow =
-                escrowProgram
-                    .coder
-                    .accounts
-                    .decode(
-                        "escrow",
-                        item.account.data
-                    );
+  for (const item of rawAccounts) {
+    try {
+      const escrow = escrowProgram.coder.accounts.decode(
+        "escrow",
+        item.account.data,
+      );
 
-            let parsedNote = null;
+      let parsedNote = null;
 
-            try {
-                parsedNote =
-                    JSON.parse(
-                        escrow.note
-                    );
-            } catch {
-                parsedNote = null;
-            }
+      try {
+        parsedNote = JSON.parse(escrow.note);
+      } catch {
+        parsedNote = null;
+      }
 
-            if (
-                parsedNote
-                    ?.marketplace !==
-                "solbazaar"
-            ) {
-                continue;
-            }
+      if (parsedNote?.marketplace !== "solbazaar") {
+        continue;
+      }
 
-            escrows.push({
-                publicKey:
-                    item.pubkey
-                        .toBase58(),
+      escrows.push({
+        publicKey: item.pubkey.toBase58(),
 
-                creator:
-                    escrow.creator
-                        .toBase58(),
+        creator: escrow.creator.toBase58(),
 
-                partyA:
-                    escrow.partyA
-                        .toBase58(),
+        partyA: escrow.partyA.toBase58(),
 
-                partyB:
-                    escrow.partyB
-                        .toBase58(),
+        partyB: escrow.partyB.toBase58(),
 
-                escrowType:
-                    escrow.escrowType,
+        escrowType: escrow.escrowType,
 
-                status:
-                    escrow.status,
+        status: escrow.status,
 
-                requiredDepositA:
-                    escrow
-                        .requiredDepositA
-                        .toString(),
+        requiredDepositA: escrow.requiredDepositA.toString(),
 
-                requiredDepositB:
-                    escrow
-                        .requiredDepositB
-                        .toString(),
+        requiredDepositB: escrow.requiredDepositB.toString(),
 
-                depositedA:
-                    escrow
-                        .depositedA
-                        .toString(),
+        depositedA: escrow.depositedA.toString(),
 
-                depositedB:
-                    escrow
-                        .depositedB
-                        .toString(),
+        depositedB: escrow.depositedB.toString(),
 
-                referenceAmount:
-                    escrow
-                        .referenceAmount
-                        .toString(),
+        referenceAmount: escrow.referenceAmount.toString(),
 
-                proposedPayoutA:
-                    escrow
-                        .proposedPayoutA
-                        .toString(),
+        proposedPayoutA: escrow.proposedPayoutA.toString(),
 
-                proposedPayoutB:
-                    escrow
-                        .proposedPayoutB
-                        .toString(),
+        proposedPayoutB: escrow.proposedPayoutB.toString(),
 
-                proposedDonation:
-                    escrow
-                        .proposedDonation
-                        .toString(),
+        proposedDonation: escrow.proposedDonation.toString(),
 
-                finalizationProposer:
-                    escrow
-                        .finalizationProposer
-                        .toBase58(),
+        finalizationProposer: escrow.finalizationProposer.toBase58(),
 
-                finalizationNote:
-                    escrow
-                        .finalizationNote,
+        finalizationNote: escrow.finalizationNote,
 
-                vault:
-                    escrow.vault
-                        .toBase58(),
+        vault: escrow.vault.toBase58(),
 
-                createdAt:
-                    escrow.createdAt
-                        .toString(),
+        createdAt: escrow.createdAt.toString(),
 
-                depositAt:
-                    escrow.depositAt
-                        .toString(),
+        depositAt: escrow.depositAt.toString(),
 
-                finalizedAt:
-                    escrow.finalizedAt
-                        .toString(),
+        finalizedAt: escrow.finalizedAt.toString(),
 
-                note:
-                    escrow.note,
+        note: escrow.note,
 
-                order:
-                    parsedNote,
-            });
-        } catch {
-            /*
-             * Ignore accounts belonging
-             * to other account types.
-             */
-        }
+        order: parsedNote,
+      });
+    } catch {
+      /*
+       * Ignore accounts belonging
+       * to other account types.
+       */
     }
+  }
 
-    return escrows;
+  return escrows;
 }
 
-export async function getBuyerEscrows({
+export async function getBuyerEscrows({ connection, wallet }) {
+  if (!wallet.publicKey) {
+    return [];
+  }
+
+  const walletAddress = wallet.publicKey.toBase58();
+
+  const escrows = await getEscrows({
     connection,
     wallet,
-}) {
-    if (!wallet.publicKey) {
-        return [];
-    }
+  });
 
-    const walletAddress =
-        wallet.publicKey.toBase58();
-
-    const escrows =
-        await getEscrows({
-            connection,
-            wallet,
-        });
-
-    return escrows.filter(
-        (escrow) =>
-            escrow.partyA ===
-            walletAddress
-    );
+  return escrows.filter((escrow) => escrow.partyA === walletAddress);
 }
 
-export async function getSellerEscrows({
+export async function getSellerEscrows({ connection, wallet }) {
+  if (!wallet.publicKey) {
+    return [];
+  }
+
+  const walletAddress = wallet.publicKey.toBase58();
+
+  const escrows = await getEscrows({
     connection,
     wallet,
-}) {
-    if (!wallet.publicKey) {
-        return [];
-    }
+  });
 
-    const walletAddress =
-        wallet.publicKey.toBase58();
-
-    const escrows =
-        await getEscrows({
-            connection,
-            wallet,
-        });
-
-    return escrows.filter(
-        (escrow) =>
-            escrow.partyB ===
-            walletAddress
-    );
+  return escrows.filter((escrow) => escrow.partyB === walletAddress);
 }
 
 /*
@@ -552,73 +396,38 @@ export async function getSellerEscrows({
  *
  * Donation does NOT happen here.
  */
-export async function sellerAcceptEscrow({
-    connection,
-    wallet,
-    escrow,
-}) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+export async function sellerAcceptEscrow({ connection, wallet, escrow }) {
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        wallet.publicKey
-            .toBase58() !==
-        escrow.partyB
-    ) {
-        throw new Error(
-            "Only the seller can accept this order."
-        );
-    }
+  if (wallet.publicKey.toBase58() !== escrow.partyB) {
+    throw new Error("Only the seller can accept this order.");
+  }
 
-    const escrowProgram =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const escrowProgram = getEscrowProgram(connection, wallet);
 
-    const escrowPda =
-        new PublicKey(
-            escrow.publicKey
-        );
+  const escrowPda = new PublicKey(escrow.publicKey);
 
-    const [vaultPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "vault"
-                ),
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPda.toBuffer()],
+    escrowProgram.programId,
+  );
 
-                escrowPda.toBuffer(),
-            ],
-            escrowProgram.programId
-        );
+  const sellerDeposit = toBN(escrow.requiredDepositB);
 
-    const sellerDeposit =
-        toBN(
-            escrow.requiredDepositB
-        );
+  return escrowProgram.methods
+    .deposit(sellerDeposit)
+    .accounts({
+      depositor: wallet.publicKey,
 
-    return escrowProgram.methods
-        .deposit(
-            sellerDeposit
-        )
-        .accounts({
-            depositor:
-                wallet.publicKey,
+      escrow: escrowPda,
 
-            escrow:
-                escrowPda,
+      vault: vaultPda,
 
-            vault:
-                vaultPda,
-
-            systemProgram:
-                SystemProgram.programId,
-        })
-        .rpc();
+      systemProgram: SystemProgram.programId,
+    })
+    .rpc();
 }
 
 /*
@@ -629,175 +438,89 @@ export async function sellerAcceptEscrow({
  * is selected.
  */
 export async function sellerSuggestCompletion({
-    connection,
-    wallet,
-    escrow,
-    donationPercent = 0,
+  connection,
+  wallet,
+  escrow,
+  donationPercent = 0,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        wallet.publicKey
-            .toBase58() !==
-        escrow.partyB
-    ) {
-        throw new Error(
-            "Only the seller can propose order completion."
-        );
-    }
+  if (wallet.publicKey.toBase58() !== escrow.partyB) {
+    throw new Error("Only the seller can propose order completion.");
+  }
 
-    if (
-        escrow.status !==
-        ESCROW_STATUS
-            .DEPOSITS_COMPLETE
-    ) {
-        throw new Error(
-            "Both deposits must be complete first."
-        );
-    }
+  if (escrow.status !== ESCROW_STATUS.DEPOSITS_COMPLETE) {
+    throw new Error("Both deposits must be complete first.");
+  }
 
-    const percent =
-        Number(
-            donationPercent
-        );
+  const percent = Number(donationPercent);
 
-    if (
-        !Number.isFinite(
-            percent
-        ) ||
-        percent < 0 ||
-        percent > 100
-    ) {
-        throw new Error(
-            "Donation must be between 0% and 100%."
-        );
-    }
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+    throw new Error("Donation must be between 0% and 100%.");
+  }
 
-    const program =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const program = getEscrowProgram(connection, wallet);
 
-    const productPrice =
-        toBN(
-            escrow.referenceAmount
-        );
+  const productPrice = toBN(escrow.referenceAmount);
 
-    const buyerRequiredDeposit =
-        toBN(
-            escrow.requiredDepositA
-        );
+  const buyerRequiredDeposit = toBN(escrow.requiredDepositA);
 
-    const sellerRequiredDeposit =
-        toBN(
-            escrow.requiredDepositB
-        );
+  const sellerRequiredDeposit = toBN(escrow.requiredDepositB);
 
-    /*
-     * Buyer refund:
-     * buyer's refundable deposit only.
-     */
-    const buyerRefund =
-        buyerRequiredDeposit.sub(
-            productPrice
-        );
+  /*
+   * Buyer refund:
+   * buyer's refundable deposit only.
+   */
+  const buyerRefund = buyerRequiredDeposit.sub(productPrice);
 
-    /*
-     * Use basis points so decimals
-     * such as 2.5% can also work.
-     */
-    const donationBasisPoints =
-        Math.round(
-            percent * 100
-        );
+  /*
+   * Use basis points so decimals
+   * such as 2.5% can also work.
+   */
+  const donationBasisPoints = Math.round(percent * 100);
 
-    const donation =
-        productPrice
-            .mul(
-                new BN(
-                    donationBasisPoints
-                )
-            )
-            .div(
-                new BN(10_000)
-            );
+  const donation = productPrice
+    .mul(new BN(donationBasisPoints))
+    .div(new BN(10_000));
 
-    /*
-     * Seller receives:
-     * product price
-     * + refundable seller deposit
-     * - donation.
-     */
-    const sellerPayout =
-        productPrice
-            .add(
-                sellerRequiredDeposit
-            )
-            .sub(
-                donation
-            );
+  /*
+   * Seller receives:
+   * product price
+   * + refundable seller deposit
+   * - donation.
+   */
+  const sellerPayout = productPrice.add(sellerRequiredDeposit).sub(donation);
 
-    if (
-        sellerPayout.isNeg()
-    ) {
-        throw new Error(
-            "Donation exceeds seller proceeds."
-        );
-    }
+  if (sellerPayout.isNeg()) {
+    throw new Error("Donation exceeds seller proceeds.");
+  }
 
-    const totalLocked =
-        toBN(
-            escrow.depositedA
-        ).add(
-            toBN(
-                escrow.depositedB
-            )
-        );
+  const totalLocked = toBN(escrow.depositedA).add(toBN(escrow.depositedB));
 
-    const allocatedTotal =
-        buyerRefund
-            .add(
-                sellerPayout
-            )
-            .add(
-                donation
-            );
+  const allocatedTotal = buyerRefund.add(sellerPayout).add(donation);
 
-    if (
-        !allocatedTotal.eq(
-            totalLocked
-        )
-    ) {
-        throw new Error(
-            "Final payouts do not match the escrow balance."
-        );
-    }
+  if (!allocatedTotal.eq(totalLocked)) {
+    throw new Error("Final payouts do not match the escrow balance.");
+  }
 
-    return program.methods
-        .suggestFinalization(
-            buyerRefund,
+  return program.methods
+    .suggestFinalization(
+      buyerRefund,
 
-            sellerPayout,
+      sellerPayout,
 
-            donation,
+      donation,
 
-            `Seller marked order ready. Website donation: ${percent}%`
-        )
-        .accounts({
-            signer:
-                wallet.publicKey,
+      `Seller marked order ready. Website donation: ${percent}%`,
+    )
+    .accounts({
+      signer: wallet.publicKey,
 
-            escrow:
-                new PublicKey(
-                    escrow.publicKey
-                ),
-        })
-        .rpc();
+      escrow: new PublicKey(escrow.publicKey),
+    })
+    .rpc();
 }
 
 /*
@@ -808,270 +531,142 @@ export async function sellerSuggestCompletion({
  * - seller proceeds
  * - optional website donation
  */
-export async function retrieveBuyerDeposit({
-    connection,
-    wallet,
-    escrow,
-}) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+export async function retrieveBuyerDeposit({ connection, wallet, escrow }) {
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        wallet.publicKey
-            .toBase58() !==
-        escrow.partyA
-    ) {
-        throw new Error(
-            "Only the buyer can complete this order."
-        );
-    }
+  if (wallet.publicKey.toBase58() !== escrow.partyA) {
+    throw new Error("Only the buyer can complete this order.");
+  }
 
-    if (
-        escrow.status !==
-        ESCROW_STATUS
-            .FINALIZATION_SUGGESTED
-    ) {
-        throw new Error(
-            "No finalization proposal is pending."
-        );
-    }
+  if (escrow.status !== ESCROW_STATUS.FINALIZATION_SUGGESTED) {
+    throw new Error("No finalization proposal is pending.");
+  }
 
-    const program =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const program = getEscrowProgram(connection, wallet);
 
-    const escrowPublicKey =
-        new PublicKey(
-            escrow.publicKey
-        );
+  const escrowPublicKey = new PublicKey(escrow.publicKey);
 
-    const [vaultPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "vault"
-                ),
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPublicKey.toBuffer()],
+    program.programId,
+  );
 
-                escrowPublicKey
-                    .toBuffer(),
-            ],
-            program.programId
-        );
+  return program.methods
+    .acceptFinalization()
+    .accounts({
+      signer: wallet.publicKey,
 
-    return program.methods
-        .acceptFinalization()
-        .accounts({
-            signer:
-                wallet.publicKey,
+      escrow: escrowPublicKey,
 
-            escrow:
-                escrowPublicKey,
+      partyA: new PublicKey(escrow.partyA),
 
-            partyA:
-                new PublicKey(
-                    escrow.partyA
-                ),
+      partyB: new PublicKey(escrow.partyB),
 
-            partyB:
-                new PublicKey(
-                    escrow.partyB
-                ),
+      vault: vaultPda,
 
-            vault:
-                vaultPda,
-
-            donationRecipient:
-                DONATION_RECIPIENT,
-        })
-        .rpc();
+      donationRecipient: DONATION_RECIPIENT,
+    })
+    .rpc();
 }
 
-export async function closeCompletedEscrow({
-    connection,
-    wallet,
-    escrow,
-}) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+export async function closeCompletedEscrow({ connection, wallet, escrow }) {
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        wallet.publicKey
-            .toBase58() !==
-        escrow.creator
-    ) {
-        throw new Error(
-            "Only the buyer who created this order can close it."
-        );
-    }
+  if (wallet.publicKey.toBase58() !== escrow.creator) {
+    throw new Error("Only the buyer who created this order can close it.");
+  }
 
-    if (
-        escrow.status !==
-        ESCROW_STATUS.COMPLETED
-    ) {
-        throw new Error(
-            "Only completed orders can be closed."
-        );
-    }
+  if (escrow.status !== ESCROW_STATUS.COMPLETED) {
+    throw new Error("Only completed orders can be closed.");
+  }
 
-    const escrowProgram =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const escrowProgram = getEscrowProgram(connection, wallet);
 
-    const escrowPda =
-        new PublicKey(
-            escrow.publicKey
-        );
+  const escrowPda = new PublicKey(escrow.publicKey);
 
-    const [vaultPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "vault"
-                ),
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPda.toBuffer()],
+    escrowProgram.programId,
+  );
 
-                escrowPda.toBuffer(),
-            ],
-            escrowProgram.programId
-        );
+  return escrowProgram.methods
+    .closeCompletedEscrow()
+    .accounts({
+      creator: wallet.publicKey,
 
-    return escrowProgram.methods
-        .closeCompletedEscrow()
-        .accounts({
-            creator:
-                wallet.publicKey,
+      escrow: escrowPda,
 
-            escrow:
-                escrowPda,
-
-            vault:
-                vaultPda,
-        })
-        .rpc();
+      vault: vaultPda,
+    })
+    .rpc();
 }
 
-export function getEscrowTimeline(
-    escrow
-) {
-    const events = [];
+export function getEscrowTimeline(escrow) {
+  const events = [];
 
-    const createdAt =
-        Number(
-            escrow.createdAt
-        );
+  const createdAt = Number(escrow.createdAt);
 
-    const depositAt =
-        Number(
-            escrow.depositAt
-        );
+  const depositAt = Number(escrow.depositAt);
 
-    const finalizedAt =
-        Number(
-            escrow.finalizedAt
-        );
+  const finalizedAt = Number(escrow.finalizedAt);
 
-    if (
-        createdAt > 0
-    ) {
-        events.push({
-            label:
-                "Order created",
-
-            timestamp:
-                createdAt,
-
-            completed:
-                true,
-        });
-    }
-
-    if (
-        Number(
-            escrow.depositedA
-        ) > 0
-    ) {
-        events.push({
-            label:
-                "Buyer payment deposited",
-
-            timestamp:
-                createdAt,
-
-            completed:
-                true,
-        });
-    }
-
+  if (createdAt > 0) {
     events.push({
-        label:
-            "Seller accepted order",
+      label: "Order created",
 
-        timestamp:
-            Number(
-                escrow.depositedB
-            ) > 0
-                ? depositAt
-                : 0,
+      timestamp: createdAt,
 
-        completed:
-            Number(
-                escrow.depositedB
-            ) > 0,
+      completed: true,
     });
+  }
 
+  if (Number(escrow.depositedA) > 0) {
     events.push({
-        label:
-            "Seller marked item ready",
+      label: "Buyer payment deposited",
 
-        timestamp:
-            0,
+      timestamp: createdAt,
 
-        completed:
-            escrow.status >=
-            ESCROW_STATUS
-                .FINALIZATION_SUGGESTED,
+      completed: true,
     });
+  }
 
-    events.push({
-        label:
-            "Buyer confirmed receipt",
+  events.push({
+    label: "Seller accepted order",
 
-        timestamp:
-            escrow.status ===
-            ESCROW_STATUS.COMPLETED
-                ? finalizedAt
-                : 0,
+    timestamp: Number(escrow.depositedB) > 0 ? depositAt : 0,
 
-        completed:
-            escrow.status ===
-            ESCROW_STATUS.COMPLETED,
-    });
+    completed: Number(escrow.depositedB) > 0,
+  });
 
-    events.push({
-        label:
-            "Funds released",
+  events.push({
+    label: "Seller marked item ready",
 
-        timestamp:
-            escrow.status ===
-            ESCROW_STATUS.COMPLETED
-                ? finalizedAt
-                : 0,
+    timestamp: 0,
 
-        completed:
-            escrow.status ===
-            ESCROW_STATUS.COMPLETED,
-    });
+    completed: escrow.status >= ESCROW_STATUS.FINALIZATION_SUGGESTED,
+  });
 
-    return events;
+  events.push({
+    label: "Buyer confirmed receipt",
+
+    timestamp: escrow.status === ESCROW_STATUS.COMPLETED ? finalizedAt : 0,
+
+    completed: escrow.status === ESCROW_STATUS.COMPLETED,
+  });
+
+  events.push({
+    label: "Funds released",
+
+    timestamp: escrow.status === ESCROW_STATUS.COMPLETED ? finalizedAt : 0,
+
+    completed: escrow.status === ESCROW_STATUS.COMPLETED,
+  });
+
+  return events;
 }
 
 /*
@@ -1081,1042 +676,665 @@ export function getEscrowTimeline(
  * The completedSale PDA prevents
  * counting the same order twice.
  */
-export async function recordCompletedSale({
-    connection,
-    wallet,
-    escrow,
-}) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+export async function recordCompletedSale({ connection, wallet, escrow }) {
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        !escrow?.order?.product
-    ) {
-        throw new Error(
-            "Order product is unavailable."
-        );
-    }
+  if (!escrow?.order?.product) {
+    throw new Error("Order product is unavailable.");
+  }
 
-    const program =
-        getMarketplaceProgram(
-            connection,
-            wallet
-        );
+  const program = getMarketplaceProgram(connection, wallet);
 
-    const escrowKey =
-        new PublicKey(
-            escrow.publicKey
-        );
+  const escrowKey = new PublicKey(escrow.publicKey);
 
-    const product =
-        new PublicKey(
-            escrow.order.product
-        );
+  const product = new PublicKey(escrow.order.product);
 
-    const [orderRecord] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "order"
-                ),
+  const [orderRecord] = PublicKey.findProgramAddressSync(
+    [Buffer.from("order"), escrowKey.toBuffer()],
+    program.programId,
+  );
 
-                escrowKey.toBuffer(),
-            ],
-            program.programId
-        );
+  const [completedSale] = PublicKey.findProgramAddressSync(
+    [Buffer.from("completed-sale"), orderRecord.toBuffer()],
+    program.programId,
+  );
 
-    const [completedSale] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "completed-sale"
-                ),
+  const existingCompletedSale = await connection.getAccountInfo(completedSale);
 
-                orderRecord.toBuffer(),
-            ],
-            program.programId
-        );
+  if (existingCompletedSale) {
+    return null;
+  }
 
-    const existingCompletedSale =
-        await connection
-            .getAccountInfo(
-                completedSale
-            );
+  return program.methods
+    .recordCompletedSale()
+    .accounts({
+      buyer: wallet.publicKey,
 
-    if (
-        existingCompletedSale
-    ) {
-        return null;
-    }
+      escrow: escrowKey,
 
-    return program.methods
-        .recordCompletedSale()
-        .accounts({
-            buyer:
-                wallet.publicKey,
+      orderRecord,
 
-            escrow:
-                escrowKey,
+      product,
 
-            orderRecord,
+      completedSale,
 
-            product,
-
-            completedSale,
-
-            systemProgram:
-                SystemProgram.programId,
-        })
-        .rpc();
+      systemProgram: SystemProgram.programId,
+    })
+    .rpc();
 }
 
 export async function releaseBuyerAndRecordSale({
-    connection,
-    wallet,
-    escrow,
+  connection,
+  wallet,
+  escrow,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error("Connect wallet first.");
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        wallet.publicKey.toBase58() !==
-        escrow.partyA
-    ) {
-        throw new Error(
-            "Only the buyer can complete this order."
-        );
-    }
+  if (wallet.publicKey.toBase58() !== escrow.partyA) {
+    throw new Error("Only the buyer can complete this order.");
+  }
 
-    if (
-        escrow.status !==
-        ESCROW_STATUS.FINALIZATION_SUGGESTED
-    ) {
-        throw new Error(
-            "No finalization proposal is pending."
-        );
-    }
+  if (escrow.status !== ESCROW_STATUS.FINALIZATION_SUGGESTED) {
+    throw new Error("No finalization proposal is pending.");
+  }
 
-    if (!escrow?.order?.product) {
-        throw new Error(
-            "Order product is unavailable."
-        );
-    }
+  if (!escrow?.order?.product) {
+    throw new Error("Order product is unavailable.");
+  }
 
-    const escrowProgram =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const escrowProgram = getEscrowProgram(connection, wallet);
 
-    const marketplaceProgram =
-        getMarketplaceProgram(
-            connection,
-            wallet
-        );
+  const marketplaceProgram = getMarketplaceProgram(connection, wallet);
 
-    const escrowPublicKey =
-        new PublicKey(
-            escrow.publicKey
-        );
+  const escrowPublicKey = new PublicKey(escrow.publicKey);
 
-    const productPublicKey =
-        new PublicKey(
-            escrow.order.product
-        );
+  const productPublicKey = new PublicKey(escrow.order.product);
 
-    /*
-     * Escrow vault PDA
-     */
-    const [vaultPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("vault"),
-                escrowPublicKey.toBuffer(),
-            ],
-            escrowProgram.programId
-        );
+  /*
+   * Escrow vault PDA
+   */
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPublicKey.toBuffer()],
+    escrowProgram.programId,
+  );
 
-    /*
-     * Marketplace order record PDA
-     */
-    const [orderRecordPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("order"),
-                escrowPublicKey.toBuffer(),
-            ],
-            marketplaceProgram.programId
-        );
+  /*
+   * Marketplace order record PDA
+   */
+  const [orderRecordPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("order"), escrowPublicKey.toBuffer()],
+    marketplaceProgram.programId,
+  );
 
-    /*
-     * Completed sale PDA.
-     * Pinipigilan nitong mabilang nang dalawang beses
-     * ang parehong escrow sale.
-     */
-    const [completedSalePda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("completed-sale"),
-                orderRecordPda.toBuffer(),
-            ],
-            marketplaceProgram.programId
-        );
+  /*
+   * Completed sale PDA.
+   * Pinipigilan nitong mabilang nang dalawang beses
+   * ang parehong escrow sale.
+   */
+  const [completedSalePda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("completed-sale"), orderRecordPda.toBuffer()],
+    marketplaceProgram.programId,
+  );
 
-    const existingCompletedSale =
-        await connection.getAccountInfo(
-            completedSalePda,
-            "confirmed"
-        );
+  const existingCompletedSale = await connection.getAccountInfo(
+    completedSalePda,
+    "confirmed",
+  );
 
-    if (existingCompletedSale) {
-        throw new Error(
-            "This completed sale has already been recorded."
-        );
-    }
+  if (existingCompletedSale) {
+    throw new Error("This completed sale has already been recorded.");
+  }
 
-    /*
-     * Instruction 1:
-     * Release buyer refund, seller payment,
-     * at optional donation.
-     */
-    const releaseInstruction =
-        await escrowProgram.methods
-            .acceptFinalization()
-            .accounts({
-                signer:
-                    wallet.publicKey,
+  /*
+   * Instruction 1:
+   * Release buyer refund, seller payment,
+   * at optional donation.
+   */
+  const releaseInstruction = await escrowProgram.methods
+    .acceptFinalization()
+    .accounts({
+      signer: wallet.publicKey,
 
-                escrow:
-                    escrowPublicKey,
+      escrow: escrowPublicKey,
 
-                partyA:
-                    new PublicKey(
-                        escrow.partyA
-                    ),
+      partyA: new PublicKey(escrow.partyA),
 
-                partyB:
-                    new PublicKey(
-                        escrow.partyB
-                    ),
+      partyB: new PublicKey(escrow.partyB),
 
-                vault:
-                    vaultPda,
+      vault: vaultPda,
 
-                donationRecipient:
-                    DONATION_RECIPIENT,
-            })
-            .instruction();
+      donationRecipient: DONATION_RECIPIENT,
+    })
+    .instruction();
 
-    /*
-     * Instruction 2:
-     * Record completed sale and increase
-     * the product sold count.
-     */
-    const recordSaleInstruction =
-        await marketplaceProgram.methods
-            .recordCompletedSale()
-            .accounts({
-                buyer:
-                    wallet.publicKey,
+  /*
+   * Instruction 2:
+   * Record completed sale and increase
+   * the product sold count.
+   */
+  const recordSaleInstruction = await marketplaceProgram.methods
+    .recordCompletedSale()
+    .accounts({
+      buyer: wallet.publicKey,
 
-                escrow:
-                    escrowPublicKey,
+      escrow: escrowPublicKey,
 
-                orderRecord:
-                    orderRecordPda,
+      orderRecord: orderRecordPda,
 
-                product:
-                    productPublicKey,
+      product: productPublicKey,
 
-                completedSale:
-                    completedSalePda,
+      completedSale: completedSalePda,
 
-                systemProgram:
-                    SystemProgram.programId,
-            })
-            .instruction();
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
 
-    /*
-     * Parehong instruction sa isang transaction.
-     *
-     * Kapag pumalya ang recordCompletedSale,
-     * mare-revert din ang acceptFinalization.
-     */
-    const transaction =
-        new Transaction().add(
-            releaseInstruction,
-            recordSaleInstruction
-        );
+  /*
+   * Parehong instruction sa isang transaction.
+   *
+   * Kapag pumalya ang recordCompletedSale,
+   * mare-revert din ang acceptFinalization.
+   */
+  const transaction = new Transaction().add(
+    releaseInstruction,
+    recordSaleInstruction,
+  );
 
-    const latestBlockhash =
-        await connection.getLatestBlockhash(
-            "confirmed"
-        );
+  const latestBlockhash = await connection.getLatestBlockhash("confirmed");
 
-    transaction.feePayer =
-        wallet.publicKey;
+  transaction.feePayer = wallet.publicKey;
 
-    transaction.recentBlockhash =
-        latestBlockhash.blockhash;
+  transaction.recentBlockhash = latestBlockhash.blockhash;
 
-    const signature =
-        await wallet.sendTransaction(
-            transaction,
-            connection,
-            {
-                skipPreflight: false,
-                preflightCommitment:
-                    "confirmed",
-            }
-        );
+  const compiledMessage = transaction.compileMessage();
 
-    const confirmation =
-        await connection.confirmTransaction(
-            {
-                signature,
-                blockhash:
-                    latestBlockhash.blockhash,
+  console.table(
+    compiledMessage.accountKeys.map((key, index) => ({
+      index,
+      address: key.toBase58(),
+      isSigner: compiledMessage.isAccountSigner(index),
+      isWritable: compiledMessage.isAccountWritable(index),
+    })),
+  );
 
-                lastValidBlockHeight:
-                    latestBlockhash
-                        .lastValidBlockHeight,
-            },
-            "confirmed"
-        );
+  console.log(
+    "Rent failure account index 2:",
+    compiledMessage.accountKeys[2]?.toBase58(),
+  );
 
-    if (confirmation.value.err) {
-        throw new Error(
-            `Transaction failed: ${JSON.stringify(
-                confirmation.value.err
-            )}`
-        );
-    }
+  // Legacy Transaction simulation
+  const simulation = await connection.simulateTransaction(
+    transaction,
+    undefined,
+    false,
+  );
 
-    return signature;
+  console.log("Buyer release simulation result:", simulation.value);
+
+  if (simulation.value.err) {
+    console.error("Buyer release simulation logs:", simulation.value.logs);
+
+    throw new Error(
+      `Buyer release simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
+  }
+
+  const signature = await wallet.sendTransaction(transaction, connection, {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
+
+  const confirmation = await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latestBlockhash.blockhash,
+
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+    },
+    "confirmed",
+  );
+
+  if (confirmation.value.err) {
+    throw new Error(
+      `Transaction failed: ${JSON.stringify(confirmation.value.err)}`,
+    );
+  }
+
+  return signature;
 }
 
-
-export const MUTUAL_CANCELLATION_PREFIX =
-    "MUTUAL_CANCELLATION|";
+export const MUTUAL_CANCELLATION_PREFIX = "MUTUAL_CANCELLATION|";
 
 function normalizeAddress(value) {
-    return (
-        value?.toBase58?.() ??
-        value?.toString?.() ??
-        value ??
-        ""
-    );
+  return value?.toBase58?.() ?? value?.toString?.() ?? value ?? "";
 }
 
-export function isMutualCancellationProposal(
-    escrow
-) {
-    return (
-        Number(escrow?.status) ===
-            ESCROW_STATUS.FINALIZATION_SUGGESTED &&
-        String(
-            escrow?.finalizationNote ?? ""
-        ).startsWith(
-            MUTUAL_CANCELLATION_PREFIX
-        )
-    );
+export function isMutualCancellationProposal(escrow) {
+  return (
+    Number(escrow?.status) === ESCROW_STATUS.FINALIZATION_SUGGESTED &&
+    String(escrow?.finalizationNote ?? "").startsWith(
+      MUTUAL_CANCELLATION_PREFIX,
+    )
+  );
 }
 
-export function getMutualCancellationReason(
-    escrow
-) {
-    const note = String(
-        escrow?.finalizationNote ?? ""
-    );
+export function getMutualCancellationReason(escrow) {
+  const note = String(escrow?.finalizationNote ?? "");
 
-    if (
-        !note.startsWith(
-            MUTUAL_CANCELLATION_PREFIX
-        )
-    ) {
-        return "";
-    }
+  if (!note.startsWith(MUTUAL_CANCELLATION_PREFIX)) {
+    return "";
+  }
 
-    const reasonMarker = "|reason=";
-    const markerIndex =
-        note.indexOf(reasonMarker);
+  const reasonMarker = "|reason=";
+  const markerIndex = note.indexOf(reasonMarker);
 
-    if (markerIndex < 0) {
-        return "";
-    }
+  if (markerIndex < 0) {
+    return "";
+  }
 
-    return note
-        .slice(
-            markerIndex +
-                reasonMarker.length
-        )
-        .trim();
+  return note.slice(markerIndex + reasonMarker.length).trim();
 }
 
 export async function requestMutualCancellation({
-    connection,
-    wallet,
-    escrow,
-    reason,
+  connection,
+  wallet,
+  escrow,
+  reason,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    const signer =
-        wallet.publicKey.toBase58();
+  const signer = wallet.publicKey.toBase58();
 
-    const buyer =
-        normalizeAddress(
-            escrow.partyA
-        );
+  const buyer = normalizeAddress(escrow.partyA);
 
-    const seller =
-        normalizeAddress(
-            escrow.partyB
-        );
+  const seller = normalizeAddress(escrow.partyB);
 
-    if (
-        signer !== buyer &&
-        signer !== seller
-    ) {
-        throw new Error(
-            "Only the buyer or seller can request cancellation."
-        );
-    }
+  if (signer !== buyer && signer !== seller) {
+    throw new Error("Only the buyer or seller can request cancellation.");
+  }
 
-    if (
-        Number(escrow.status) !==
-        ESCROW_STATUS.DEPOSITS_COMPLETE
-    ) {
-        throw new Error(
-            "Mutual cancellation is available only after both deposits are complete."
-        );
-    }
+  if (Number(escrow.status) !== ESCROW_STATUS.DEPOSITS_COMPLETE) {
+    throw new Error(
+      "Mutual cancellation is available only after both deposits are complete.",
+    );
+  }
 
-    const cleanReason =
-        String(reason ?? "")
-            .trim()
-            .replace(/\s+/g, " ");
+  const cleanReason = String(reason ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
 
-    if (!cleanReason) {
-        throw new Error(
-            "Enter a cancellation reason."
-        );
-    }
+  if (!cleanReason) {
+    throw new Error("Enter a cancellation reason.");
+  }
 
-    const requesterRole =
-        signer === buyer
-            ? "buyer"
-            : "seller";
+  const requesterRole = signer === buyer ? "buyer" : "seller";
 
-    const note =
-        `${MUTUAL_CANCELLATION_PREFIX}` +
-        `requester=${requesterRole}` +
-        `|reason=${cleanReason}`;
+  const note =
+    `${MUTUAL_CANCELLATION_PREFIX}` +
+    `requester=${requesterRole}` +
+    `|reason=${cleanReason}`;
 
-    if (
-        new TextEncoder()
-            .encode(note)
-            .length > 200
-    ) {
-        throw new Error(
-            "Cancellation reason is too long."
-        );
-    }
+  if (new TextEncoder().encode(note).length > 200) {
+    throw new Error("Cancellation reason is too long.");
+  }
 
-    const program =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const program = getEscrowProgram(connection, wallet);
 
-    /*
-     * Neutral cancellation:
-     * each party receives only its own
-     * deposited funds.
-     */
-    const buyerPayout =
-        toBN(escrow.depositedA);
+  /*
+   * Neutral cancellation:
+   * each party receives only its own
+   * deposited funds.
+   */
+  const buyerPayout = toBN(escrow.depositedA);
 
-    const sellerPayout =
-        toBN(escrow.depositedB);
+  const sellerPayout = toBN(escrow.depositedB);
 
-    const totalLocked =
-        buyerPayout.add(
-            sellerPayout
-        );
+  const totalLocked = buyerPayout.add(sellerPayout);
 
-    const allocatedTotal =
-        buyerPayout.add(
-            sellerPayout
-        );
+  const allocatedTotal = buyerPayout.add(sellerPayout);
 
-    if (
-        !allocatedTotal.eq(
-            totalLocked
-        )
-    ) {
-        throw new Error(
-            "Cancellation payouts do not match the escrow balance."
-        );
-    }
+  if (!allocatedTotal.eq(totalLocked)) {
+    throw new Error("Cancellation payouts do not match the escrow balance.");
+  }
 
-    return program.methods
-        .suggestFinalization(
-            buyerPayout,
-            sellerPayout,
-            new BN(0),
-            note
-        )
-        .accounts({
-            signer:
-                wallet.publicKey,
+  return program.methods
+    .suggestFinalization(buyerPayout, sellerPayout, new BN(0), note)
+    .accounts({
+      signer: wallet.publicKey,
 
-            escrow:
-                new PublicKey(
-                    escrow.publicKey
-                ),
-        })
-        .rpc();
+      escrow: new PublicKey(escrow.publicKey),
+    })
+    .rpc();
 }
 
 export async function approveMutualCancellation({
-    connection,
-    wallet,
-    escrow,
+  connection,
+  wallet,
+  escrow,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        !isMutualCancellationProposal(
-            escrow
-        )
-    ) {
-        throw new Error(
-            "No mutual cancellation request is pending."
-        );
-    }
+  if (!isMutualCancellationProposal(escrow)) {
+    throw new Error("No mutual cancellation request is pending.");
+  }
 
-    const signer =
-        wallet.publicKey.toBase58();
+  const signer = wallet.publicKey.toBase58();
 
-    const buyer =
-        normalizeAddress(
-            escrow.partyA
-        );
+  const buyer = normalizeAddress(escrow.partyA);
 
-    const seller =
-        normalizeAddress(
-            escrow.partyB
-        );
+  const seller = normalizeAddress(escrow.partyB);
 
-    const proposer =
-        normalizeAddress(
-            escrow.finalizationProposer
-        );
+  const proposer = normalizeAddress(escrow.finalizationProposer);
 
-    if (
-        signer !== buyer &&
-        signer !== seller
-    ) {
-        throw new Error(
-            "Only the buyer or seller can approve cancellation."
-        );
-    }
+  if (signer !== buyer && signer !== seller) {
+    throw new Error("Only the buyer or seller can approve cancellation.");
+  }
 
-    if (signer === proposer) {
-        throw new Error(
-            "The party who requested cancellation cannot approve its own request."
-        );
-    }
+  if (signer === proposer) {
+    throw new Error(
+      "The party who requested cancellation cannot approve its own request.",
+    );
+  }
 
-    const program =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const program = getEscrowProgram(connection, wallet);
 
-    const escrowPublicKey =
-        new PublicKey(
-            escrow.publicKey
-        );
+  const escrowPublicKey = new PublicKey(escrow.publicKey);
 
-    const [vaultPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("vault"),
-                escrowPublicKey.toBuffer(),
-            ],
-            program.programId
-        );
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPublicKey.toBuffer()],
+    program.programId,
+  );
 
-    return program.methods
-        .acceptFinalization()
-        .accounts({
-            signer:
-                wallet.publicKey,
+  return program.methods
+    .acceptFinalization()
+    .accounts({
+      signer: wallet.publicKey,
 
-            escrow:
-                escrowPublicKey,
+      escrow: escrowPublicKey,
 
-            partyA:
-                new PublicKey(
-                    buyer
-                ),
+      partyA: new PublicKey(buyer),
 
-            partyB:
-                new PublicKey(
-                    seller
-                ),
+      partyB: new PublicKey(seller),
 
-            vault:
-                vaultPda,
+      vault: vaultPda,
 
-            donationRecipient:
-                DONATION_RECIPIENT,
-        })
-        .rpc();
+      donationRecipient: DONATION_RECIPIENT,
+    })
+    .rpc();
 }
 
 export async function declineMutualCancellation({
-    connection,
-    wallet,
-    escrow,
+  connection,
+  wallet,
+  escrow,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        !isMutualCancellationProposal(
-            escrow
-        )
-    ) {
-        throw new Error(
-            "No mutual cancellation request is pending."
-        );
-    }
+  if (!isMutualCancellationProposal(escrow)) {
+    throw new Error("No mutual cancellation request is pending.");
+  }
 
-    const signer =
-        wallet.publicKey.toBase58();
+  const signer = wallet.publicKey.toBase58();
 
-    const buyer =
-        normalizeAddress(
-            escrow.partyA
-        );
+  const buyer = normalizeAddress(escrow.partyA);
 
-    const seller =
-        normalizeAddress(
-            escrow.partyB
-        );
+  const seller = normalizeAddress(escrow.partyB);
 
-    const proposer =
-        normalizeAddress(
-            escrow.finalizationProposer
-        );
+  const proposer = normalizeAddress(escrow.finalizationProposer);
 
-    if (
-        signer !== buyer &&
-        signer !== seller
-    ) {
-        throw new Error(
-            "Only the buyer or seller can decline cancellation."
-        );
-    }
+  if (signer !== buyer && signer !== seller) {
+    throw new Error("Only the buyer or seller can decline cancellation.");
+  }
 
-    if (signer === proposer) {
-        throw new Error(
-            "The requesting party cannot decline its own request."
-        );
-    }
+  if (signer === proposer) {
+    throw new Error("The requesting party cannot decline its own request.");
+  }
 
-    const program =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const program = getEscrowProgram(connection, wallet);
 
-    return program.methods
-        .rejectFinalization()
-        .accounts({
-            signer:
-                wallet.publicKey,
+  return program.methods
+    .rejectFinalization()
+    .accounts({
+      signer: wallet.publicKey,
 
-            escrow:
-                new PublicKey(
-                    escrow.publicKey
-                ),
-        })
-        .rpc();
+      escrow: new PublicKey(escrow.publicKey),
+    })
+    .rpc();
 }
 
 export async function getCancelledOrderStockRestorationStatus({
-    connection,
-    wallet,
-    escrowAddress,
+  connection,
+  wallet,
+  escrowAddress,
 }) {
-    if (!wallet.publicKey) {
-        return {
-            orderRecordExists: false,
-            restored: false,
-            orderRecord: null,
-            stockRestoration: null,
-        };
-    }
-
-    const program =
-        getMarketplaceProgram(
-            connection,
-            wallet
-        );
-
-    const escrowPublicKey =
-        new PublicKey(
-            escrowAddress
-        );
-
-    const [orderRecordPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("order"),
-                escrowPublicKey.toBuffer(),
-            ],
-            program.programId
-        );
-
-    const orderRecordInfo =
-        await connection.getAccountInfo(
-            orderRecordPda
-        );
-
-    if (!orderRecordInfo) {
-        return {
-            orderRecordExists: false,
-            restored: false,
-            orderRecord:
-                orderRecordPda.toBase58(),
-            stockRestoration: null,
-        };
-    }
-
-    const [stockRestorationPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "stock-restoration"
-                ),
-                orderRecordPda.toBuffer(),
-            ],
-            program.programId
-        );
-
-    const restorationInfo =
-        await connection.getAccountInfo(
-            stockRestorationPda
-        );
-
+  if (!wallet.publicKey) {
     return {
-        orderRecordExists: true,
-        restored:
-            Boolean(restorationInfo),
-        orderRecord:
-            orderRecordPda.toBase58(),
-        stockRestoration:
-            stockRestorationPda.toBase58(),
+      orderRecordExists: false,
+      restored: false,
+      orderRecord: null,
+      stockRestoration: null,
     };
+  }
+
+  const program = getMarketplaceProgram(connection, wallet);
+
+  const escrowPublicKey = new PublicKey(escrowAddress);
+
+  const [orderRecordPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("order"), escrowPublicKey.toBuffer()],
+    program.programId,
+  );
+
+  const orderRecordInfo = await connection.getAccountInfo(orderRecordPda);
+
+  if (!orderRecordInfo) {
+    return {
+      orderRecordExists: false,
+      restored: false,
+      orderRecord: orderRecordPda.toBase58(),
+      stockRestoration: null,
+    };
+  }
+
+  const [stockRestorationPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("stock-restoration"), orderRecordPda.toBuffer()],
+    program.programId,
+  );
+
+  const restorationInfo = await connection.getAccountInfo(stockRestorationPda);
+
+  return {
+    orderRecordExists: true,
+    restored: Boolean(restorationInfo),
+    orderRecord: orderRecordPda.toBase58(),
+    stockRestoration: stockRestorationPda.toBase58(),
+  };
 }
 
 export async function restoreCancelledOrderStock({
-    connection,
-    wallet,
-    escrowAddress,
+  connection,
+  wallet,
+  escrowAddress,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    const program =
-        getMarketplaceProgram(
-            connection,
-            wallet
-        );
+  const program = getMarketplaceProgram(connection, wallet);
 
-    const escrowPublicKey =
-        new PublicKey(
-            escrowAddress
-        );
+  const escrowPublicKey = new PublicKey(escrowAddress);
 
-    const [orderRecordPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("order"),
-                escrowPublicKey.toBuffer(),
-            ],
-            program.programId
-        );
+  const [orderRecordPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("order"), escrowPublicKey.toBuffer()],
+    program.programId,
+  );
 
-    let orderRecord;
+  let orderRecord;
 
-    try {
-        orderRecord =
-            await program.account.orderRecord.fetch(
-                orderRecordPda
-            );
-    } catch {
-        throw new Error(
-            "Solzaar order record not found."
-        );
-    }
+  try {
+    orderRecord = await program.account.orderRecord.fetch(orderRecordPda);
+  } catch {
+    throw new Error("Solzaar order record not found.");
+  }
 
-    const productPublicKey =
-        new PublicKey(
-            orderRecord.product
-        );
+  const productPublicKey = new PublicKey(orderRecord.product);
 
-    const [stockRestorationPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from(
-                    "stock-restoration"
-                ),
-                orderRecordPda.toBuffer(),
-            ],
-            program.programId
-        );
+  const [stockRestorationPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("stock-restoration"), orderRecordPda.toBuffer()],
+    program.programId,
+  );
 
-    /*
-     * Idempotency check.
-     *
-     * If this PDA already exists,
-     * the reserved stock was already
-     * restored for this order.
-     */
-    const existingRestoration =
-        await connection.getAccountInfo(
-            stockRestorationPda
-        );
+  /*
+   * Idempotency check.
+   *
+   * If this PDA already exists,
+   * the reserved stock was already
+   * restored for this order.
+   */
+  const existingRestoration =
+    await connection.getAccountInfo(stockRestorationPda);
 
-    if (existingRestoration) {
-        return {
-            alreadyRestored: true,
-            signature: null,
-            orderRecord:
-                orderRecordPda.toBase58(),
-            stockRestoration:
-                stockRestorationPda.toBase58(),
-        };
-    }
+  if (existingRestoration) {
+    return {
+      alreadyRestored: true,
+      signature: null,
+      orderRecord: orderRecordPda.toBase58(),
+      stockRestoration: stockRestorationPda.toBase58(),
+    };
+  }
 
-    /*
- * Local E2E test hook.
- *
- * Allows Playwright to simulate a stock-restoration
- * failure AFTER the escrow cancellation/refund has
- * already succeeded.
- *
- * One-shot: the flag is removed before throwing so
- * the user can retry restoration normally.
- */
-if (
+  /*
+   * Local E2E test hook.
+   *
+   * Allows Playwright to simulate a stock-restoration
+   * failure AFTER the escrow cancellation/refund has
+   * already succeeded.
+   *
+   * One-shot: the flag is removed before throwing so
+   * the user can retry restoration normally.
+   */
+  if (
     import.meta.env.MODE === "localnet" &&
     typeof window !== "undefined" &&
-    window.localStorage.getItem(
-        "e2e:fail-next-stock-restoration"
-    ) === "true"
-) {
-    window.localStorage.removeItem(
-        "e2e:fail-next-stock-restoration"
-    );
+    window.localStorage.getItem("e2e:fail-next-stock-restoration") === "true"
+  ) {
+    window.localStorage.removeItem("e2e:fail-next-stock-restoration");
 
-    throw new Error(
-        "E2E simulated stock restoration failure"
-    );
+    throw new Error("E2E simulated stock restoration failure");
+  }
+
+  const signature = await program.methods
+    .restoreCancelledOrderStock()
+    .accounts({
+      payer: wallet.publicKey,
+
+      escrow: escrowPublicKey,
+
+      orderRecord: orderRecordPda,
+
+      product: productPublicKey,
+
+      stockRestoration: stockRestorationPda,
+
+      systemProgram: SystemProgram.programId,
+    })
+    .rpc();
+
+  return {
+    alreadyRestored: false,
+    signature,
+    orderRecord: orderRecordPda.toBase58(),
+    stockRestoration: stockRestorationPda.toBase58(),
+  };
 }
 
-    const signature =
-        await program.methods
-            .restoreCancelledOrderStock()
-            .accounts({
-                payer:
-                    wallet.publicKey,
+export async function withdrawBuyerOrder({ connection, wallet, escrow }) {
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-                escrow:
-                    escrowPublicKey,
+  const buyerAddress =
+    escrow.partyA?.toBase58?.() ?? escrow.partyA?.toString?.() ?? escrow.partyA;
 
-                orderRecord:
-                    orderRecordPda,
+  if (wallet.publicKey.toBase58() !== buyerAddress) {
+    throw new Error("Only the buyer can withdraw this order.");
+  }
 
-                product:
-                    productPublicKey,
+  if (Number(escrow.status) !== ESCROW_STATUS.CREATED) {
+    throw new Error("This order can no longer be withdrawn.");
+  }
 
-                stockRestoration:
-                    stockRestorationPda,
+  const sellerDeposit = new BN(
+    escrow.depositedB?.toString?.() ?? escrow.depositedB ?? 0,
+  );
 
-                systemProgram:
-                    SystemProgram.programId,
-            })
-            .rpc();
+  if (!sellerDeposit.isZero()) {
+    throw new Error("The seller has already accepted this order.");
+  }
 
-    return {
-        alreadyRestored: false,
-        signature,
-        orderRecord:
-            orderRecordPda.toBase58(),
-        stockRestoration:
-            stockRestorationPda.toBase58(),
-    };
-}
+  const program = getEscrowProgram(connection, wallet);
 
-export async function withdrawBuyerOrder({
-    connection,
-    wallet,
-    escrow,
-}) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  const escrowPda = new PublicKey(escrow.publicKey);
 
-    const buyerAddress =
-        escrow.partyA?.toBase58?.() ??
-        escrow.partyA?.toString?.() ??
-        escrow.partyA;
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPda.toBuffer()],
+    program.programId,
+  );
 
-    if (
-        wallet.publicKey.toBase58() !==
-        buyerAddress
-    ) {
-        throw new Error(
-            "Only the buyer can withdraw this order."
-        );
-    }
+  const creatorAddress =
+    escrow.creator?.toBase58?.() ??
+    escrow.creator?.toString?.() ??
+    escrow.creator;
 
-    if (
-        Number(escrow.status) !==
-        ESCROW_STATUS.CREATED
-    ) {
-        throw new Error(
-            "This order can no longer be withdrawn."
-        );
-    }
-
-    const sellerDeposit = new BN(
-        escrow.depositedB?.toString?.() ??
-            escrow.depositedB ??
-            0
-    );
-
-    if (!sellerDeposit.isZero()) {
-        throw new Error(
-            "The seller has already accepted this order."
-        );
-    }
-
-    const program =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
-
-    const escrowPda =
-        new PublicKey(
-            escrow.publicKey
-        );
-
-    const [vaultPda] =
-        PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("vault"),
-                escrowPda.toBuffer(),
-            ],
-            program.programId
-        );
-
-    const creatorAddress =
-        escrow.creator?.toBase58?.() ??
-        escrow.creator?.toString?.() ??
-        escrow.creator;
-
-    return program.methods
-        .withdrawBeforeComplete()
-        .accounts({
-            withdrawer:
-                wallet.publicKey,
-            escrow:
-                escrowPda,
-            creator:
-                new PublicKey(
-                    creatorAddress
-                ),
-            vault:
-                vaultPda,
-        })
-        .rpc();
+  return program.methods
+    .withdrawBeforeComplete()
+    .accounts({
+      withdrawer: wallet.publicKey,
+      escrow: escrowPda,
+      creator: new PublicKey(creatorAddress),
+      vault: vaultPda,
+    })
+    .rpc();
 }
 
 export async function rejectPendingFinalization({
-    connection,
-    wallet,
-    escrow,
+  connection,
+  wallet,
+  escrow,
 }) {
-    if (!wallet.publicKey) {
-        throw new Error(
-            "Connect wallet first."
-        );
-    }
+  if (!wallet.publicKey) {
+    throw new Error("Connect wallet first.");
+  }
 
-    if (
-        Number(escrow.status) !==
-        ESCROW_STATUS.FINALIZATION_SUGGESTED
-    ) {
-        throw new Error(
-            "No finalization proposal is pending."
-        );
-    }
+  if (Number(escrow.status) !== ESCROW_STATUS.FINALIZATION_SUGGESTED) {
+    throw new Error("No finalization proposal is pending.");
+  }
 
-    const proposer =
-        normalizeAddress(
-            escrow.finalizationProposer
-        );
+  const proposer = normalizeAddress(escrow.finalizationProposer);
 
-    if (
-        wallet.publicKey.toBase58() ===
-        proposer
-    ) {
-        throw new Error(
-            "The party who proposed finalization cannot reject its own proposal."
-        );
-    }
+  if (wallet.publicKey.toBase58() === proposer) {
+    throw new Error(
+      "The party who proposed finalization cannot reject its own proposal.",
+    );
+  }
 
-    const program =
-        getEscrowProgram(
-            connection,
-            wallet
-        );
+  const program = getEscrowProgram(connection, wallet);
 
-    return program.methods
-        .rejectFinalization()
-        .accounts({
-            signer: wallet.publicKey,
-            escrow: new PublicKey(
-                escrow.publicKey
-            ),
-        })
-        .rpc();
+  return program.methods
+    .rejectFinalization()
+    .accounts({
+      signer: wallet.publicKey,
+      escrow: new PublicKey(escrow.publicKey),
+    })
+    .rpc();
 }

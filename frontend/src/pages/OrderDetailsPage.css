@@ -430,6 +430,17 @@
     background: var(--accent-hover);
 }
 
+.order-actions .order-danger-button {
+    border-color: #991b1b;
+    background: rgba(153, 27, 27, 0.12);
+    color: #ef4444;
+}
+
+.order-actions .order-danger-button:hover:not(:disabled) {
+    border-color: #dc2626;
+    background: rgba(153, 27, 27, 0.22);
+}
+
 .order-action-panel {
     width: 100%;
     max-width: 560px;

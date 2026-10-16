@@ -6,14 +6,11 @@ const NetworkContext = createContext(null);
 export const NETWORK = NETWORK_CONFIG.network;
 export const NETWORK_NAME = NETWORK_CONFIG.networkName;
 export const DEFAULT_RPC_URL = NETWORK_CONFIG.defaultRpcUrl;
-export const FALLBACK_RPC_URLS = NETWORK_CONFIG.isMainnet ? 
-    [
-        "https://api.mainnet-beta.solana.com",
-    ]
-    : 
-    [
-        "https://api.devnet.solana.com",
-    ];
+export const FALLBACK_RPC_URLS = NETWORK_CONFIG.isLocalnet
+    ? []
+    : NETWORK_CONFIG.isMainnet
+      ? ["https://api.mainnet-beta.solana.com"]
+      : ["https://api.devnet.solana.com"];
 
 function getInitialRpcUrl() {
     return ( localStorage.getItem( getRpcStorageKey() ) ||

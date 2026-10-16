@@ -49,7 +49,7 @@ export default function CreateMerchant({ onCreated }) {
     const [
         sellerDepositPercent,
         setSellerDepositPercent,
-    ] = useState("10");
+    ] = useState("20");
     const [
         preferredContact,
         setPreferredContact,
@@ -246,7 +246,7 @@ export default function CreateMerchant({ onCreated }) {
             setLogoUri("");
             setBannerUri("");
             setShipsFrom("");
-            setSellerDepositPercent("10");
+            setSellerDepositPercent("20");
             setPreferredContact("");
 
             if (onCreated) {

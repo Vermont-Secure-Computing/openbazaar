@@ -39,13 +39,9 @@ const RPC = "http://127.0.0.1:8899";
 const SOLZAAR_IDL_PATH = path.resolve("./sol_bazaar.json");
 const ESCROW_IDL_PATH = path.resolve("./sol_shop_escrow.json");
 
-const solzaarIdl = JSON.parse(
-  fs.readFileSync(SOLZAAR_IDL_PATH, "utf8")
-);
+const solzaarIdl = JSON.parse(fs.readFileSync(SOLZAAR_IDL_PATH, "utf8"));
 
-const escrowIdl = JSON.parse(
-  fs.readFileSync(ESCROW_IDL_PATH, "utf8")
-);
+const escrowIdl = JSON.parse(fs.readFileSync(ESCROW_IDL_PATH, "utf8"));
 
 const connection = new Connection(RPC, "confirmed");
 
@@ -57,43 +53,30 @@ const walletPath =
   process.env.ANCHOR_WALLET ||
   path.join(os.homedir(), ".config/solana/id.json");
 
-const payerSecret = JSON.parse(
-  fs.readFileSync(walletPath, "utf8")
-);
+const payerSecret = JSON.parse(fs.readFileSync(walletPath, "utf8"));
 
-const payer = Keypair.fromSecretKey(
-  Uint8Array.from(payerSecret)
-);
+const payer = Keypair.fromSecretKey(Uint8Array.from(payerSecret));
 
 const wallet = new anchor.Wallet(payer);
 
-const provider = new anchor.AnchorProvider(
-  connection,
-  wallet,
-  {
-    commitment: "confirmed",
-    preflightCommitment: "confirmed",
-  }
-);
+const provider = new anchor.AnchorProvider(connection, wallet, {
+  commitment: "confirmed",
+  preflightCommitment: "confirmed",
+});
 
 anchor.setProvider(provider);
 
-const solzaar =
-  new anchor.Program(solzaarIdl, provider);
+const solzaar = new anchor.Program(solzaarIdl, provider);
 
-const escrowProgram =
-  new anchor.Program(escrowIdl, provider);
+const escrowProgram = new anchor.Program(escrowIdl, provider);
 
-const SOLZAAR_PROGRAM_ID =
-  new PublicKey(solzaarIdl.address);
+const SOLZAAR_PROGRAM_ID = new PublicKey(solzaarIdl.address);
 
-const ESCROW_PROGRAM_ID =
-  new PublicKey(escrowIdl.address);
+const ESCROW_PROGRAM_ID = new PublicKey(escrowIdl.address);
 
-const DONATION_RECIPIENT =
-  new PublicKey(
-    "61Gt8siRo84pmGziia5dHuJMkx9ne1d4Cb5aHsyQGP85"
-  );
+const DONATION_RECIPIENT = new PublicKey(
+  "61Gt8siRo84pmGziia5dHuJMkx9ne1d4Cb5aHsyQGP85",
+);
 
 // ------------------------------------------------------------
 // Wallets
@@ -137,35 +120,22 @@ function shortError(err) {
   return msg.split("\n")[0];
 }
 
-async function expectBlocked(
-  label,
-  fn,
-  expected = null
-) {
+async function expectBlocked(label, fn, expected = null) {
   try {
     await fn();
 
-    console.error(
-      `✗ ${label}: transaction unexpectedly succeeded`
-    );
+    console.error(`✗ ${label}: transaction unexpectedly succeeded`);
 
     process.exit(1);
   } catch (err) {
     const message = shortError(err);
 
-    console.log(
-      `✓ ${label}: BLOCKED (${message})`
-    );
+    console.log(`✓ ${label}: BLOCKED (${message})`);
 
-    if (
-      expected &&
-      !message
-        .toLowerCase()
-        .includes(expected.toLowerCase())
-    ) {
+    if (expected && !message.toLowerCase().includes(expected.toLowerCase())) {
       console.log(
         `  Note: expected message containing "${expected}", ` +
-        `but rejection still occurred.`
+          `but rejection still occurred.`,
       );
     }
 
@@ -174,112 +144,75 @@ async function expectBlocked(
 }
 
 async function airdrop(pubkey, sol = 10) {
-  const sig =
-    await connection.requestAirdrop(
-      pubkey,
-      sol * LAMPORTS_PER_SOL
-    );
+  const sig = await connection.requestAirdrop(pubkey, sol * LAMPORTS_PER_SOL);
 
-  await connection.confirmTransaction(
-    sig,
-    "confirmed"
-  );
+  await connection.confirmTransaction(sig, "confirmed");
 }
 
 function u64le(value) {
-  return new BN(value.toString())
-    .toArrayLike(Buffer, "le", 8);
+  return new BN(value.toString()).toArrayLike(Buffer, "le", 8);
 }
 
 function merchantPda(authority) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("merchant"),
-      authority.toBuffer(),
-    ],
-    SOLZAAR_PROGRAM_ID
+    [Buffer.from("merchant"), authority.toBuffer()],
+    SOLZAAR_PROGRAM_ID,
   )[0];
 }
 
 function productPda(authority, productId) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("product"),
-      authority.toBuffer(),
-      u64le(productId),
-    ],
-    SOLZAAR_PROGRAM_ID
+    [Buffer.from("product"), authority.toBuffer(), u64le(productId)],
+    SOLZAAR_PROGRAM_ID,
   )[0];
 }
 
 function reputationPda(authority) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("reputation"),
-      authority.toBuffer(),
-    ],
-    SOLZAAR_PROGRAM_ID
+    [Buffer.from("reputation"), authority.toBuffer()],
+    SOLZAAR_PROGRAM_ID,
   )[0];
 }
 
 function orderPda(escrow) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("order"),
-      escrow.toBuffer(),
-    ],
-    SOLZAAR_PROGRAM_ID
+    [Buffer.from("order"), escrow.toBuffer()],
+    SOLZAAR_PROGRAM_ID,
   )[0];
 }
 
 function completedSalePda(order) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("completed-sale"),
-      order.toBuffer(),
-    ],
-    SOLZAAR_PROGRAM_ID
+    [Buffer.from("completed-sale"), order.toBuffer()],
+    SOLZAAR_PROGRAM_ID,
   )[0];
 }
 
 function stockRestorationPda(order) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("stock-restoration"),
-      order.toBuffer(),
-    ],
-    SOLZAAR_PROGRAM_ID
+    [Buffer.from("stock-restoration"), order.toBuffer()],
+    SOLZAAR_PROGRAM_ID,
   )[0];
 }
 
 function reviewPda(order) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("review"),
-      order.toBuffer(),
-    ],
-    SOLZAAR_PROGRAM_ID
+    [Buffer.from("review"), order.toBuffer()],
+    SOLZAAR_PROGRAM_ID,
   )[0];
 }
 
 function escrowPda(creator, escrowId) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("escrow"),
-      creator.toBuffer(),
-      u64le(escrowId),
-    ],
-    ESCROW_PROGRAM_ID
+    [Buffer.from("escrow"), creator.toBuffer(), u64le(escrowId)],
+    ESCROW_PROGRAM_ID,
   )[0];
 }
 
 function vaultPda(escrow) {
   return PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("vault"),
-      escrow.toBuffer(),
-    ],
-    ESCROW_PROGRAM_ID
+    [Buffer.from("vault"), escrow.toBuffer()],
+    ESCROW_PROGRAM_ID,
   )[0];
 }
 
@@ -293,11 +226,9 @@ async function createEscrow({
   requiredDepositB,
   note,
 }) {
-  const escrow =
-    escrowPda(creator.publicKey, escrowId);
+  const escrow = escrowPda(creator.publicKey, escrowId);
 
-  const vault =
-    vaultPda(escrow);
+  const vault = vaultPda(escrow);
 
   await escrowProgram.methods
     .createEscrow(
@@ -308,7 +239,7 @@ async function createEscrow({
       new BN(referenceAmount.toString()),
       new BN(requiredDepositA.toString()),
       new BN(requiredDepositB.toString()),
-      note
+      note,
     )
     .accounts({
       creator: creator.publicKey,
@@ -322,12 +253,7 @@ async function createEscrow({
   return { escrow, vault };
 }
 
-async function depositEscrow({
-  depositor,
-  escrow,
-  vault,
-  amount,
-}) {
+async function depositEscrow({ depositor, escrow, vault, amount }) {
   await escrowProgram.methods
     .deposit(new BN(amount.toString()))
     .accounts({
@@ -340,12 +266,7 @@ async function depositEscrow({
     .rpc();
 }
 
-async function completeEscrow({
-  escrow,
-  vault,
-  totalPrice,
-  sellerDeposit,
-}) {
+async function completeEscrow({ escrow, vault, totalPrice, sellerDeposit }) {
   await depositEscrow({
     depositor: merchant,
     escrow,
@@ -353,15 +274,10 @@ async function completeEscrow({
     amount: sellerDeposit,
   });
 
-  const data =
-    await escrowProgram.account.escrow.fetch(
-      escrow
-    );
+  const data = await escrowProgram.account.escrow.fetch(escrow);
 
   if (Number(data.status) !== 1) {
-    throw new Error(
-      `Expected DEPOSITS_COMPLETE (1), got ${data.status}`
-    );
+    throw new Error(`Expected DEPOSITS_COMPLETE (1), got ${data.status}`);
   }
 
   // Same settlement convention used in Batch 6.
@@ -373,7 +289,7 @@ async function completeEscrow({
       new BN(payoutA),
       new BN(payoutB),
       new BN(0),
-      "Batch 8 completed order"
+      "Batch 8 completed order",
     )
     .accounts({
       signer: merchant.publicKey,
@@ -395,15 +311,10 @@ async function completeEscrow({
     .signers([buyer])
     .rpc();
 
-  const completed =
-    await escrowProgram.account.escrow.fetch(
-      escrow
-    );
+  const completed = await escrowProgram.account.escrow.fetch(escrow);
 
   if (Number(completed.status) !== 3) {
-    throw new Error(
-      `Expected COMPLETED (3), got ${completed.status}`
-    );
+    throw new Error(`Expected COMPLETED (3), got ${completed.status}`);
   }
 }
 
@@ -414,30 +325,12 @@ async function completeEscrow({
 banner("Solzaar Security Test Batch 8");
 
 console.log("RPC:       ", RPC);
-console.log(
-  "Solzaar:   ",
-  SOLZAAR_PROGRAM_ID.toBase58()
-);
-console.log(
-  "Escrow:    ",
-  ESCROW_PROGRAM_ID.toBase58()
-);
-console.log(
-  "Provider:  ",
-  payer.publicKey.toBase58()
-);
-console.log(
-  "Merchant:  ",
-  merchant.publicKey.toBase58()
-);
-console.log(
-  "Buyer:     ",
-  buyer.publicKey.toBase58()
-);
-console.log(
-  "Attacker:  ",
-  attacker.publicKey.toBase58()
-);
+console.log("Solzaar:   ", SOLZAAR_PROGRAM_ID.toBase58());
+console.log("Escrow:    ", ESCROW_PROGRAM_ID.toBase58());
+console.log("Provider:  ", payer.publicKey.toBase58());
+console.log("Merchant:  ", merchant.publicKey.toBase58());
+console.log("Buyer:     ", buyer.publicKey.toBase58());
+console.log("Attacker:  ", attacker.publicKey.toBase58());
 
 // ============================================================
 // 0. Program verification
@@ -449,13 +342,10 @@ for (const [name, address] of [
   ["Solzaar", SOLZAAR_PROGRAM_ID],
   ["Escrow", ESCROW_PROGRAM_ID],
 ]) {
-  const info =
-    await connection.getAccountInfo(address);
+  const info = await connection.getAccountInfo(address);
 
   if (!info || !info.executable) {
-    throw new Error(
-      `${name} program not executable`
-    );
+    throw new Error(`${name} program not executable`);
   }
 
   ok(`${name} program executable`);
@@ -481,11 +371,9 @@ ok("Attacker funded");
 
 banner("2. Merchant / product setup");
 
-const merchantProfile =
-  merchantPda(merchant.publicKey);
+const merchantProfile = merchantPda(merchant.publicKey);
 
-const reputation =
-  reputationPda(merchant.publicKey);
+const reputation = reputationPda(merchant.publicKey);
 
 await solzaar.methods
   .createMerchant(
@@ -495,7 +383,7 @@ await solzaar.methods
     "https://example.com/banner.png",
     "Cavite",
     1000,
-    "batch8@example.com"
+    "batch8@example.com",
   )
   .accounts({
     authority: merchant.publicKey,
@@ -523,28 +411,16 @@ ok("Reputation initialized");
 const PRODUCT_ID = new BN(8001);
 const WRONG_PRODUCT_ID = new BN(8002);
 
-const product =
-  productPda(
-    merchant.publicKey,
-    PRODUCT_ID
-  );
+const product = productPda(merchant.publicKey, PRODUCT_ID);
 
-const wrongProduct =
-  productPda(
-    merchant.publicKey,
-    WRONG_PRODUCT_ID
-  );
+const wrongProduct = productPda(merchant.publicKey, WRONG_PRODUCT_ID);
 
 const PRICE = 1_000_000;
 const INITIAL_STOCK = 30;
 
 for (const [id, pda, title] of [
   [PRODUCT_ID, product, "Batch 8 Product"],
-  [
-    WRONG_PRODUCT_ID,
-    wrongProduct,
-    "Batch 8 Wrong Product",
-  ],
+  [WRONG_PRODUCT_ID, wrongProduct, "Batch 8 Wrong Product"],
 ]) {
   await solzaar.methods
     .createProduct(
@@ -554,7 +430,8 @@ for (const [id, pda, title] of [
       ["https://example.com/image.png"],
       "tests",
       new BN(PRICE),
-      INITIAL_STOCK
+      INITIAL_STOCK,
+      null, // inherit merchant BPS
     )
     .accounts({
       authority: merchant.publicKey,
@@ -577,35 +454,29 @@ banner("3. Create Order A (will COMPLETE)");
 const QTY_A = 2;
 const TOTAL_A = PRICE * QTY_A;
 
-const SECURITY_A =
-  Math.floor(
-    (TOTAL_A * 1000) / 10_000
-  ) || 1;
+const SECURITY_A = Math.floor((TOTAL_A * 1000) / 10_000) || 1;
 
-const BUYER_DEPOSIT_A =
-  TOTAL_A + SECURITY_A;
+const BUYER_DEPOSIT_A = TOTAL_A + SECURITY_A;
 
-const SELLER_DEPOSIT_A =
-  SECURITY_A;
+const SELLER_DEPOSIT_A = SECURITY_A;
 
-const ESCROW_ID_A =
-  new BN(800001);
+const ESCROW_ID_A = new BN(800001);
 
-const A =
-  await createEscrow({
-    escrowId: ESCROW_ID_A,
-    creator: buyer,
-    partyA: buyer.publicKey,
-    partyB: merchant.publicKey,
-    referenceAmount: TOTAL_A,
-    requiredDepositA: BUYER_DEPOSIT_A,
-    requiredDepositB: SELLER_DEPOSIT_A,
-    note: JSON.stringify({
-      marketplace: "solbazaar",
-      batch: 8,
-      order: "A",
-    }),
-  });
+const A = await createEscrow({
+  escrowId: ESCROW_ID_A,
+  creator: buyer,
+  partyA: buyer.publicKey,
+  partyB: merchant.publicKey,
+  referenceAmount: TOTAL_A,
+  requiredDepositA: BUYER_DEPOSIT_A,
+  requiredDepositB: SELLER_DEPOSIT_A,
+  note: JSON.stringify({
+    marketplace: "solbazaar",
+    checkout: "buy",
+    batch: 8,
+    order: "A",
+  }),
+});
 
 await depositEscrow({
   depositor: buyer,
@@ -614,13 +485,9 @@ await depositEscrow({
   amount: BUYER_DEPOSIT_A,
 });
 
-const orderA =
-  orderPda(A.escrow);
+const orderA = orderPda(A.escrow);
 
-const beforeA =
-  await solzaar.account.product.fetch(
-    product
-  );
+const beforeA = await solzaar.account.product.fetch(product);
 
 await solzaar.methods
   .createOrderRecord(QTY_A)
@@ -635,24 +502,13 @@ await solzaar.methods
   .signers([buyer])
   .rpc();
 
-const afterA =
-  await solzaar.account.product.fetch(
-    product
-  );
+const afterA = await solzaar.account.product.fetch(product);
 
-if (
-  afterA.stock !==
-  beforeA.stock - QTY_A
-) {
-  throw new Error(
-    "Order A stock reservation incorrect"
-  );
+if (afterA.stock !== beforeA.stock - QTY_A) {
+  throw new Error("Order A stock reservation incorrect");
 }
 
-ok(
-  `Order A reserved ${QTY_A}: ` +
-  `${beforeA.stock} -> ${afterA.stock}`
-);
+ok(`Order A reserved ${QTY_A}: ` + `${beforeA.stock} -> ${afterA.stock}`);
 
 // ============================================================
 // ORDER B - WILL CANCEL
@@ -663,35 +519,29 @@ banner("4. Create Order B (will CANCEL)");
 const QTY_B = 3;
 const TOTAL_B = PRICE * QTY_B;
 
-const SECURITY_B =
-  Math.floor(
-    (TOTAL_B * 1000) / 10_000
-  ) || 1;
+const SECURITY_B = Math.floor((TOTAL_B * 1000) / 10_000) || 1;
 
-const BUYER_DEPOSIT_B =
-  TOTAL_B + SECURITY_B;
+const BUYER_DEPOSIT_B = TOTAL_B + SECURITY_B;
 
-const SELLER_DEPOSIT_B =
-  SECURITY_B;
+const SELLER_DEPOSIT_B = SECURITY_B;
 
-const ESCROW_ID_B =
-  new BN(800002);
+const ESCROW_ID_B = new BN(800002);
 
-const B =
-  await createEscrow({
-    escrowId: ESCROW_ID_B,
-    creator: buyer,
-    partyA: buyer.publicKey,
-    partyB: merchant.publicKey,
-    referenceAmount: TOTAL_B,
-    requiredDepositA: BUYER_DEPOSIT_B,
-    requiredDepositB: SELLER_DEPOSIT_B,
-    note: JSON.stringify({
-      marketplace: "solbazaar",
-      batch: 8,
-      order: "B",
-    }),
-  });
+const B = await createEscrow({
+  escrowId: ESCROW_ID_B,
+  creator: buyer,
+  partyA: buyer.publicKey,
+  partyB: merchant.publicKey,
+  referenceAmount: TOTAL_B,
+  requiredDepositA: BUYER_DEPOSIT_B,
+  requiredDepositB: SELLER_DEPOSIT_B,
+  note: JSON.stringify({
+    marketplace: "solbazaar",
+    checkout: "buy",
+    batch: 8,
+    order: "B",
+  }),
+});
 
 await depositEscrow({
   depositor: buyer,
@@ -700,13 +550,9 @@ await depositEscrow({
   amount: BUYER_DEPOSIT_B,
 });
 
-const orderB =
-  orderPda(B.escrow);
+const orderB = orderPda(B.escrow);
 
-const beforeB =
-  await solzaar.account.product.fetch(
-    product
-  );
+const beforeB = await solzaar.account.product.fetch(product);
 
 await solzaar.methods
   .createOrderRecord(QTY_B)
@@ -721,24 +567,13 @@ await solzaar.methods
   .signers([buyer])
   .rpc();
 
-const afterB =
-  await solzaar.account.product.fetch(
-    product
-  );
+const afterB = await solzaar.account.product.fetch(product);
 
-if (
-  afterB.stock !==
-  beforeB.stock - QTY_B
-) {
-  throw new Error(
-    "Order B stock reservation incorrect"
-  );
+if (afterB.stock !== beforeB.stock - QTY_B) {
+  throw new Error("Order B stock reservation incorrect");
 }
 
-ok(
-  `Order B reserved ${QTY_B}: ` +
-  `${beforeB.stock} -> ${afterB.stock}`
-);
+ok(`Order B reserved ${QTY_B}: ` + `${beforeB.stock} -> ${afterB.stock}`);
 
 // ============================================================
 // 5. Complete A
@@ -755,13 +590,9 @@ await completeEscrow({
 
 ok("Order A escrow reached COMPLETED (3)");
 
-const completedSaleA =
-  completedSalePda(orderA);
+const completedSaleA = completedSalePda(orderA);
 
-const soldBeforeA =
-  await solzaar.account.product.fetch(
-    product
-  );
+const soldBeforeA = await solzaar.account.product.fetch(product);
 
 await solzaar.methods
   .recordCompletedSale()
@@ -777,40 +608,28 @@ await solzaar.methods
   .signers([buyer])
   .rpc();
 
-const soldAfterA =
-  await solzaar.account.product.fetch(
-    product
-  );
+const soldAfterA = await solzaar.account.product.fetch(product);
 
-if (
-  soldAfterA.sold !==
-  soldBeforeA.sold + QTY_A
-) {
-  throw new Error(
-    "Completed Order A did not increment sold correctly"
-  );
+if (soldAfterA.sold !== soldBeforeA.sold + QTY_A) {
+  throw new Error("Completed Order A did not increment sold correctly");
 }
 
 ok(
   `Order A recorded completed sale: sold ` +
-  `${soldBeforeA.sold} -> ${soldAfterA.sold}`
+    `${soldBeforeA.sold} -> ${soldAfterA.sold}`,
 );
 
 // ============================================================
 // 6. COMPLETED cannot restore stock
 // ============================================================
 
-banner(
-  "6. COMPLETED order cannot restore stock"
+banner("6. COMPLETED order cannot restore stock");
+
+const restorationA = stockRestorationPda(orderA);
+
+const stockBeforeCompletedRestore = await solzaar.account.product.fetch(
+  product,
 );
-
-const restorationA =
-  stockRestorationPda(orderA);
-
-const stockBeforeCompletedRestore =
-  await solzaar.account.product.fetch(
-    product
-  );
 
 await expectBlocked(
   "COMPLETED Order A cannot restore reserved stock",
@@ -828,26 +647,16 @@ await expectBlocked(
       .signers([buyer])
       .rpc();
   },
-  "cancel"
+  "cancel",
 );
 
-const stockAfterCompletedRestore =
-  await solzaar.account.product.fetch(
-    product
-  );
+const stockAfterCompletedRestore = await solzaar.account.product.fetch(product);
 
-if (
-  stockAfterCompletedRestore.stock !==
-  stockBeforeCompletedRestore.stock
-) {
-  throw new Error(
-    "COMPLETED restore attempt mutated stock"
-  );
+if (stockAfterCompletedRestore.stock !== stockBeforeCompletedRestore.stock) {
+  throw new Error("COMPLETED restore attempt mutated stock");
 }
 
-ok(
-  "COMPLETED restore attempt left stock unchanged"
-);
+ok("COMPLETED restore attempt left stock unchanged");
 
 // ============================================================
 // 7. Cancel B
@@ -866,28 +675,18 @@ await escrowProgram.methods
   .signers([buyer])
   .rpc();
 
-const cancelledB =
-  await escrowProgram.account.escrow.fetch(
-    B.escrow
-  );
+const cancelledB = await escrowProgram.account.escrow.fetch(B.escrow);
 
 if (Number(cancelledB.status) !== 4) {
-  throw new Error(
-    `Order B expected CANCELLED 4, got ${cancelledB.status}`
-  );
+  throw new Error(`Order B expected CANCELLED 4, got ${cancelledB.status}`);
 }
 
 ok("Order B escrow reached CANCELLED (4)");
 
-const cancelledAccount =
-  await connection.getAccountInfo(
-    B.escrow
-  );
+const cancelledAccount = await connection.getAccountInfo(B.escrow);
 
 if (!cancelledAccount) {
-  throw new Error(
-    "Cancelled Order B escrow disappeared"
-  );
+  throw new Error("Cancelled Order B escrow disappeared");
 }
 
 ok("Cancelled Order B escrow remains on-chain");
@@ -896,12 +695,9 @@ ok("Cancelled Order B escrow remains on-chain");
 // 8. CANCELLED cannot complete
 // ============================================================
 
-banner(
-  "8. CANCELLED order cannot become completed sale"
-);
+banner("8. CANCELLED order cannot become completed sale");
 
-const completedSaleB =
-  completedSalePda(orderB);
+const completedSaleB = completedSalePda(orderB);
 
 await expectBlocked(
   "CANCELLED Order B cannot record completed sale",
@@ -920,33 +716,26 @@ await expectBlocked(
       .signers([buyer])
       .rpc();
   },
-  "completed"
+  "completed",
 );
 
 // ============================================================
 // 9. CANCELLED cannot review
 // ============================================================
 
-banner(
-  "9. CANCELLED order cannot submit review"
+banner("9. CANCELLED order cannot submit review");
+
+const reviewB = reviewPda(orderB);
+
+const repBeforeCancelledReview = await solzaar.account.merchantReputation.fetch(
+  reputation,
 );
-
-const reviewB =
-  reviewPda(orderB);
-
-const repBeforeCancelledReview =
-  await solzaar.account.merchantReputation.fetch(
-    reputation
-  );
 
 await expectBlocked(
   "Buyer cannot review CANCELLED Order B",
   async () => {
     await solzaar.methods
-      .submitReview(
-        5,
-        "Cancelled order must not be reviewable"
-      )
+      .submitReview(5, "Cancelled order must not be reviewable")
       .accounts({
         reviewer: buyer.publicKey,
         escrow: B.escrow,
@@ -960,13 +749,12 @@ await expectBlocked(
       .signers([buyer])
       .rpc();
   },
-  "completed"
+  "completed",
 );
 
-const repAfterCancelledReview =
-  await solzaar.account.merchantReputation.fetch(
-    reputation
-  );
+const repAfterCancelledReview = await solzaar.account.merchantReputation.fetch(
+  reputation,
+);
 
 if (
   repBeforeCancelledReview.totalReviews.toString() !==
@@ -974,14 +762,10 @@ if (
   repBeforeCancelledReview.totalRating.toString() !==
     repAfterCancelledReview.totalRating.toString()
 ) {
-  throw new Error(
-    "Cancelled review attempt mutated reputation"
-  );
+  throw new Error("Cancelled review attempt mutated reputation");
 }
 
-ok(
-  "Cancelled review attempt did not mutate reputation"
-);
+ok("Cancelled review attempt did not mutate reputation");
 
 // ============================================================
 // 10. Cross escrow/order substitution
@@ -989,27 +773,23 @@ ok(
 
 banner("10. Cross escrow/order substitution");
 
-await expectBlocked(
-  "Cannot use COMPLETED escrow A with Order B",
-  async () => {
-    const fakeCompleted =
-      completedSalePda(orderB);
+await expectBlocked("Cannot use COMPLETED escrow A with Order B", async () => {
+  const fakeCompleted = completedSalePda(orderB);
 
-    await solzaar.methods
-      .recordCompletedSale()
-      .accounts({
-        buyer: buyer.publicKey,
-        escrow: A.escrow,
-        orderRecord: orderB,
-        product,
-        merchantProfile,
-        completedSale: fakeCompleted,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([buyer])
-      .rpc();
-  }
-);
+  await solzaar.methods
+    .recordCompletedSale()
+    .accounts({
+      buyer: buyer.publicKey,
+      escrow: A.escrow,
+      orderRecord: orderB,
+      product,
+      merchantProfile,
+      completedSale: fakeCompleted,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([buyer])
+    .rpc();
+});
 
 await expectBlocked(
   "Cannot use CANCELLED escrow B with Order A restoration",
@@ -1026,7 +806,7 @@ await expectBlocked(
       })
       .signers([buyer])
       .rpc();
-  }
+  },
 );
 
 ok("Cross escrow/order substitution blocked");
@@ -1037,13 +817,9 @@ ok("Cross escrow/order substitution blocked");
 
 banner("11. Wrong product substitution");
 
-const restorationB =
-  stockRestorationPda(orderB);
+const restorationB = stockRestorationPda(orderB);
 
-const wrongBefore =
-  await solzaar.account.product.fetch(
-    wrongProduct
-  );
+const wrongBefore = await solzaar.account.product.fetch(wrongProduct);
 
 await expectBlocked(
   "Cannot restore Order B quantity into wrong product",
@@ -1060,21 +836,13 @@ await expectBlocked(
       })
       .signers([buyer])
       .rpc();
-  }
+  },
 );
 
-const wrongAfter =
-  await solzaar.account.product.fetch(
-    wrongProduct
-  );
+const wrongAfter = await solzaar.account.product.fetch(wrongProduct);
 
-if (
-  wrongAfter.stock !==
-  wrongBefore.stock
-) {
-  throw new Error(
-    "Wrong product restoration mutated stock"
-  );
+if (wrongAfter.stock !== wrongBefore.stock) {
+  throw new Error("Wrong product restoration mutated stock");
 }
 
 ok("Wrong product remained unchanged");
@@ -1083,14 +851,9 @@ ok("Wrong product remained unchanged");
 // 12. Legitimate restoration of B
 // ============================================================
 
-banner(
-  "12. Legitimate CANCELLED stock restoration"
-);
+banner("12. Legitimate CANCELLED stock restoration");
 
-const beforeRestoreB =
-  await solzaar.account.product.fetch(
-    product
-  );
+const beforeRestoreB = await solzaar.account.product.fetch(product);
 
 await solzaar.methods
   .restoreCancelledOrderStock()
@@ -1105,24 +868,18 @@ await solzaar.methods
   .signers([buyer])
   .rpc();
 
-const afterRestoreB =
-  await solzaar.account.product.fetch(
-    product
-  );
+const afterRestoreB = await solzaar.account.product.fetch(product);
 
-if (
-  afterRestoreB.stock !==
-  beforeRestoreB.stock + QTY_B
-) {
+if (afterRestoreB.stock !== beforeRestoreB.stock + QTY_B) {
   throw new Error(
     `Order B restoration incorrect: ` +
-    `${beforeRestoreB.stock} -> ${afterRestoreB.stock}`
+      `${beforeRestoreB.stock} -> ${afterRestoreB.stock}`,
   );
 }
 
 ok(
   `Order B restored exactly ${QTY_B}: ` +
-  `${beforeRestoreB.stock} -> ${afterRestoreB.stock}`
+    `${beforeRestoreB.stock} -> ${afterRestoreB.stock}`,
 );
 
 // ============================================================
@@ -1144,45 +901,32 @@ banner("13. Final inventory invariant");
 //   30 - 2 = 28
 //
 
-const finalProduct =
-  await solzaar.account.product.fetch(
-    product
-  );
+const finalProduct = await solzaar.account.product.fetch(product);
 
-const EXPECTED_FINAL_STOCK =
-  INITIAL_STOCK - QTY_A;
+const EXPECTED_FINAL_STOCK = INITIAL_STOCK - QTY_A;
 
-if (
-  finalProduct.stock !==
-  EXPECTED_FINAL_STOCK
-) {
+if (finalProduct.stock !== EXPECTED_FINAL_STOCK) {
   throw new Error(
     `FINAL INVENTORY INVARIANT FAILED: ` +
-    `expected ${EXPECTED_FINAL_STOCK}, ` +
-    `got ${finalProduct.stock}`
+      `expected ${EXPECTED_FINAL_STOCK}, ` +
+      `got ${finalProduct.stock}`,
   );
 }
 
-if (
-  finalProduct.sold !== QTY_A
-) {
+if (finalProduct.sold !== QTY_A) {
   throw new Error(
     `FINAL SOLD INVARIANT FAILED: ` +
-    `expected ${QTY_A}, got ${finalProduct.sold}`
+      `expected ${QTY_A}, got ${finalProduct.sold}`,
   );
 }
 
-ok(
-  `Final stock correct: ${finalProduct.stock}`
-);
+ok(`Final stock correct: ${finalProduct.stock}`);
 
-ok(
-  `Final sold correct: ${finalProduct.sold}`
-);
+ok(`Final sold correct: ${finalProduct.sold}`);
 
 ok(
   `Inventory invariant holds: initial ${INITIAL_STOCK}, ` +
-  `completed ${QTY_A}, cancelled/restored ${QTY_B}`
+    `completed ${QTY_A}, cancelled/restored ${QTY_B}`,
 );
 
 // ============================================================
@@ -1191,44 +935,32 @@ ok(
 
 banner("14. Completed-sale replay");
 
-await expectBlocked(
-  "Order A completed sale cannot be replayed",
-  async () => {
-    await solzaar.methods
-      .recordCompletedSale()
-      .accounts({
-        buyer: buyer.publicKey,
-        escrow: A.escrow,
-        orderRecord: orderA,
-        product,
-        merchantProfile,
-        completedSale: completedSaleA,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([buyer])
-      .rpc();
-  }
-);
+await expectBlocked("Order A completed sale cannot be replayed", async () => {
+  await solzaar.methods
+    .recordCompletedSale()
+    .accounts({
+      buyer: buyer.publicKey,
+      escrow: A.escrow,
+      orderRecord: orderA,
+      product,
+      merchantProfile,
+      completedSale: completedSaleA,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([buyer])
+    .rpc();
+});
 
-const afterSaleReplay =
-  await solzaar.account.product.fetch(
-    product
-  );
+const afterSaleReplay = await solzaar.account.product.fetch(product);
 
 if (
-  afterSaleReplay.stock !==
-    finalProduct.stock ||
-  afterSaleReplay.sold !==
-    finalProduct.sold
+  afterSaleReplay.stock !== finalProduct.stock ||
+  afterSaleReplay.sold !== finalProduct.sold
 ) {
-  throw new Error(
-    "Completed-sale replay mutated product"
-  );
+  throw new Error("Completed-sale replay mutated product");
 }
 
-ok(
-  "Completed-sale replay caused no mutation"
-);
+ok("Completed-sale replay caused no mutation");
 
 // ============================================================
 // 15. Restoration replay
@@ -1236,43 +968,31 @@ ok(
 
 banner("15. Stock-restoration replay");
 
-await expectBlocked(
-  "Order B restoration cannot be replayed",
-  async () => {
-    await solzaar.methods
-      .restoreCancelledOrderStock()
-      .accounts({
-        payer: buyer.publicKey,
-        escrow: B.escrow,
-        orderRecord: orderB,
-        product,
-        stockRestoration: restorationB,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([buyer])
-      .rpc();
-  }
-);
+await expectBlocked("Order B restoration cannot be replayed", async () => {
+  await solzaar.methods
+    .restoreCancelledOrderStock()
+    .accounts({
+      payer: buyer.publicKey,
+      escrow: B.escrow,
+      orderRecord: orderB,
+      product,
+      stockRestoration: restorationB,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([buyer])
+    .rpc();
+});
 
-const afterRestoreReplay =
-  await solzaar.account.product.fetch(
-    product
-  );
+const afterRestoreReplay = await solzaar.account.product.fetch(product);
 
 if (
-  afterRestoreReplay.stock !==
-    finalProduct.stock ||
-  afterRestoreReplay.sold !==
-    finalProduct.sold
+  afterRestoreReplay.stock !== finalProduct.stock ||
+  afterRestoreReplay.sold !== finalProduct.sold
 ) {
-  throw new Error(
-    "Restoration replay mutated product"
-  );
+  throw new Error("Restoration replay mutated product");
 }
 
-ok(
-  "Stock-restoration replay caused no mutation"
-);
+ok("Stock-restoration replay caused no mutation");
 
 // ============================================================
 // 16. Cross receipt substitution
@@ -1295,7 +1015,7 @@ await expectBlocked(
       })
       .signers([buyer])
       .rpc();
-  }
+  },
 );
 
 await expectBlocked(
@@ -1314,7 +1034,7 @@ await expectBlocked(
       })
       .signers([buyer])
       .rpc();
-  }
+  },
 );
 
 ok("Cross-order receipt/PDA substitution blocked");
@@ -1323,9 +1043,7 @@ ok("Cross-order receipt/PDA substitution blocked");
 // 17. CANCELLED remains terminal after restoration
 // ============================================================
 
-banner(
-  "17. CANCELLED remains terminal after stock restoration"
-);
+banner("17. CANCELLED remains terminal after stock restoration");
 
 await expectBlocked(
   "Cannot deposit to restored CANCELLED escrow",
@@ -1337,7 +1055,7 @@ await expectBlocked(
       amount: BUYER_DEPOSIT_B,
     });
   },
-  "status"
+  "status",
 );
 
 await expectBlocked(
@@ -1348,7 +1066,7 @@ await expectBlocked(
         new BN(0),
         new BN(0),
         new BN(0),
-        "attempt to revive cancelled order"
+        "attempt to revive cancelled order",
       )
       .accounts({
         signer: buyer.publicKey,
@@ -1357,23 +1075,16 @@ await expectBlocked(
       .signers([buyer])
       .rpc();
   },
-  "status"
+  "status",
 );
 
-const finalEscrowB =
-  await escrowProgram.account.escrow.fetch(
-    B.escrow
-  );
+const finalEscrowB = await escrowProgram.account.escrow.fetch(B.escrow);
 
 if (Number(finalEscrowB.status) !== 4) {
-  throw new Error(
-    "Cancelled escrow B changed state after restoration"
-  );
+  throw new Error("Cancelled escrow B changed state after restoration");
 }
 
-ok(
-  "Restored Order B remains permanently CANCELLED (4)"
-);
+ok("Restored Order B remains permanently CANCELLED (4)");
 
 // ============================================================
 // 18. Final no-mutation check
@@ -1381,28 +1092,23 @@ ok(
 
 banner("18. Final no-mutation check");
 
-const absoluteFinal =
-  await solzaar.account.product.fetch(
-    product
-  );
+const absoluteFinal = await solzaar.account.product.fetch(product);
 
 if (
-  absoluteFinal.stock !==
-    EXPECTED_FINAL_STOCK ||
-  absoluteFinal.sold !==
-    QTY_A
+  absoluteFinal.stock !== EXPECTED_FINAL_STOCK ||
+  absoluteFinal.sold !== QTY_A
 ) {
   throw new Error(
     `Final state changed unexpectedly: ` +
-    `stock=${absoluteFinal.stock}, ` +
-    `sold=${absoluteFinal.sold}`
+      `stock=${absoluteFinal.stock}, ` +
+      `sold=${absoluteFinal.sold}`,
   );
 }
 
 ok(
   `Final product state stable: ` +
-  `stock=${absoluteFinal.stock}, ` +
-  `sold=${absoluteFinal.sold}`
+    `stock=${absoluteFinal.stock}, ` +
+    `sold=${absoluteFinal.sold}`,
 );
 
 // ============================================================
@@ -1415,74 +1121,38 @@ console.log(`PASS checks:    ${passed}`);
 console.log(`Blocked attacks:${blocked}`);
 console.log(`Findings:       ${findings}`);
 
-console.log(
-  "\nFinal lifecycle expected:"
-);
+console.log("\nFinal lifecycle expected:");
 
-console.log(
-  `Order A: COMPLETED quantity=${QTY_A}`
-);
+console.log(`Order A: COMPLETED quantity=${QTY_A}`);
 
-console.log(
-  `Order B: CANCELLED quantity=${QTY_B} + stock restored`
-);
+console.log(`Order B: CANCELLED quantity=${QTY_B} + stock restored`);
 
-console.log(
-  `Initial stock: ${INITIAL_STOCK}`
-);
+console.log(`Initial stock: ${INITIAL_STOCK}`);
 
-console.log(
-  `Expected final stock: ${EXPECTED_FINAL_STOCK}`
-);
+console.log(`Expected final stock: ${EXPECTED_FINAL_STOCK}`);
 
-console.log(
-  `Expected sold: ${QTY_A}`
-);
+console.log(`Expected sold: ${QTY_A}`);
 
-console.log(
-  "\nCritical pre-mainnet properties:"
-);
+console.log("\nCritical pre-mainnet properties:");
 
-console.log(
-  "1. COMPLETED orders cannot restore stock."
-);
+console.log("1. COMPLETED orders cannot restore stock.");
 
-console.log(
-  "2. CANCELLED orders cannot become completed sales."
-);
+console.log("2. CANCELLED orders cannot become completed sales.");
 
-console.log(
-  "3. CANCELLED orders cannot create reviews."
-);
+console.log("3. CANCELLED orders cannot create reviews.");
 
-console.log(
-  "4. Escrow/order substitution is blocked."
-);
+console.log("4. Escrow/order substitution is blocked.");
 
-console.log(
-  "5. Product substitution is blocked."
-);
+console.log("5. Product substitution is blocked.");
 
-console.log(
-  "6. Completed-sale replay is blocked."
-);
+console.log("6. Completed-sale replay is blocked.");
 
-console.log(
-  "7. Stock-restoration replay is blocked."
-);
+console.log("7. Stock-restoration replay is blocked.");
 
-console.log(
-  "8. Cross-order receipt/PDA substitution is blocked."
-);
+console.log("8. Cross-order receipt/PDA substitution is blocked.");
 
-console.log(
-  "9. CANCELLED remains terminal after restoration."
-);
+console.log("9. CANCELLED remains terminal after restoration.");
 
-console.log(
-  "10. Final inventory invariant remains correct."
-);
+console.log("10. Final inventory invariant remains correct.");
 
-console.log(
-  "\nBatch 8 finished."
-);
+console.log("\nBatch 8 finished.");
