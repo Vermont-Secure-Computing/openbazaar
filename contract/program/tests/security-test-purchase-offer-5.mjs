@@ -815,6 +815,295 @@ async function main() {
 
   console.log("\n✓ Batch 4 successful retry verified");
 
+  // ============================================================
+  // Batch 5 — Account Substitution & Escrow Integrity
+  // ============================================================
+
+  console.log("\n=== Batch 5: Account Substitution ===");
+
+  // Ensure each rejected attempt preserves the original state.
+  async function assertOfferUnchanged(o, before, label) {
+    const offer = await market.account.purchaseOffer.fetch(o.offer);
+    const escrow = await escrowProgram.account.escrow.fetch(o.e);
+    const productAccount = await market.account.product.fetch(product);
+    const vaultBalance = await connection.getBalance(o.vault);
+    const orderInfo = await connection.getAccountInfo(orderPda(o.e));
+
+    if (offer.status !== before.offerStatus) {
+      throw new Error(`${label}: PurchaseOffer status changed`);
+    }
+
+    if (escrow.status !== before.escrowStatus) {
+      throw new Error(`${label}: Escrow status changed`);
+    }
+
+    if (!escrow.depositedB.eq(before.depositedB)) {
+      throw new Error(`${label}: Seller deposit changed`);
+    }
+
+    if (productAccount.stock !== before.stock) {
+      throw new Error(`${label}: Product stock changed`);
+    }
+
+    if (vaultBalance !== before.vaultBalance) {
+      throw new Error(`${label}: Vault balance changed`);
+    }
+
+    if (orderInfo !== null) {
+      throw new Error(`${label}: OrderRecord unexpectedly created`);
+    }
+
+    ok(`${label}: State unchanged`);
+  }
+
+  async function snapshotOffer(o) {
+    const offer = await market.account.purchaseOffer.fetch(o.offer);
+    const escrow = await escrowProgram.account.escrow.fetch(o.e);
+    const productAccount = await market.account.product.fetch(product);
+
+    if (await connection.getAccountInfo(orderPda(o.e))) {
+      throw new Error("Snapshot requires an offer without OrderRecord");
+    }
+
+    return {
+      offerStatus: offer.status,
+      escrowStatus: escrow.status,
+      depositedB: escrow.depositedB,
+      stock: productAccount.stock,
+      vaultBalance: await connection.getBalance(o.vault),
+    };
+  }
+
+  // Strictly reject only when the supplied error evidence
+  // matches the expected account-validation failure.
+  async function expectAccountBlocked(label, action, expectedPattern) {
+    let caught = null;
+
+    try {
+      await action();
+    } catch (error) {
+      caught = error;
+    }
+
+    if (!caught) {
+      throw new Error(`SECURITY FAILURE: ${label} unexpectedly succeeded`);
+    }
+
+    const details = [
+      caught.message || "",
+      caught.error?.errorMessage || "",
+      caught.error?.errorCode?.code || "",
+      ...(caught.logs || []),
+      ...(caught.transactionLogs || []),
+    ].join("\n");
+
+    if (!expectedPattern.test(details)) {
+      console.error(`\nUnexpected rejection for ${label}:`);
+      console.error(details);
+
+      throw new Error(`${label}: Rejected for an unverified reason`);
+    }
+
+    blocked++;
+    console.log(`✓ BLOCKED: ${label}`);
+  }
+
+  // Build an acceptance instruction with account overrides.
+  function acceptWithAccounts(o, overrides = {}) {
+    const accounts = {
+      seller: merchant.publicKey,
+      escrow: o.e,
+      purchaseOffer: o.offer,
+      product,
+      merchantProfile: merchantPda,
+      orderRecord: orderPda(o.e),
+      vault: o.vault,
+      escrowProgram: escrowId,
+      systemProgram: SystemProgram.programId,
+      ...overrides,
+    };
+
+    return market.methods
+      .acceptPurchaseOffer()
+      .accounts(accounts)
+      .signers([merchant])
+      .rpc();
+  }
+
+  // ------------------------------------------------------------
+  // Test 1 — PurchaseOffer from another escrow
+  // ------------------------------------------------------------
+
+  console.log("\n--- Test 1: Cross-escrow PurchaseOffer ---");
+
+  const b5a = await createOffer(920001);
+  const b5b = await createOffer(920002);
+
+  const b5aBefore = await snapshotOffer(b5a);
+  const b5bBefore = await snapshotOffer(b5b);
+
+  await expectAccountBlocked(
+    "Cannot substitute PurchaseOffer from another escrow",
+    () =>
+      acceptWithAccounts(b5a, {
+        purchaseOffer: b5b.offer,
+      }),
+    /constraintseeds|seeds constraint|invalid purchaseoffer escrow|invalid escrow/i,
+  );
+
+  await assertOfferUnchanged(b5a, b5aBefore, "Original escrow protected");
+
+  await assertOfferUnchanged(b5b, b5bBefore, "Substituted offer protected");
+
+  // ------------------------------------------------------------
+  // Test 2 — Vault from another escrow
+  // ------------------------------------------------------------
+
+  console.log("\n--- Test 2: Cross-escrow Vault ---");
+
+  const b5c = await createOffer(920003);
+  const b5cBefore = await snapshotOffer(b5c);
+
+  await expectAccountBlocked(
+    "Cannot substitute another escrow's vault",
+    () =>
+      acceptWithAccounts(b5c, {
+        vault: b5a.vault,
+      }),
+    /constraintseeds|seeds constraint|invalid purchaseoffer escrow|invalid vault|invalid escrow/i,
+  );
+
+  await assertOfferUnchanged(b5c, b5cBefore, "Cross-escrow vault substitution");
+
+  // ------------------------------------------------------------
+  // Test 3 — OrderRecord PDA from another escrow
+  // ------------------------------------------------------------
+
+  console.log("\n--- Test 3: Wrong OrderRecord PDA ---");
+
+  const b5d = await createOffer(920004);
+  const b5dBefore = await snapshotOffer(b5d);
+
+  await expectAccountBlocked(
+    "Cannot use another escrow's OrderRecord PDA",
+    () =>
+      acceptWithAccounts(b5d, {
+        orderRecord: orderPda(b5a.e),
+      }),
+    /constraintseeds|seeds constraint|invalid seeds/i,
+  );
+
+  await assertOfferUnchanged(b5d, b5dBefore, "Wrong OrderRecord PDA");
+
+  // ------------------------------------------------------------
+  // Test 4 — Wrong MerchantProfile
+  // ------------------------------------------------------------
+
+  console.log("\n--- Test 4: Wrong MerchantProfile ---");
+
+  const b5e = await createOffer(920005);
+  const b5eBefore = await snapshotOffer(b5e);
+
+  const fakeMerchantProfile = Keypair.generate().publicKey;
+
+  await expectAccountBlocked(
+    "Cannot substitute a nonexistent MerchantProfile",
+    () =>
+      acceptWithAccounts(b5e, {
+        merchantProfile: fakeMerchantProfile,
+      }),
+    /accountnotinitialized|account not initialized|accountnotfound|account does not exist|could not find account/i,
+  );
+
+  await assertOfferUnchanged(b5e, b5eBefore, "Wrong MerchantProfile");
+
+  // ------------------------------------------------------------
+  // Test 5 — Wrong Product account
+  // ------------------------------------------------------------
+
+  console.log("\n--- Test 5: Wrong Product ---");
+
+  const b5f = await createOffer(920006);
+  const b5fBefore = await snapshotOffer(b5f);
+
+  const fakeProduct = Keypair.generate().publicKey;
+
+  await expectAccountBlocked(
+    "Cannot substitute a nonexistent Product",
+    () =>
+      acceptWithAccounts(b5f, {
+        product: fakeProduct,
+      }),
+    /accountnotinitialized|account not initialized|accountnotfound|account does not exist|could not find account/i,
+  );
+
+  await assertOfferUnchanged(b5f, b5fBefore, "Wrong Product");
+
+  // ------------------------------------------------------------
+  // Test 6 — Wrong seller
+  // ------------------------------------------------------------
+
+  console.log("\n--- Test 6: Unauthorized Seller ---");
+
+  const b5g = await createOffer(920007);
+  const b5gBefore = await snapshotOffer(b5g);
+
+  await expectAccountBlocked(
+    "Attacker cannot accept another seller's offer",
+    () => acceptOffer(b5g, attacker),
+    /unauthorized|constraintseeds|seeds constraint|invalid order seller/i,
+  );
+
+  await assertOfferUnchanged(b5g, b5gBefore, "Unauthorized seller");
+
+  // ------------------------------------------------------------
+  // Test 7 — Valid offer still works after substitution tests
+  // ------------------------------------------------------------
+
+  console.log("\n--- Test 7: Valid Acceptance Control ---");
+
+  const b5h = await createOffer(920008);
+  const b5hBefore = await snapshotOffer(b5h);
+
+  await acceptOffer(b5h);
+
+  const b5hOffer = await market.account.purchaseOffer.fetch(b5h.offer);
+  const b5hEscrow = await escrowProgram.account.escrow.fetch(b5h.e);
+  const b5hProduct = await market.account.product.fetch(product);
+  const b5hVaultBalance = await connection.getBalance(b5h.vault);
+  const b5hOrderInfo = await connection.getAccountInfo(orderPda(b5h.e));
+
+  if (b5hOffer.status !== 1) {
+    throw new Error("Valid acceptance did not update offer status");
+  }
+
+  if (b5hEscrow.status !== 1) {
+    throw new Error("Valid acceptance did not fully fund escrow");
+  }
+
+  if (!b5hEscrow.depositedB.eq(new BN(SECURITY))) {
+    throw new Error("Valid acceptance recorded incorrect seller bond");
+  }
+
+  if (b5hVaultBalance - b5hBefore.vaultBalance !== SECURITY) {
+    throw new Error("Valid acceptance transferred incorrect bond");
+  }
+
+  if (b5hProduct.stock !== b5hBefore.stock - 1) {
+    throw new Error("Valid acceptance reserved incorrect stock");
+  }
+
+  if (!b5hOrderInfo || !b5hOrderInfo.owner.equals(marketId)) {
+    throw new Error("Valid acceptance did not create OrderRecord");
+  }
+
+  ok("Valid offer accepted after substitution tests");
+  ok("Valid escrow fully funded");
+  ok("Valid seller bond transferred exactly");
+  ok("Valid stock reservation and OrderRecord verified");
+
+  console.log("\n✓ Batch 5 account-substitution tests completed");
+
   console.log(
     `\nRESULT: ${passed} passed; ` + `${blocked} expected failures blocked.`,
   );

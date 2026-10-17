@@ -765,6 +765,14 @@ function OrderCard({
     ? Number(escrow.purchaseOffer.status)
     : null;
 
+  const offerUnitPrice = escrow.purchaseOffer?.unitPrice ?? null;
+  const listedUnitPrice = product?.price ?? null;
+
+  const isMakeOffer =
+    offerUnitPrice != null &&
+    listedUnitPrice != null &&
+    BigInt(offerUnitPrice.toString()) < BigInt(listedUnitPrice.toString());
+
   const isOfferPending = !escrow.purchaseOffer || offerStatus === 0;
 
   const isOfferWithdrawable =
@@ -783,8 +791,9 @@ function OrderCard({
 
   const canSellerRequestCancellation =
     role === "seller" &&
-    escrow.status === ESCROW_STATUS.CREATED &&
-    !sellerHasDeposited;
+    Number(escrow.status) === ESCROW_STATUS.CREATED &&
+    !sellerHasDeposited &&
+    isOfferPending;
 
   const sendSellerCancellationRequest = async () => {
     if (!canSellerRequestCancellation) {
@@ -838,8 +847,9 @@ function OrderCard({
   const canRequestMutualCancellation =
     (role === "buyer" || role === "seller") &&
     !mutualCancellationPending &&
+    (offerStatus === null || offerStatus === 1) &&
     sellerHasDeposited &&
-    escrow.status === ESCROW_STATUS.DEPOSITS_COMPLETE;
+    Number(escrow.status) === ESCROW_STATUS.DEPOSITS_COMPLETE;
 
   const canRespondToMutualCancellation =
     mutualCancellationPending &&
@@ -944,6 +954,18 @@ function OrderCard({
           message: "Review the cancellation request below.",
         };
       }
+    }
+
+    if (offerStatus === 2) {
+      return {
+        type: "warning",
+        eyebrow: "Offer rejected",
+        title: "Purchase offer rejected",
+        message:
+          role === "buyer"
+            ? "The seller rejected your offer. You may withdraw your escrow deposit for a refund."
+            : "You rejected this purchase offer. The buyer may now withdraw their escrow deposit.",
+      };
     }
 
     if (escrow.status === ESCROW_STATUS.CREATED) {
@@ -1169,10 +1191,31 @@ function OrderCard({
                 )}
               </strong>
             </div>
-            <div className="order-detail-stat">
-              <span>Product price:</span>
-              <strong>{lamportsToSol(escrow.referenceAmount)} SOL</strong>
-            </div>
+            {isMakeOffer ? (
+              <>
+                <div className="order-detail-stat">
+                  <span>Current Listed Price (per item):</span>
+                  <strong>{lamportsToSol(listedUnitPrice)} SOL</strong>
+                </div>
+
+                <div className="order-detail-stat">
+                  <span>Buyer's Offer Price (per item):</span>
+                  <strong>{lamportsToSol(offerUnitPrice)} SOL</strong>
+                </div>
+
+                <div className="order-detail-stat">
+                  <span>Offer Total:</span>
+                  <strong>
+                    {lamportsToSol(escrow.purchaseOffer.totalPrice)} SOL
+                  </strong>
+                </div>
+              </>
+            ) : (
+              <div className="order-detail-stat">
+                <span>Product price:</span>
+                <strong>{lamportsToSol(escrow.referenceAmount)} SOL</strong>
+              </div>
+            )}
             <div className="order-detail-stat">
               <span>Buyer total locked:</span>
               <strong>{lamportsToSol(escrow.requiredDepositA)} SOL</strong>

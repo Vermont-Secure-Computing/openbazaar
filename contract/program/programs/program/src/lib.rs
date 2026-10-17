@@ -460,11 +460,26 @@ pub mod sol_bazaar {
             MarketplaceError::NotSolBazaarEscrow
         );
 
-        // Only Make Offer escrows can create purchase offers.
-        require!(
-            external_escrow.note.contains("\"checkout\":\"offer\""),
-            MarketplaceError::InvalidOfferEscrow
-        );
+        let is_buy = external_escrow.note.contains("\"checkout\":\"buy\"");
+        let is_offer = external_escrow.note.contains("\"checkout\":\"offer\"");
+
+        require!(is_buy != is_offer, MarketplaceError::InvalidOfferEscrow);
+
+        // Buy Now must use the listed product price.
+        if is_buy {
+            require!(
+                unit_price == product.price,
+                MarketplaceError::InvalidOrderAmount
+            );
+        }
+
+        // Make Offer must be below the listed price.
+        if is_offer {
+            require!(
+                unit_price < product.price,
+                MarketplaceError::InvalidOrderAmount
+            );
+        }
 
         // Buyer must be the escrow creator and party A.
         require_keys_eq!(
@@ -612,10 +627,24 @@ pub mod sol_bazaar {
             MarketplaceError::NotSolBazaarEscrow
         );
 
-        require!(
-            external_escrow.note.contains("\"checkout\":\"offer\""),
-            MarketplaceError::InvalidOfferEscrow
-        );
+        // Accept both Buy Now and Make Offer escrows.
+        let is_buy = external_escrow.note.contains("\"checkout\":\"buy\"");
+        let is_offer = external_escrow.note.contains("\"checkout\":\"offer\"");
+
+        require!(is_buy != is_offer, MarketplaceError::InvalidOfferEscrow);
+
+        // Buy Now must retain the listed price.
+        if is_buy {
+            require!(
+                offer.unit_price == product.price,
+                MarketplaceError::InvalidOrderAmount
+            );
+        }
+
+        // Make Offer must retain a valid negotiated price.
+        if is_offer {
+            require!(offer.unit_price > 0, MarketplaceError::InvalidOrderAmount);
+        }
 
         // 7. Verify escrow participants.
         require_keys_eq!(

@@ -432,6 +432,12 @@
     background: var(--surface-hover, #1e293b);
 }
 
+.order-status-badge.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
 @media (max-width: 700px) {
     .orders-page {
         max-width: none;

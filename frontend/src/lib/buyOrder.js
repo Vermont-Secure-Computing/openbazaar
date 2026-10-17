@@ -21,7 +21,11 @@ export async function createBuyOrder({
 
   const quantityNumber = Number(quantity);
 
-  if (!Number.isInteger(quantityNumber) || quantityNumber <= 0) {
+  if (
+    !Number.isSafeInteger(quantityNumber) ||
+    quantityNumber <= 0 ||
+    quantityNumber > 0xffffffff
+  ) {
     throw new Error("Invalid quantity.");
   }
 
@@ -62,15 +66,15 @@ export async function createBuyOrder({
     throw new Error("Offer price must be greater than zero.");
   }
 
-  if (unitPriceLamports.gt(listedPriceLamports)) {
-    throw new Error("Offer price cannot exceed the listed price.");
+  if (checkoutMode === "offer" && unitPriceLamports.gte(listedPriceLamports)) {
+    throw new Error("Offer price must be below the listed price.");
   }
 
   const totalPriceLamports = unitPriceLamports.mul(new BN(quantityNumber));
 
   const depositBps = new BN(
     String(
-      product.sellerDepositBpsOverride ?? merchant.sellerDepositBps ?? 2000
+      product.sellerDepositBpsOverride ?? merchant.sellerDepositBps ?? 2000,
     ),
   );
 
@@ -88,6 +92,19 @@ export async function createBuyOrder({
 
   const buyerRequiredDeposit = totalPriceLamports.add(securityDepositLamports);
   const sellerRequiredDeposit = securityDepositLamports;
+
+  const MAX_U64 = new BN("18446744073709551615");
+
+  for (const [name, amount] of [
+    ["Unit price", unitPriceLamports],
+    ["Total price", totalPriceLamports],
+    ["Security deposit", securityDepositLamports],
+    ["Buyer deposit", buyerRequiredDeposit],
+  ]) {
+    if (amount.isNeg() || amount.gt(MAX_U64)) {
+      throw new Error(`${name} exceeds Solana u64 limit.`);
+    }
+  }
 
   // Timestamp plus a small random suffix reduces
   // the chance of duplicate escrow IDs.

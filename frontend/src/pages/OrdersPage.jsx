@@ -285,6 +285,13 @@ function OrderList({
   }
 
   const requiresAction = (escrow) => {
+    const offerStatus =
+      escrow.purchaseOffer != null ? Number(escrow.purchaseOffer.status) : null;
+
+    if (offerStatus === 2 || offerStatus === 3) {
+      return false;
+    }
+
     const mutualCancellationPending = isMutualCancellationProposal(escrow);
 
     if (mutualCancellationPending) {
@@ -534,6 +541,9 @@ function OrderList({
 function StatusBadge({ status, role, escrow, currentWalletAddress }) {
   const numericStatus = Number(status);
 
+  const offerStatus =
+    escrow.purchaseOffer != null ? Number(escrow.purchaseOffer.status) : null;
+
   /*
    * Native cancellation:
    * new escrow lifecycle uses status 4.
@@ -567,6 +577,12 @@ function StatusBadge({ status, role, escrow, currentWalletAddress }) {
 
   if (cancellationCompleted) {
     label = "Cancelled";
+    statusClass = "cancelled";
+  } else if (offerStatus === 2) {
+    label = "Rejected";
+    statusClass = "rejected";
+  } else if (offerStatus === 3) {
+    label = "Withdrawn";
     statusClass = "cancelled";
   } else if (mutualCancellationPending) {
     if (cancellationNeedsResponse) {
