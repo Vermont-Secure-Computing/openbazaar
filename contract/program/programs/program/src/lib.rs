@@ -7,7 +7,7 @@ use anchor_lang::solana_program::{
 
 declare_id!("Hz4PTohCwEEWfNVLVqWq2V1e7BEcuDEfb2kLUxniWmjo");
 
-pub const ESCROW_PROGRAM_ID: Pubkey = pubkey!("E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ");
+pub const ESCROW_PROGRAM_ID: Pubkey = pubkey!("3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE");
 
 pub const ESCROW_ACCOUNT_DISCRIMINATOR: [u8; 8] = [31, 213, 123, 187, 186, 22, 218, 155];
 
@@ -296,6 +296,7 @@ pub mod sol_bazaar {
             external_escrow.status == 3,
             MarketplaceError::OrderNotCompleted
         );
+        require!(!is_mutual_refund(&external_escrow), MarketplaceError::InvalidOrderStatus);
 
         let reviewer = ctx.accounts.reviewer.key();
         let merchant = ctx.accounts.merchant_profile.authority;
@@ -1089,6 +1090,7 @@ pub mod sol_bazaar {
             external_escrow.status == 3,
             MarketplaceError::OrderNotCompleted
         );
+        require!(!is_mutual_refund(&external_escrow), MarketplaceError::InvalidOrderStatus);
 
         require_keys_eq!(
             external_escrow.party_a,
@@ -1132,6 +1134,120 @@ pub mod sol_bazaar {
 
         completed_sale.bump = ctx.bumps.completed_sale;
 
+        Ok(())
+    }
+
+    // Mutual cancellation: proposer must be buyer or seller; escrow enforces status.
+    pub fn request_mutual_cancellation(
+        ctx: Context<RequestMutualCancellation>,
+        reason: String,
+    ) -> Result<()> {
+        require!(!reason.trim().is_empty(), MarketplaceError::EmptyMessage);
+        require!(reason.as_bytes().len() <= 180, MarketplaceError::MessageTooLong);
+        let escrow = checked_mutual_escrow(
+            &ctx.accounts.escrow.to_account_info(),
+            &ctx.accounts.order_record,
+        )?;
+        require!(escrow.status == 1, MarketplaceError::InvalidOrderStatus);
+        let signer = ctx.accounts.signer.key();
+        require!(signer == escrow.party_a || signer == escrow.party_b, MarketplaceError::Unauthorized);
+        let note = format!("MUTUAL_CANCELLATION|{}", reason);
+        require!(note.as_bytes().len() <= 200, MarketplaceError::MessageTooLong);
+        let mut data = vec![71, 105, 12, 151, 128, 239, 253, 122];
+        data.extend_from_slice(&escrow.deposited_a.to_le_bytes());
+        data.extend_from_slice(&escrow.deposited_b.to_le_bytes());
+        data.extend_from_slice(&0u64.to_le_bytes());
+        data.extend_from_slice(&(note.len() as u32).to_le_bytes());
+        data.extend_from_slice(note.as_bytes());
+        let ix = Instruction {
+            program_id: ESCROW_PROGRAM_ID,
+            accounts: vec![
+                AccountMeta::new(signer, true),
+                AccountMeta::new(ctx.accounts.escrow.key(), false),
+            ],
+            data,
+        };
+        invoke(&ix, &[
+            ctx.accounts.signer.to_account_info(),
+            ctx.accounts.escrow.to_account_info(),
+            ctx.accounts.escrow_program.to_account_info(),
+        ])?;
+        Ok(())
+    }
+
+    pub fn decline_mutual_cancellation(ctx: Context<RequestMutualCancellation>) -> Result<()> {
+        let escrow = checked_mutual_escrow(
+            &ctx.accounts.escrow.to_account_info(),
+            &ctx.accounts.order_record,
+        )?;
+        verify_mutual_proposal(&escrow, ctx.accounts.signer.key())?;
+        let ix = Instruction {
+            program_id: ESCROW_PROGRAM_ID,
+            accounts: vec![
+                AccountMeta::new(ctx.accounts.signer.key(), true),
+                AccountMeta::new(ctx.accounts.escrow.key(), false),
+            ],
+            data: vec![44, 116, 45, 79, 43, 43, 86, 77],
+        };
+        invoke(&ix, &[
+            ctx.accounts.signer.to_account_info(),
+            ctx.accounts.escrow.to_account_info(),
+            ctx.accounts.escrow_program.to_account_info(),
+        ])?;
+        Ok(())
+    }
+
+    pub fn approve_mutual_cancellation(ctx: Context<ApproveMutualCancellation>) -> Result<()> {
+        let escrow = checked_mutual_escrow(
+            &ctx.accounts.escrow.to_account_info(),
+            &ctx.accounts.order_record,
+        )?;
+        verify_mutual_proposal(&escrow, ctx.accounts.signer.key())?;
+        require_keys_eq!(ctx.accounts.party_a.key(), escrow.party_a, MarketplaceError::InvalidOrderBuyer);
+        require_keys_eq!(ctx.accounts.party_b.key(), escrow.party_b, MarketplaceError::InvalidOrderSeller);
+        require_keys_eq!(ctx.accounts.vault.key(), escrow.vault, MarketplaceError::InvalidOfferEscrow);
+        let (vault_pda, _) = Pubkey::find_program_address(
+            &[b"vault", ctx.accounts.escrow.key().as_ref()],
+            &ESCROW_PROGRAM_ID,
+        );
+        require_keys_eq!(ctx.accounts.vault.key(), vault_pda, MarketplaceError::InvalidOfferEscrow);
+        let ix = Instruction {
+            program_id: ESCROW_PROGRAM_ID,
+            accounts: vec![
+                AccountMeta::new(ctx.accounts.signer.key(), true),
+                AccountMeta::new(ctx.accounts.escrow.key(), false),
+                AccountMeta::new(ctx.accounts.party_a.key(), false),
+                AccountMeta::new(ctx.accounts.party_b.key(), false),
+                AccountMeta::new(ctx.accounts.vault.key(), false),
+                AccountMeta::new(ctx.accounts.donation_recipient.key(), false),
+            ],
+            data: vec![112, 112, 7, 104, 19, 211, 17, 177],
+        };
+        invoke(&ix, &[
+            ctx.accounts.signer.to_account_info(),
+            ctx.accounts.escrow.to_account_info(),
+            ctx.accounts.party_a.to_account_info(),
+            ctx.accounts.party_b.to_account_info(),
+            ctx.accounts.vault.to_account_info(),
+            ctx.accounts.donation_recipient.to_account_info(),
+            ctx.accounts.escrow_program.to_account_info(),
+        ])?;
+        let updated = checked_mutual_escrow(
+            &ctx.accounts.escrow.to_account_info(),
+            &ctx.accounts.order_record,
+        )?;
+        require!(updated.status == 3, MarketplaceError::InvalidOrderStatus);
+        require!(is_mutual_refund(&updated), MarketplaceError::InvalidOrderStatus);
+        let quantity = ctx.accounts.order_record.quantity;
+        let product = &mut ctx.accounts.product;
+        product.stock = product.stock.checked_add(quantity).ok_or(MarketplaceError::MathOverflow)?;
+        product.updated_at = Clock::get()?.unix_timestamp;
+        let restoration = &mut ctx.accounts.stock_restoration;
+        restoration.order_record = ctx.accounts.order_record.key();
+        restoration.product = product.key();
+        restoration.quantity = quantity;
+        restoration.restored_at = Clock::get()?.unix_timestamp;
+        restoration.bump = ctx.bumps.stock_restoration;
         Ok(())
     }
 
@@ -1357,6 +1473,32 @@ pub struct DeleteProduct<'info> {
     pub product: Account<'info, Product>,
 
     pub authority: Signer<'info>,
+}
+
+fn checked_mutual_escrow(info: &AccountInfo, order: &OrderRecord) -> Result<ExternalEscrow> {
+    require_keys_eq!(*info.owner, ESCROW_PROGRAM_ID, MarketplaceError::InvalidEscrowOwner);
+    require_keys_eq!(info.key(), order.escrow, MarketplaceError::InvalidOrderRecord);
+    let data = info.try_borrow_data()?;
+    let escrow = decode_external_escrow(data.as_ref())?;
+    require!(escrow.note.contains("\"marketplace\":\"solbazaar\""), MarketplaceError::NotSolBazaarEscrow);
+    require_keys_eq!(escrow.party_a, order.buyer, MarketplaceError::InvalidOrderBuyer);
+    require_keys_eq!(escrow.party_b, order.seller, MarketplaceError::InvalidOrderSeller);
+    Ok(escrow)
+}
+
+fn is_mutual_refund(escrow: &ExternalEscrow) -> bool {
+    escrow.proposed_payout_a == escrow.deposited_a
+        && escrow.proposed_payout_b == escrow.deposited_b
+        && escrow.proposed_donation == 0
+}
+
+fn verify_mutual_proposal(escrow: &ExternalEscrow, signer: Pubkey) -> Result<()> {
+    require!(escrow.status == 2, MarketplaceError::InvalidOrderStatus);
+    require!(escrow.finalization_note.starts_with("MUTUAL_CANCELLATION|"), MarketplaceError::InvalidOrderStatus);
+    require!(is_mutual_refund(escrow), MarketplaceError::InvalidOrderStatus);
+    require!(signer == escrow.party_a || signer == escrow.party_b, MarketplaceError::Unauthorized);
+    require!(signer != escrow.finalization_proposer, MarketplaceError::Unauthorized);
+    Ok(())
 }
 
 pub struct ExternalEscrow {
@@ -1963,6 +2105,63 @@ pub struct CreateOrderRecord<'info> {
     )]
     pub order_record: Account<'info, OrderRecord>,
 
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RequestMutualCancellation<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    /// CHECK: Checked against deployed escrow program and decoded order.
+    #[account(mut)]
+    pub escrow: UncheckedAccount<'info>,
+    #[account(
+        seeds = [b"order", escrow.key().as_ref()],
+        bump = order_record.bump,
+        constraint = order_record.escrow == escrow.key() @ MarketplaceError::InvalidOrderRecord
+    )]
+    pub order_record: Account<'info, OrderRecord>,
+    /// CHECK: Address verified against ESCROW_PROGRAM_ID.
+    #[account(address = ESCROW_PROGRAM_ID)]
+    pub escrow_program: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ApproveMutualCancellation<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    /// CHECK: Owner, discriminator, participants and order verified in instruction.
+    #[account(mut)]
+    pub escrow: UncheckedAccount<'info>,
+    #[account(
+        seeds = [b"order", escrow.key().as_ref()],
+        bump = order_record.bump,
+        constraint = order_record.escrow == escrow.key() @ MarketplaceError::InvalidOrderRecord,
+        constraint = order_record.product == product.key() @ MarketplaceError::InvalidReviewProduct
+    )]
+    pub order_record: Account<'info, OrderRecord>,
+    #[account(mut, constraint = product.merchant == order_record.seller @ MarketplaceError::InvalidOrderSeller)]
+    pub product: Account<'info, Product>,
+    #[account(
+        init, payer = signer, space = 8 + StockRestoration::INIT_SPACE,
+        seeds = [b"stock-restoration", order_record.key().as_ref()], bump
+    )]
+    pub stock_restoration: Account<'info, StockRestoration>,
+    /// CHECK: Compared to decoded escrow party A.
+    #[account(mut)]
+    pub party_a: UncheckedAccount<'info>,
+    /// CHECK: Compared to decoded escrow party B.
+    #[account(mut)]
+    pub party_b: UncheckedAccount<'info>,
+    /// CHECK: Compared to decoded escrow vault and PDA.
+    #[account(mut)]
+    pub vault: UncheckedAccount<'info>,
+    /// CHECK: Must equal the donation recipient configured in the escrow program.
+    #[account(mut)]
+    pub donation_recipient: UncheckedAccount<'info>,
+    /// CHECK: Address verified against ESCROW_PROGRAM_ID.
+    #[account(address = ESCROW_PROGRAM_ID)]
+    pub escrow_program: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
