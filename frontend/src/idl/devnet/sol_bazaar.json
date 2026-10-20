@@ -116,7 +116,115 @@
         },
         {
           "name": "escrow_program",
-          "address": "E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ"
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "approve_mutual_cancellation",
+      "discriminator": [
+        136,
+        10,
+        232,
+        124,
+        226,
+        245,
+        122,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product",
+          "writable": true
+        },
+        {
+          "name": "stock_restoration",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  111,
+                  99,
+                  107,
+                  45,
+                  114,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record"
+              }
+            ]
+          }
+        },
+        {
+          "name": "party_a",
+          "writable": true
+        },
+        {
+          "name": "party_b",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "donation_recipient",
+          "writable": true
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
         },
         {
           "name": "system_program",
@@ -503,6 +611,56 @@
       ]
     },
     {
+      "name": "decline_mutual_cancellation",
+      "discriminator": [
+        39,
+        127,
+        160,
+        45,
+        159,
+        108,
+        77,
+        32
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "delete_product",
       "discriminator": [
         173,
@@ -790,6 +948,61 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "request_mutual_cancellation",
+      "discriminator": [
+        84,
+        162,
+        132,
+        188,
+        254,
+        48,
+        35,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+        }
+      ],
+      "args": [
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
     },
     {
       "name": "restore_cancelled_order_stock",
@@ -1314,7 +1527,7 @@
         },
         {
           "name": "escrow_program",
-          "address": "E13gKpCo3pmg1QizBgEt2kxkVuTXAN6mrQQaS4aAt9LZ"
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
         }
       ],
       "args": []
