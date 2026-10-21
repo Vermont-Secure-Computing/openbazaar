@@ -137,6 +137,11 @@ export async function createBuyOrder({
     solBazaarProgram.programId,
   );
 
+  const [escrowBindingPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("escrow_binding"), escrowPda.toBuffer()],
+    solBazaarProgram.programId,
+  );
+
   const note = JSON.stringify({
     marketplace: "solbazaar",
     checkout: checkoutMode,
@@ -187,6 +192,7 @@ export async function createBuyOrder({
       merchantProfile: merchantProfilePda,
       purchaseOffer: purchaseOfferPda,
       systemProgram: SystemProgram.programId,
+      escrowBinding: escrowBindingPda,
     })
     .instruction();
 

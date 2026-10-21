@@ -82,6 +82,9 @@ const vaultPda = (e) => pda([Buffer.from("vault"), e.toBuffer()], escrowId);
 const offerPda = (e) =>
   pda([Buffer.from("purchase_offer"), e.toBuffer()], marketId);
 
+const bindingPda = (e) =>
+  pda([Buffer.from("escrow_binding"), e.toBuffer()], marketId);
+
 let passed = 0;
 let blocked = 0;
 
@@ -182,6 +185,7 @@ async function createOffer(n) {
       product,
       merchantProfile: merchantPda,
       purchaseOffer: offer,
+      escrowBinding: bindingPda(e),
       systemProgram: SystemProgram.programId,
     })
     .signers([buyer])
@@ -210,6 +214,7 @@ async function acceptOffer(o, signer = merchant) {
       orderRecord: orderPda(o.e),
       vault: o.vault,
       escrowProgram: escrowId,
+      escrowBinding: bindingPda(o.e),
       systemProgram: SystemProgram.programId,
     })
     .signers([signer])
@@ -317,10 +322,10 @@ async function main() {
       new BN(PRICE),
       30,
     )
-    .accounts({
-      authority: merchant.publicKey,
+    .accountsStrict({
       merchantProfile: merchantPda,
-      product,
+      product: product,
+      authority: merchant.publicKey,
       systemProgram: SystemProgram.programId,
     })
     .signers([merchant])
@@ -485,6 +490,7 @@ async function main() {
         orderRecord: orderPda(f.e),
         vault: e.vault,
         escrowProgram: escrowId,
+        escrowBinding: bindingPda(f.e),
         systemProgram: SystemProgram.programId,
       })
       .signers([merchant])
@@ -918,6 +924,7 @@ async function main() {
       merchantProfile: merchantPda,
       orderRecord: orderPda(o.e),
       vault: o.vault,
+      escrowBinding: bindingPda(o.e),
       escrowProgram: escrowId,
       systemProgram: SystemProgram.programId,
       ...overrides,

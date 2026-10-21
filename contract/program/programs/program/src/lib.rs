@@ -296,7 +296,10 @@ pub mod sol_bazaar {
             external_escrow.status == 3,
             MarketplaceError::OrderNotCompleted
         );
-        require!(!is_mutual_refund(&external_escrow), MarketplaceError::InvalidOrderStatus);
+        require!(
+            !is_mutual_refund(&external_escrow),
+            MarketplaceError::InvalidOrderStatus
+        );
 
         let reviewer = ctx.accounts.reviewer.key();
         let merchant = ctx.accounts.merchant_profile.authority;
@@ -466,6 +469,14 @@ pub mod sol_bazaar {
 
         require!(is_buy != is_offer, MarketplaceError::InvalidOfferEscrow);
 
+        // Ensure the stored binding matches the escrow checkout mode.
+        let binding = &ctx.accounts.escrow_binding;
+
+        require!(
+            (is_buy && binding.checkout_type == 0) || (is_offer && binding.checkout_type == 1),
+            MarketplaceError::InvalidOfferEscrow
+        );
+
         // Buy Now must use the listed product price.
         if is_buy {
             require!(
@@ -556,6 +567,18 @@ pub mod sol_bazaar {
         offer.status = 0; // Pending
         offer.created_at = Clock::get()?.unix_timestamp;
         offer.bump = ctx.bumps.purchase_offer;
+
+        // Register this escrow for exactly one Marketplace checkout.
+        let binding = &mut ctx.accounts.escrow_binding;
+
+        binding.escrow = ctx.accounts.escrow.key();
+        binding.product = product.key();
+        binding.buyer = buyer;
+        binding.seller = seller;
+        binding.quantity = quantity;
+        binding.total_price = total_price;
+        binding.checkout_type = if is_buy { 0 } else { 1 };
+        binding.bump = ctx.bumps.escrow_binding;
 
         Ok(())
     }
@@ -1090,7 +1113,10 @@ pub mod sol_bazaar {
             external_escrow.status == 3,
             MarketplaceError::OrderNotCompleted
         );
-        require!(!is_mutual_refund(&external_escrow), MarketplaceError::InvalidOrderStatus);
+        require!(
+            !is_mutual_refund(&external_escrow),
+            MarketplaceError::InvalidOrderStatus
+        );
 
         require_keys_eq!(
             external_escrow.party_a,
@@ -1143,16 +1169,25 @@ pub mod sol_bazaar {
         reason: String,
     ) -> Result<()> {
         require!(!reason.trim().is_empty(), MarketplaceError::EmptyMessage);
-        require!(reason.as_bytes().len() <= 180, MarketplaceError::MessageTooLong);
+        require!(
+            reason.as_bytes().len() <= 180,
+            MarketplaceError::MessageTooLong
+        );
         let escrow = checked_mutual_escrow(
             &ctx.accounts.escrow.to_account_info(),
             &ctx.accounts.order_record,
         )?;
         require!(escrow.status == 1, MarketplaceError::InvalidOrderStatus);
         let signer = ctx.accounts.signer.key();
-        require!(signer == escrow.party_a || signer == escrow.party_b, MarketplaceError::Unauthorized);
+        require!(
+            signer == escrow.party_a || signer == escrow.party_b,
+            MarketplaceError::Unauthorized
+        );
         let note = format!("MUTUAL_CANCELLATION|{}", reason);
-        require!(note.as_bytes().len() <= 200, MarketplaceError::MessageTooLong);
+        require!(
+            note.as_bytes().len() <= 200,
+            MarketplaceError::MessageTooLong
+        );
         let mut data = vec![71, 105, 12, 151, 128, 239, 253, 122];
         data.extend_from_slice(&escrow.deposited_a.to_le_bytes());
         data.extend_from_slice(&escrow.deposited_b.to_le_bytes());
@@ -1167,11 +1202,14 @@ pub mod sol_bazaar {
             ],
             data,
         };
-        invoke(&ix, &[
-            ctx.accounts.signer.to_account_info(),
-            ctx.accounts.escrow.to_account_info(),
-            ctx.accounts.escrow_program.to_account_info(),
-        ])?;
+        invoke(
+            &ix,
+            &[
+                ctx.accounts.signer.to_account_info(),
+                ctx.accounts.escrow.to_account_info(),
+                ctx.accounts.escrow_program.to_account_info(),
+            ],
+        )?;
         Ok(())
     }
 
@@ -1189,11 +1227,14 @@ pub mod sol_bazaar {
             ],
             data: vec![44, 116, 45, 79, 43, 43, 86, 77],
         };
-        invoke(&ix, &[
-            ctx.accounts.signer.to_account_info(),
-            ctx.accounts.escrow.to_account_info(),
-            ctx.accounts.escrow_program.to_account_info(),
-        ])?;
+        invoke(
+            &ix,
+            &[
+                ctx.accounts.signer.to_account_info(),
+                ctx.accounts.escrow.to_account_info(),
+                ctx.accounts.escrow_program.to_account_info(),
+            ],
+        )?;
         Ok(())
     }
 
@@ -1203,14 +1244,30 @@ pub mod sol_bazaar {
             &ctx.accounts.order_record,
         )?;
         verify_mutual_proposal(&escrow, ctx.accounts.signer.key())?;
-        require_keys_eq!(ctx.accounts.party_a.key(), escrow.party_a, MarketplaceError::InvalidOrderBuyer);
-        require_keys_eq!(ctx.accounts.party_b.key(), escrow.party_b, MarketplaceError::InvalidOrderSeller);
-        require_keys_eq!(ctx.accounts.vault.key(), escrow.vault, MarketplaceError::InvalidOfferEscrow);
+        require_keys_eq!(
+            ctx.accounts.party_a.key(),
+            escrow.party_a,
+            MarketplaceError::InvalidOrderBuyer
+        );
+        require_keys_eq!(
+            ctx.accounts.party_b.key(),
+            escrow.party_b,
+            MarketplaceError::InvalidOrderSeller
+        );
+        require_keys_eq!(
+            ctx.accounts.vault.key(),
+            escrow.vault,
+            MarketplaceError::InvalidOfferEscrow
+        );
         let (vault_pda, _) = Pubkey::find_program_address(
             &[b"vault", ctx.accounts.escrow.key().as_ref()],
             &ESCROW_PROGRAM_ID,
         );
-        require_keys_eq!(ctx.accounts.vault.key(), vault_pda, MarketplaceError::InvalidOfferEscrow);
+        require_keys_eq!(
+            ctx.accounts.vault.key(),
+            vault_pda,
+            MarketplaceError::InvalidOfferEscrow
+        );
         let ix = Instruction {
             program_id: ESCROW_PROGRAM_ID,
             accounts: vec![
@@ -1223,24 +1280,33 @@ pub mod sol_bazaar {
             ],
             data: vec![112, 112, 7, 104, 19, 211, 17, 177],
         };
-        invoke(&ix, &[
-            ctx.accounts.signer.to_account_info(),
-            ctx.accounts.escrow.to_account_info(),
-            ctx.accounts.party_a.to_account_info(),
-            ctx.accounts.party_b.to_account_info(),
-            ctx.accounts.vault.to_account_info(),
-            ctx.accounts.donation_recipient.to_account_info(),
-            ctx.accounts.escrow_program.to_account_info(),
-        ])?;
+        invoke(
+            &ix,
+            &[
+                ctx.accounts.signer.to_account_info(),
+                ctx.accounts.escrow.to_account_info(),
+                ctx.accounts.party_a.to_account_info(),
+                ctx.accounts.party_b.to_account_info(),
+                ctx.accounts.vault.to_account_info(),
+                ctx.accounts.donation_recipient.to_account_info(),
+                ctx.accounts.escrow_program.to_account_info(),
+            ],
+        )?;
         let updated = checked_mutual_escrow(
             &ctx.accounts.escrow.to_account_info(),
             &ctx.accounts.order_record,
         )?;
         require!(updated.status == 3, MarketplaceError::InvalidOrderStatus);
-        require!(is_mutual_refund(&updated), MarketplaceError::InvalidOrderStatus);
+        require!(
+            is_mutual_refund(&updated),
+            MarketplaceError::InvalidOrderStatus
+        );
         let quantity = ctx.accounts.order_record.quantity;
         let product = &mut ctx.accounts.product;
-        product.stock = product.stock.checked_add(quantity).ok_or(MarketplaceError::MathOverflow)?;
+        product.stock = product
+            .stock
+            .checked_add(quantity)
+            .ok_or(MarketplaceError::MathOverflow)?;
         product.updated_at = Clock::get()?.unix_timestamp;
         let restoration = &mut ctx.accounts.stock_restoration;
         restoration.order_record = ctx.accounts.order_record.key();
@@ -1476,13 +1542,32 @@ pub struct DeleteProduct<'info> {
 }
 
 fn checked_mutual_escrow(info: &AccountInfo, order: &OrderRecord) -> Result<ExternalEscrow> {
-    require_keys_eq!(*info.owner, ESCROW_PROGRAM_ID, MarketplaceError::InvalidEscrowOwner);
-    require_keys_eq!(info.key(), order.escrow, MarketplaceError::InvalidOrderRecord);
+    require_keys_eq!(
+        *info.owner,
+        ESCROW_PROGRAM_ID,
+        MarketplaceError::InvalidEscrowOwner
+    );
+    require_keys_eq!(
+        info.key(),
+        order.escrow,
+        MarketplaceError::InvalidOrderRecord
+    );
     let data = info.try_borrow_data()?;
     let escrow = decode_external_escrow(data.as_ref())?;
-    require!(escrow.note.contains("\"marketplace\":\"solbazaar\""), MarketplaceError::NotSolBazaarEscrow);
-    require_keys_eq!(escrow.party_a, order.buyer, MarketplaceError::InvalidOrderBuyer);
-    require_keys_eq!(escrow.party_b, order.seller, MarketplaceError::InvalidOrderSeller);
+    require!(
+        escrow.note.contains("\"marketplace\":\"solbazaar\""),
+        MarketplaceError::NotSolBazaarEscrow
+    );
+    require_keys_eq!(
+        escrow.party_a,
+        order.buyer,
+        MarketplaceError::InvalidOrderBuyer
+    );
+    require_keys_eq!(
+        escrow.party_b,
+        order.seller,
+        MarketplaceError::InvalidOrderSeller
+    );
     Ok(escrow)
 }
 
@@ -1494,10 +1579,22 @@ fn is_mutual_refund(escrow: &ExternalEscrow) -> bool {
 
 fn verify_mutual_proposal(escrow: &ExternalEscrow, signer: Pubkey) -> Result<()> {
     require!(escrow.status == 2, MarketplaceError::InvalidOrderStatus);
-    require!(escrow.finalization_note.starts_with("MUTUAL_CANCELLATION|"), MarketplaceError::InvalidOrderStatus);
-    require!(is_mutual_refund(escrow), MarketplaceError::InvalidOrderStatus);
-    require!(signer == escrow.party_a || signer == escrow.party_b, MarketplaceError::Unauthorized);
-    require!(signer != escrow.finalization_proposer, MarketplaceError::Unauthorized);
+    require!(
+        escrow.finalization_note.starts_with("MUTUAL_CANCELLATION|"),
+        MarketplaceError::InvalidOrderStatus
+    );
+    require!(
+        is_mutual_refund(escrow),
+        MarketplaceError::InvalidOrderStatus
+    );
+    require!(
+        signer == escrow.party_a || signer == escrow.party_b,
+        MarketplaceError::Unauthorized
+    );
+    require!(
+        signer != escrow.finalization_proposer,
+        MarketplaceError::Unauthorized
+    );
     Ok(())
 }
 
@@ -1860,6 +1957,23 @@ pub struct SubmitReview<'info> {
 
 #[account]
 #[derive(InitSpace)]
+pub struct EscrowBinding {
+    pub escrow: Pubkey,
+    pub product: Pubkey,
+    pub buyer: Pubkey,
+    pub seller: Pubkey,
+    pub quantity: u32,
+    pub total_price: u64,
+
+    // 0 = Buy Now
+    // 1 = Purchase Offer
+    pub checkout_type: u8,
+
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
 pub struct PurchaseOffer {
     pub product: Pubkey,
     pub escrow: Pubkey,
@@ -1930,6 +2044,18 @@ pub struct CreatePurchaseOffer<'info> {
     )]
     pub purchase_offer: Account<'info, PurchaseOffer>,
 
+    #[account(
+        init,
+        payer = buyer,
+        space = 8 + EscrowBinding::INIT_SPACE,
+        seeds = [
+            b"escrow_binding",
+            escrow.key().as_ref()
+        ],
+        bump
+    )]
+    pub escrow_binding: Account<'info, EscrowBinding>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -1955,6 +2081,31 @@ pub struct AcceptPurchaseOffer<'info> {
             @ MarketplaceError::Unauthorized
     )]
     pub purchase_offer: Account<'info, PurchaseOffer>,
+
+    // Existing binding created during create_purchase_offer.
+    // Do not initialize another binding during acceptance.
+    #[account(
+        seeds = [
+            b"escrow_binding",
+            escrow.key().as_ref()
+        ],
+        bump = escrow_binding.bump,
+        constraint = escrow_binding.escrow == escrow.key()
+            @ MarketplaceError::InvalidOfferEscrow,
+        constraint = escrow_binding.product == purchase_offer.product
+            @ MarketplaceError::InvalidOfferProduct,
+        constraint = escrow_binding.buyer == purchase_offer.buyer
+            @ MarketplaceError::InvalidOrderBuyer,
+        constraint = escrow_binding.seller == purchase_offer.seller
+            @ MarketplaceError::InvalidOrderSeller,
+        constraint = escrow_binding.quantity == purchase_offer.quantity
+            @ MarketplaceError::InvalidQuantity,
+        constraint = escrow_binding.total_price == purchase_offer.total_price
+            @ MarketplaceError::InvalidOrderAmount,
+        constraint = escrow_binding.checkout_type <= 1
+            @ MarketplaceError::InvalidOfferEscrow
+    )]
+    pub escrow_binding: Account<'info, EscrowBinding>,
 
     #[account(
         mut,
@@ -2104,6 +2255,18 @@ pub struct CreateOrderRecord<'info> {
         bump
     )]
     pub order_record: Account<'info, OrderRecord>,
+
+    #[account(
+        init,
+        payer = buyer,
+        space = 8 + EscrowBinding::INIT_SPACE,
+        seeds = [
+            b"escrow_binding",
+            escrow.key().as_ref()
+        ],
+        bump
+    )]
+    pub escrow_binding: Account<'info, EscrowBinding>,
 
     pub system_program: Program<'info, System>,
 }

@@ -132,6 +132,11 @@ export async function createBuyerEscrow({
     marketplaceProgram.programId,
   );
 
+  const [escrowBindingPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("escrow_binding"), escrowPda.toBuffer()],
+    marketplaceProgram.programId,
+  );
+
   const note = JSON.stringify({
     marketplace: "solbazaar",
     checkout: "buy",
@@ -182,6 +187,7 @@ export async function createBuyerEscrow({
       merchantProfile: merchantProfilePda,
       orderRecord: orderRecordPda,
       systemProgram: SystemProgram.programId,
+      escrowBinding: escrowBindingPda,
     })
     .instruction();
 
@@ -769,6 +775,7 @@ export async function releaseBuyerAndRecordSale({
     [Buffer.from("order"), escrowPublicKey.toBuffer()],
     marketplaceProgram.programId,
   );
+
 
   /*
    * Completed sale PDA.

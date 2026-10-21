@@ -61,6 +61,36 @@
           }
         },
         {
+          "name": "escrow_binding",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119,
+                  95,
+                  98,
+                  105,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
           "name": "product",
           "writable": true
         },
@@ -112,6 +142,114 @@
         },
         {
           "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "approve_mutual_cancellation",
+      "discriminator": [
+        136,
+        10,
+        232,
+        124,
+        226,
+        245,
+        122,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "product",
+          "writable": true
+        },
+        {
+          "name": "stock_restoration",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  111,
+                  99,
+                  107,
+                  45,
+                  114,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order_record"
+              }
+            ]
+          }
+        },
+        {
+          "name": "party_a",
+          "writable": true
+        },
+        {
+          "name": "party_b",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "donation_recipient",
           "writable": true
         },
         {
@@ -271,6 +409,37 @@
                   100,
                   101,
                   114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_binding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119,
+                  95,
+                  98,
+                  105,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
                 ]
               },
               {
@@ -487,6 +656,37 @@
           }
         },
         {
+          "name": "escrow_binding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119,
+                  95,
+                  98,
+                  105,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -501,6 +701,56 @@
           "type": "u32"
         }
       ]
+    },
+    {
+      "name": "decline_mutual_cancellation",
+      "discriminator": [
+        39,
+        127,
+        160,
+        45,
+        159,
+        108,
+        77,
+        32
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+        }
+      ],
+      "args": []
     },
     {
       "name": "delete_product",
@@ -790,6 +1040,61 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "request_mutual_cancellation",
+      "discriminator": [
+        84,
+        162,
+        132,
+        188,
+        254,
+        48,
+        35,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "order_record",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
+        }
+      ],
+      "args": [
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
     },
     {
       "name": "restore_cancelled_order_stock",
@@ -1266,10 +1571,12 @@
       "accounts": [
         {
           "name": "buyer",
+          "writable": true,
           "signer": true
         },
         {
-          "name": "escrow"
+          "name": "escrow",
+          "writable": true
         },
         {
           "name": "purchase_offer",
@@ -1301,6 +1608,18 @@
               }
             ]
           }
+        },
+        {
+          "name": "creator",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "escrow_program",
+          "address": "3vLE5A56nctd7wVhBcgCtrDktLGVJXznDicmzycHkGRE"
         }
       ],
       "args": []
@@ -1331,6 +1650,19 @@
         8,
         25,
         77
+      ]
+    },
+    {
+      "name": "EscrowBinding",
+      "discriminator": [
+        229,
+        68,
+        245,
+        72,
+        7,
+        80,
+        62,
+        81
       ]
     },
     {
@@ -1675,6 +2007,46 @@
           {
             "name": "completed_at",
             "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowBinding",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "product",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "total_price",
+            "type": "u64"
+          },
+          {
+            "name": "checkout_type",
+            "type": "u8"
           },
           {
             "name": "bump",

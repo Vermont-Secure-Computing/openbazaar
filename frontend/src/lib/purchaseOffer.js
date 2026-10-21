@@ -63,6 +63,11 @@ export async function acceptPurchaseOffer({
 
   const purchaseOffer = getPurchaseOfferPda(escrow);
 
+  const [escrowBinding] = PublicKey.findProgramAddressSync(
+    [Buffer.from("escrow_binding"), escrow.toBuffer()],
+    marketplace.programId,
+  );
+
   const offer = await marketplace.account.purchaseOffer.fetch(purchaseOffer);
 
   if (!offer.seller.equals(seller)) {
@@ -96,6 +101,7 @@ export async function acceptPurchaseOffer({
       merchantProfile,
       orderRecord,
       vault,
+      escrowBinding,
       escrowProgram: escrowProgram.programId,
       systemProgram: SystemProgram.programId,
     })
