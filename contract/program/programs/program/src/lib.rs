@@ -469,14 +469,6 @@ pub mod sol_bazaar {
 
         require!(is_buy != is_offer, MarketplaceError::InvalidOfferEscrow);
 
-        // Ensure the stored binding matches the escrow checkout mode.
-        let binding = &ctx.accounts.escrow_binding;
-
-        require!(
-            (is_buy && binding.checkout_type == 0) || (is_offer && binding.checkout_type == 1),
-            MarketplaceError::InvalidOfferEscrow
-        );
-
         // Buy Now must use the listed product price.
         if is_buy {
             require!(
@@ -926,18 +918,31 @@ pub mod sol_bazaar {
         )?;
 
         // Verify escrow closure after successful CPI refund.
+        // Verify the escrow was cancelled after the refund CPI.
         let escrow_info = ctx.accounts.escrow.to_account_info();
 
         require_keys_eq!(
             *escrow_info.owner,
-            anchor_lang::solana_program::system_program::ID,
+            ESCROW_PROGRAM_ID,
             MarketplaceError::InvalidEscrowOwner
         );
 
+        let updated_data = escrow_info.try_borrow_data()?;
+        let updated_escrow = decode_external_escrow(updated_data.as_ref())?;
+
         require!(
-            escrow_info.data_is_empty(),
-            MarketplaceError::InvalidEscrowAccount
+            updated_escrow.status == 4,
+            MarketplaceError::InvalidOrderStatus
         );
+
+        require!(
+            updated_escrow.deposited_a == 0 && updated_escrow.deposited_b == 0,
+            MarketplaceError::InvalidBuyerDeposit
+        );
+
+        drop(updated_data);
+
+        ctx.accounts.purchase_offer.status = 3;
 
         // The SSScrow CPI completed successfully and the escrow is closed.
         ctx.accounts.purchase_offer.status = 3;
