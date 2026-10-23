@@ -649,6 +649,13 @@ pub mod sol_bazaar {
 
         require!(is_buy != is_offer, MarketplaceError::InvalidOfferEscrow);
 
+        let expected_checkout = if is_buy { 0 } else { 1 };
+
+        require!(
+            ctx.accounts.escrow_binding.checkout_type == expected_checkout,
+            MarketplaceError::InvalidOfferEscrow
+        );
+
         // Buy Now must retain the listed price.
         if is_buy {
             require!(
@@ -1090,6 +1097,17 @@ pub mod sol_bazaar {
         order.price = total_price;
         order.created_at = Clock::get()?.unix_timestamp;
         order.bump = ctx.bumps.order_record;
+
+        let binding = &mut ctx.accounts.escrow_binding;
+
+        binding.escrow = ctx.accounts.escrow.key();
+        binding.product = product.key();
+        binding.buyer = ctx.accounts.buyer.key();
+        binding.seller = product.merchant;
+        binding.quantity = quantity;
+        binding.total_price = total_price;
+        binding.checkout_type = 0;
+        binding.bump = ctx.bumps.escrow_binding;
 
         Ok(())
     }
